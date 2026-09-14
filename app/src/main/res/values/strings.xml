@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Asistente Celular</string>
+    <string name="listening">Escuchando…</string>
+    <string name="processing">Procesando…</string>
+    <string name="speaking">Hablando…</string>
+    <string name="ready">Listo para escuchar</string>
+    <string name="wake_word_active">Wake Word activo ("Oye Hendrix")</string>
+</resources>

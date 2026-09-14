@@ -1,0 +1,11 @@
+## Plantilla de variables de entorno para desarrollo
+## Copia este archivo como 'local.properties' y coloca tus claves reales
+
+# Clave de API de Google Gemini (Obtenla en Google AI Studio: https://aistudio.google.com/)
+GEMINI_API_KEY=tu_gemini_api_key_aqui
+
+# Clave de Groq (Opcional - https://console.groq.com/)
+GROQ_API_KEY=
+
+# Clave de OpenAI (Opcional - https://platform.openai.com/)
+OPENAI_API_KEY=
