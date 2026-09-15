@@ -42,6 +42,16 @@ data class SmartDevice(
      */
     fun matchesName(query: String): Boolean {
         val cleanQuery = query.lowercase().trim()
+            .removePrefix("el ")
+            .removePrefix("la ")
+            .removePrefix("los ")
+            .removePrefix("las ")
+            .removePrefix("del ")
+            .removePrefix("de la ")
+            .removePrefix("de el ")
+            .removePrefix("en el ")
+            .removePrefix("en la ")
+            .trim()
         if (cleanQuery.isBlank()) return false
         if (name.lowercase().contains(cleanQuery) || cleanQuery.contains(name.lowercase())) return true
         return aliases.any { alias ->

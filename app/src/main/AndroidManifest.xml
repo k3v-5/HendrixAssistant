@@ -8,9 +8,11 @@
     <!-- Permiso de Cámara para la linterna -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Permisos de Red para la conexión a APIs de IA -->
+    <!-- Permisos de Red para la conexión a APIs de IA y Domótica Local (SSDP Multicast) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- Permiso para programar alarmas y temporizadores -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />

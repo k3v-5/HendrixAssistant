@@ -1,5 +1,7 @@
 package com.asistente.celular.skills.smarthome
 
+import android.content.Context
+import android.net.wifi.WifiManager
 import android.util.Log
 import com.asistente.celular.nlu.smarthome.DeviceAction
 import com.asistente.celular.nlu.smarthome.DeviceActionResult
@@ -8,6 +10,9 @@ import com.asistente.celular.nlu.smarthome.SmartDevice
 import com.asistente.celular.nlu.smarthome.SmartDeviceDriver
 import com.asistente.celular.nlu.smarthome.SmartProtocol
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -19,6 +24,7 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -28,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * 100% Offline-first, sin nubes ni tokens de autenticación externos.
  */
 class YeelightLanDriver(
+    private val context: Context? = null,
     private val socketTimeoutMillis: Int = 2500
 ) : SmartDeviceDriver {
 
@@ -93,11 +100,23 @@ class YeelightLanDriver(
     }
 
     /**
-     * Descubre bombillas Xiaomi/Yeelight en la red local WiFi mediante SSDP Multicast UDP (puerto 1982).
+     * Descubre bombillas Xiaomi/Yeelight en la red local WiFi mediante SSDP Multicast UDP (puerto 1982)
+     * con fallback automático a escaneo activo de subred en el puerto 55443.
      */
     suspend fun discoverDevices(timeoutMillis: Long = 2000): List<SmartDevice> = withContext(Dispatchers.IO) {
         val discovered = mutableListOf<SmartDevice>()
         val seenIps = mutableSetOf<String>()
+
+        val wifiManager = context?.applicationContext?.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val multicastLock = try {
+            wifiManager?.createMulticastLock("yeelight_ssdp_lock")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo adquirir MulticastLock: ${e.message}")
+            null
+        }
 
         var socket: DatagramSocket? = null
         try {
@@ -113,7 +132,8 @@ class YeelightLanDriver(
             val groupAddress = InetAddress.getByName("239.255.255.250")
             val sendPacket = DatagramPacket(sendData, sendData.size, groupAddress, 1982)
 
-            // Enviar dos ráfagas para mayor confiabilidad en redes WiFi con interferencia
+            // Enviar ráfagas para mayor confiabilidad en redes WiFi
+            socket.send(sendPacket)
             socket.send(sendPacket)
             socket.send(sendPacket)
 
@@ -129,7 +149,7 @@ class YeelightLanDriver(
                     val device = parseSsdpResponse(response)
                     if (device != null && seenIps.add(device.ipAddress)) {
                         discovered.add(device)
-                        Log.i(TAG, "Dispositivo Yeelight/Xiaomi descubierto: '${device.name}' en ${device.ipAddress}")
+                        Log.i(TAG, "Dispositivo Yeelight/Xiaomi descubierto vía SSDP: '${device.name}' en ${device.ipAddress}")
                     }
                 } catch (timeoutEx: java.net.SocketTimeoutException) {
                     // Continuar hasta agotar timeoutMillis
@@ -139,9 +159,95 @@ class YeelightLanDriver(
             Log.w(TAG, "Aviso durante descubrimiento SSDP Yeelight: ${e.message}")
         } finally {
             socket?.close()
+            try {
+                if (multicastLock?.isHeld == true) {
+                    multicastLock.release()
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Si el descubrimiento SSDP no arrojó resultados (frecuente en routers que bloquean multicast IGMP entre dispositivos WiFi),
+        // realizamos un barrido TCP concurrente en el puerto 55443 sobre la subred local (/24).
+        if (discovered.isEmpty()) {
+            val subnetPrefix = getLocalSubnetPrefix()
+            if (subnetPrefix != null) {
+                Log.i(TAG, "SSDP sin resultados. Iniciando escaneo TCP de subred: ${subnetPrefix}0/24 en puerto 55443...")
+                val probedDevices = probeSubnetForYeelight(subnetPrefix, seenIps)
+                discovered.addAll(probedDevices)
+            }
         }
 
         discovered
+    }
+
+    private fun getLocalSubnetPrefix(): String? {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null
+            while (interfaces.hasMoreElements()) {
+                val intf = interfaces.nextElement()
+                if (!intf.isUp || intf.isLoopback) continue
+                val addresses = intf.inetAddresses ?: continue
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        val host = addr.hostAddress ?: continue
+                        if (host.startsWith("192.168.") || host.startsWith("10.") || host.startsWith("172.")) {
+                            val lastDot = host.lastIndexOf('.')
+                            if (lastDot > 0) {
+                                return host.substring(0, lastDot + 1)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error detectando subred local: ${e.message}")
+        }
+        return null
+    }
+
+    private suspend fun probeSubnetForYeelight(prefix: String, seenIps: MutableSet<String>): List<SmartDevice> = withContext(Dispatchers.IO) {
+        val found = mutableListOf<SmartDevice>()
+        coroutineScope {
+            val deferreds = (1..254).map { hostIndex ->
+                async {
+                    val ip = "$prefix$hostIndex"
+                    if (seenIps.contains(ip)) return@async null
+                    try {
+                        val socket = Socket()
+                        socket.connect(InetSocketAddress(ip, 55443), 200)
+                        socket.close()
+                        ip
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            }
+            val responsiveIps = deferreds.awaitAll().filterNotNull()
+            for (ip in responsiveIps) {
+                if (seenIps.add(ip)) {
+                    val initialDevice = SmartDevice(
+                        id = "yeelight_${ip.replace('.', '_')}",
+                        name = "Foco Xiaomi",
+                        aliases = listOf("foco", "luz", "bombilla", "foco xiaomi", "foco del cuarto", "luz del cuarto", "cuarto"),
+                        type = DeviceType.LIGHT,
+                        ipAddress = ip,
+                        port = 55443,
+                        protocol = SmartProtocol.YEELIGHT_LAN,
+                        isOnline = true
+                    )
+                    val status = queryStatus(initialDevice)
+                    val customName = status?.get("name")?.takeIf { it.isNotBlank() } ?: "Foco Xiaomi ($ip)"
+                    val finalDevice = initialDevice.copy(
+                        name = customName,
+                        properties = status ?: emptyMap()
+                    )
+                    found.add(finalDevice)
+                    Log.i(TAG, "Foco Yeelight detectado en subred local por sondeo TCP: $ip ($customName)")
+                }
+            }
+        }
+        found
     }
 
     private fun parseSsdpResponse(rawHeader: String): SmartDevice? {
@@ -178,7 +284,7 @@ class YeelightLanDriver(
         return SmartDevice(
             id = id,
             name = customName,
-            aliases = listOf("foco", "luz", "foco xiaomi", "bombilla", "foco de la sala", "luz de la sala"),
+            aliases = listOf("foco", "luz", "foco xiaomi", "bombilla", "foco de la sala", "luz de la sala", "foco del cuarto", "luz del cuarto", "cuarto", "sala"),
             type = DeviceType.LIGHT,
             ipAddress = ip,
             port = port,

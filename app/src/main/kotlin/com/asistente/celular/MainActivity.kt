@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
                 val tasks by viewModel.tasksState.collectAsState()
                 val notes by viewModel.notesState.collectAsState()
                 val smartDevices by viewModel.smartDevicesState.collectAsState()
+                val isScanningSmartDevices by viewModel.isScanningSmartDevices.collectAsState()
 
                 Scaffold(
                     bottomBar = {
@@ -169,6 +170,7 @@ class MainActivity : ComponentActivity() {
                                     isWakeWordActive = uiState.isWakeWordActive,
                                     localModelManager = viewModel.localModelManager,
                                     smartDevices = smartDevices,
+                                    isScanningSmartDevices = isScanningSmartDevices,
                                     onSaveConfig = { newConfig -> viewModel.updateLlmConfig(newConfig) },
                                     onToggleWakeWord = { enable -> toggleBackgroundWakeWord(enable) },
                                     onDownloadModel = { modelId -> viewModel.startModelDownload(modelId) },

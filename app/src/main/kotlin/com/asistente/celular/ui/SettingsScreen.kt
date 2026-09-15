@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -56,6 +58,7 @@ fun SettingsScreen(
     isWakeWordActive: Boolean,
     localModelManager: com.asistente.celular.ai.local.LocalModelManager? = null,
     smartDevices: List<com.asistente.celular.nlu.smarthome.SmartDevice> = emptyList(),
+    isScanningSmartDevices: Boolean = false,
     onSaveConfig: (LlmConfig) -> Unit,
     onToggleWakeWord: (Boolean) -> Unit,
     onDownloadModel: (String) -> Unit = {},
@@ -206,9 +209,20 @@ fun SettingsScreen(
             ) {
                 Button(
                     onClick = { onDiscoverSmartDevices() },
+                    enabled = !isScanningSmartDevices,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("🔍 Buscar en WiFi")
+                    if (isScanningSmartDevices) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Buscando...", fontSize = 12.sp)
+                    } else {
+                        Text("🔍 Buscar en WiFi")
+                    }
                 }
                 OutlinedButton(
                     onClick = { showManualAddDialog = !showManualAddDialog },
@@ -217,6 +231,13 @@ fun SettingsScreen(
                     Text(if (showManualAddDialog) "Ocultar IP" else "➕ Añadir IP")
                 }
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "💡 Tip: Asegúrate de tener activa la opción 'Control en LAN' (en app Yeelight o Xiaomi Home) para que el foco responda en tu red local.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
 
             if (showManualAddDialog) {
                 Spacer(modifier = Modifier.height(8.dp))

@@ -102,7 +102,10 @@ class SmartHomeSkillTest {
             "apaga la luz",
             "apagar el foco",
             "apaga las luces",
-            "apaga la lampara"
+            "apaga la lampara",
+            "apaga mi foco",
+            "se apaga mi foco",
+            "apaga el foco del cuarto"
         )
 
         for (phrase in phrases) {

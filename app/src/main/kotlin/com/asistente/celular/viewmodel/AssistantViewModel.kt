@@ -82,6 +82,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val tasksState = taskRepository.tasks
     val notesState = noteRepository.notes
     val smartDevicesState = smartHomeRepository.devices
+    val isScanningSmartDevices = MutableStateFlow(false)
 
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(application)
@@ -308,21 +309,29 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Operaciones de Domótica / Foco Xiaomi
     fun discoverSmartDevices() {
         viewModelScope.launch {
-            smartHomeRepository.discoverDevices()
+            isScanningSmartDevices.value = true
+            try {
+                smartHomeRepository.discoverDevices()
+            } finally {
+                isScanningSmartDevices.value = false
+            }
         }
     }
 
     fun addManualSmartDevice(name: String, ip: String) {
         viewModelScope.launch {
+            val cleanIp = ip.trim()
             val device = com.asistente.celular.nlu.smarthome.SmartDevice(
-                id = "manual_${ip.replace(".", "_")}",
+                id = "manual_${cleanIp.replace(".", "_")}",
                 name = name.ifBlank { "Foco Xiaomi" },
-                aliases = listOf("foco", "luz", "foco xiaomi", "bombilla"),
-                ipAddress = ip.trim(),
+                aliases = listOf("foco", "luz", "foco xiaomi", "bombilla", "foco cuarto", "luz cuarto", "cuarto", "sala"),
+                ipAddress = cleanIp,
                 port = 55443,
                 protocol = com.asistente.celular.nlu.smarthome.SmartProtocol.YEELIGHT_LAN
             )
             smartHomeRepository.addOrUpdateDevice(device)
+            // Sincronizar estado inicial (encendido/brillo) en segundo plano
+            smartHomeRepository.executeAction(device.id, com.asistente.celular.nlu.smarthome.DeviceAction.Custom("get_prop", listOf("power", "bright", "name")))
         }
     }
 

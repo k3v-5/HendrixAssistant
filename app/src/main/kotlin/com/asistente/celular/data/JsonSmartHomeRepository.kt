@@ -29,7 +29,7 @@ import java.io.File
 class JsonSmartHomeRepository(
     private val context: Context,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
-    private val drivers: List<SmartDeviceDriver> = listOf(YeelightLanDriver())
+    private val drivers: List<SmartDeviceDriver> = listOf(YeelightLanDriver(context = context))
 ) : SmartHomeRepository {
 
     private val file = File(context.filesDir, "smart_devices.json")
@@ -87,7 +87,7 @@ class JsonSmartHomeRepository(
 
     override suspend fun discoverDevices(): List<SmartDevice> {
         val yeelightDriver = driverMap[SmartProtocol.YEELIGHT_LAN] as? YeelightLanDriver
-            ?: YeelightLanDriver()
+            ?: YeelightLanDriver(context = context)
 
         val discovered = yeelightDriver.discoverDevices(timeoutMillis = 2000)
 

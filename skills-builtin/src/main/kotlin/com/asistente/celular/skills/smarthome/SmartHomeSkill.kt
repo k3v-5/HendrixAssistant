@@ -33,10 +33,11 @@ class SmartHomeSkill(
     override val specificity: Specificity = Specificity.HIGH
 
     private val turnOnPatterns: List<Construct> = listOf(
-        // "[prende|enciende|activa|pon] [el|la|los|las] [foco|luz|luces|lampara] [de la sala|xiaomi|...]"
+        // "[se|me] [prende|enciende|activa|pon] [el|la|los|las|mi|mis] [foco|luz|luces|lampara] [de la sala|xiaomi|...]"
         SequenceConstruct(
-            WordConstruct("prende", "prender", "enciende", "encender", "activa", "activar", "premdeme", "enciendeme"),
-            OptionalConstruct(WordConstruct("el", "la", "los", "las", "un", "una")),
+            OptionalConstruct(WordConstruct("se", "me", "por", "favor")),
+            WordConstruct("prende", "prender", "enciende", "encender", "activa", "activar", "prendeme", "enciendeme", "pon", "poner"),
+            OptionalConstruct(WordConstruct("el", "la", "los", "las", "un", "una", "mi", "mis", "tu", "este", "esta")),
             WordConstruct("foco", "luz", "luces", "lampara", "bombilla", "foco inteligente"),
             OptionalConstruct(CapturingConstruct("target_device"))
         ),
@@ -47,10 +48,11 @@ class SmartHomeSkill(
     )
 
     private val turnOffPatterns: List<Construct> = listOf(
-        // "[apaga|desactiva|quitar] [el|la|los|las] [foco|luz|luces|lampara] [de la sala|...]"
+        // "[se|me] [apaga|desactiva|quitar] [el|la|los|las|mi|mis] [foco|luz|luces|lampara] [de la sala|...]"
         SequenceConstruct(
-            WordConstruct("apaga", "apagar", "desactiva", "desactivar", "apagame", "apagarme"),
-            OptionalConstruct(WordConstruct("el", "la", "los", "las", "un", "una")),
+            OptionalConstruct(WordConstruct("se", "me", "por", "favor")),
+            WordConstruct("apaga", "apagar", "desactiva", "desactivar", "apagame", "apagarme", "quita", "quitar"),
+            OptionalConstruct(WordConstruct("el", "la", "los", "las", "un", "una", "mi", "mis", "tu", "este", "esta")),
             WordConstruct("foco", "luz", "luces", "lampara", "bombilla", "foco inteligente"),
             OptionalConstruct(CapturingConstruct("target_device"))
         ),
@@ -205,7 +207,7 @@ class SmartHomeSkill(
         if (smartHomeRepository.devices.value.isEmpty()) {
             val discovered = smartHomeRepository.discoverDevices()
             if (discovered.isEmpty()) {
-                val errorMsg = "No encontré ningún foco inteligente Xiaomi o Yeelight en tu red WiFi. Asegúrate de tener activa la opción 'Control en LAN' en la app Xiaomi Home o añade la IP del foco en los Ajustes de Hendrix."
+                val errorMsg = "No encontré ningún foco Xiaomi en tu red WiFi. Asegúrate de tener activada la opción 'Control en LAN' (en la app Yeelight o Xiaomi Home) o agrega la IP del foco en los Ajustes de Hendrix."
                 return SkillOutput(speech = errorMsg, displayText = errorMsg, success = false)
             }
         }
