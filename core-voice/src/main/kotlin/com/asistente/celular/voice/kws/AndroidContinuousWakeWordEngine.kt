@@ -162,7 +162,8 @@ class AndroidContinuousWakeWordEngine(
                             val event = matches?.let { extractWakeWordEvent(it) }
                             if (event != null) {
                                 lastDetectedEvent = event
-                                Log.d(TAG, "Palabra clave en parciales: ${event.keyword}, comando provisional: '${event.command}'")
+                                Log.d(TAG, "Activando de inmediato por parcial: ${event.keyword}, comando: '${event.command}'")
+                                handleKeywordMatch(event)
                             }
                         }
 
@@ -251,6 +252,8 @@ class AndroidContinuousWakeWordEngine(
         val sortedKeywords = keywords.sortedByDescending { it.length }
         for (candidate in candidates) {
             val normalized = normalizeText(candidate)
+
+            // 1. Coincidencia directa con palabras clave ("Oye Hendrix", "Hendrix", etc.)
             for (kw in sortedKeywords) {
                 val normalizedKw = normalizeText(kw)
                 val idx = normalized.indexOf(normalizedKw)
@@ -258,27 +261,7 @@ class AndroidContinuousWakeWordEngine(
                     val after = normalized.substring(idx + normalizedKw.length).trim()
                     val before = normalized.substring(0, idx).trim()
                     val rawCommand = if (after.isNotBlank()) after else before
-
-                    var clean = rawCommand.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
-                    val fillers = listOf(
-                        "por favor", "porfa", "puedes", "podrias", "podrías",
-                        "me puedes", "me podrias", "me podrías", "quiero que", "hazme el favor de", "me"
-                    )
-                    var changed = true
-                    while (changed) {
-                        changed = false
-                        clean = clean.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
-                        for (filler in fillers) {
-                            if (clean.startsWith(filler)) {
-                                clean = clean.removePrefix(filler).trim()
-                                changed = true
-                            }
-                        }
-                    }
-                    val cleanCommand = clean
-                        .trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
-                        .trimEnd { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
-                        .takeIf { it.isNotBlank() }
+                    val cleanCommand = cleanCommandString(rawCommand)
 
                     return com.asistente.celular.voice.WakeWordEvent(
                         keyword = kw,
@@ -287,8 +270,54 @@ class AndroidContinuousWakeWordEngine(
                     )
                 }
             }
+
+            // 2. Coincidencia directa con órdenes habituales si la voz ya disparó el micrófono
+            if (isCommonCommand(normalized)) {
+                val cleanCommand = cleanCommandString(normalized)
+                return com.asistente.celular.voice.WakeWordEvent(
+                    keyword = "hendrix",
+                    fullUtterance = candidate,
+                    command = cleanCommand
+                )
+            }
         }
         return null
+    }
+
+    private fun cleanCommandString(raw: String): String? {
+        var clean = raw.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+        val fillers = listOf(
+            "por favor", "porfa", "puedes", "podrias", "podrías",
+            "me puedes", "me podrias", "me podrías", "quiero que", "hazme el favor de", "me"
+        )
+        var changed = true
+        while (changed) {
+            changed = false
+            clean = clean.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+            for (filler in fillers) {
+                if (clean.startsWith(filler)) {
+                    clean = clean.removePrefix(filler).trim()
+                    changed = true
+                }
+            }
+        }
+        return clean
+            .trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+            .trimEnd { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+            .takeIf { it.isNotBlank() }
+    }
+
+    private fun isCommonCommand(text: String): Boolean {
+        val triggers = listOf(
+            "prende", "prender", "enciende", "encender", "apaga", "apagar",
+            "foco", "focos", "luz", "luces", "lampara", "bombilla",
+            "brillo", "alarma", "temporizador", "timer", "cronometro",
+            "hora", "que hora", "qué hora", "musica", "reproduce",
+            "pon", "deten", "para", "pausa", "volumen", "sube", "baja",
+            "llama", "llamar", "whatsapp", "recuerdame", "nota",
+            "abre", "abrir"
+        )
+        return triggers.any { text.contains(it) }
     }
 
     private fun normalizeText(text: String): String {
@@ -310,9 +339,9 @@ class AndroidContinuousWakeWordEngine(
 
     companion object {
         private const val TAG = "ContinuousWakeWord"
-        private const val VOICE_RMS_THRESHOLD = 0.075f
-        private const val REQUIRED_VOICE_FRAMES = 4
-        private const val COOLDOWN_MILLIS = 3500L
+        private const val VOICE_RMS_THRESHOLD = 0.045f
+        private const val REQUIRED_VOICE_FRAMES = 2
+        private const val COOLDOWN_MILLIS = 2000L
 
         val DEFAULT_KEYWORDS = listOf(
             "oye hendrix",

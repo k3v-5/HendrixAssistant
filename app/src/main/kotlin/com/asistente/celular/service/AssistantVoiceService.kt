@@ -71,26 +71,16 @@ class AssistantVoiceService : Service() {
             // Feedback táctil inmediato: el usuario sabe que fue escuchado al instante
             hapticManager.vibrateStartListening()
 
-            val canDrawOverlays = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(this)
-            } else {
-                true
-            }
-
             val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
-                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(AssistantDialogActivity.EXTRA_INITIAL_COMMAND, event.command)
                 putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
             }
 
-            if (canDrawOverlays) {
-                try {
-                    startActivity(dialogIntent)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Fallo al iniciar AssistantDialogActivity desde segundo plano: ${e.message}")
-                    handleBackgroundFallback(event, dialogIntent)
-                }
-            } else {
+            try {
+                startActivity(dialogIntent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Fallo al iniciar AssistantDialogActivity directamente: ${e.message}")
                 handleBackgroundFallback(event, dialogIntent)
             }
         }
