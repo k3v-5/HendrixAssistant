@@ -71,6 +71,11 @@ class BuiltinSkillsTest {
         assertTrue("Ponme una alarma sin hora debe coincidir con AlarmSkill", scoreNoTime.isMatch)
         assertNull(scoreNoTime.capturedSlots["time"])
 
+        // Verificar que "Ponme una alarma" o "una alarma" NO se parsea como la 1:00 a.m.
+        assertNull(com.asistente.celular.nlu.parser.SpanishDateTimeParser.parseTime("Ponme una alarma"))
+        assertNull(com.asistente.celular.nlu.parser.SpanishDateTimeParser.parseTime("una alarma"))
+        assertNull(com.asistente.celular.nlu.parser.SpanishDateTimeParser.parseTime("comprar una mesa"))
+
         val scoreNoTime2 = skill.score(dummyContext, "pon una alarma")
         assertTrue(scoreNoTime2.isMatch)
 

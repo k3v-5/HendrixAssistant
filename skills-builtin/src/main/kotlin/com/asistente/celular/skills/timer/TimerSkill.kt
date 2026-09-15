@@ -66,7 +66,6 @@ class TimerSkill : StandardRecognizerSkill(
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
         val durationStr = score.capturedSlots["duration"]
         val seconds = durationStr?.let { SpanishDateTimeParser.parseDurationSeconds(it) }
-            ?: SpanishDateTimeParser.parseDurationSeconds(input)
 
         if (seconds == null || seconds <= 0) {
             return try {

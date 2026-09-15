@@ -76,7 +76,7 @@ class AlarmSkill : StandardRecognizerSkill(
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
         val timeStr = score.capturedSlots["time"]
-        val time = timeStr?.let { SpanishDateTimeParser.parseTime(it) } ?: SpanishDateTimeParser.parseTime(input)
+        val time = timeStr?.let { SpanishDateTimeParser.parseTime(it) }
 
         if (time == null) {
             // Si no se especificó hora, abrir la interfaz del reloj para configurar la alarma

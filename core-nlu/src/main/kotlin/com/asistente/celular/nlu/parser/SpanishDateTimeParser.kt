@@ -126,8 +126,17 @@ object SpanishDateTimeParser {
         // Extraer componentes verbales
         val isPm = lower.contains("tarde") || lower.contains("noche") || lower.contains("pm")
         val isAm = lower.contains("manana") || lower.contains("madrugada") || lower.contains("am")
+        val hasTemporalIndicator = isPm || isAm || lower.contains("en punto") || lower.contains("horas")
 
-        val hourRegex = "(?:a las?|para las?)?\\s*(\\d+|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)".toRegex()
+        // Exigir preposición explícita ("a las / para las / a la / para la") O indicador temporal explícito ("am", "pm", "de la mañana", "en punto")
+        // para no confundir artículos indeterminados ("una alarma", "un recordatorio") con la 1:00.
+        val hasExplicitPreposition = "(?:\\ba las?\\b|\\bpara las?\\b)".toRegex().containsMatchIn(lower)
+
+        if (!hasExplicitPreposition && !hasTemporalIndicator) {
+            return null
+        }
+
+        val hourRegex = "(?:\\ba las?\\b|\\bpara las?\\b)?\\s*(\\d+|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)".toRegex()
         val hourMatch = hourRegex.find(lower) ?: return null
         var hour = SpanishNumberParser.parseNumber(hourMatch.groupValues[1]) ?: return null
 

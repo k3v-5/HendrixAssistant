@@ -182,6 +182,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Mientras la app esté en primer plano en pantalla, pausar la escucha de fondo para ceder el micrófono
+        com.asistente.celular.util.MicCoordinator.acquireMicLock("MainActivityForeground")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        com.asistente.celular.util.MicCoordinator.releaseMicLock("MainActivityForeground")
+    }
+
     override fun onStop() {
         super.onStop()
         viewModel.stopListening()
