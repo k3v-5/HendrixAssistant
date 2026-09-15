@@ -51,15 +51,19 @@ class HelpSkill : StandardRecognizerSkill(
     )
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
-        val speech = "Puedo gestionar tus tareas y notas, encender la linterna, decirte la hora y la fecha, programar alarmas y temporizadores, controlar tu música, abrir aplicaciones y responder a tus dudas con Inteligencia Artificial."
+        val speech = "Puedo gestionar tus tareas y notas, controlar el volumen y ajustes, realizar llamadas y enviar WhatsApp, encender la linterna, programar alarmas y temporizadores, controlar tu música, abrir aplicaciones y responder preguntas con Inteligencia Artificial."
         val displayText = """¡Hola! Esto es lo que puedo hacer:
 ✅ Tareas: "Recuérdame comprar leche mañana a las 5 pm", "¿Cuáles son mis tareas?"
 📝 Notas: "Toma una nota: código de puerta 1234", "Mis notas"
+🔊 Volumen: "Sube el volumen", "Volumen al 50%", "Silencia el teléfono"
+📞 Llamadas: "Llama a Juan", "Llamar al 5512345678"
+💬 WhatsApp: "Envía un WhatsApp a Mamá diciendo ya llegué"
+⚙️ Ajustes: "Abre los ajustes de Wi-Fi", "Ajustes de Bluetooth", "Modo No Molestar"
 🔦 Linterna: "Enciende la linterna", "Apaga la linterna"
 ⏰ Alarmas y Hora: "Pon una alarma a las 7:00", "Temporizador de 5 minutos", "¿Qué hora es?"
 🎵 Música: "Pausa la música", "Siguiente canción", "Reproduce"
 📱 Aplicaciones: "Abre WhatsApp", "Abre YouTube"
-🤖 Inteligencia Artificial: Pregúntame sobre cualquier tema libre."""
+🤖 Inteligencia Artificial: Pregúntame sobre tus pendientes o cualquier tema libre."""
 
         return SkillOutput(
             speech = speech,

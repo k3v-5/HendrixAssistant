@@ -20,6 +20,7 @@ import com.asistente.celular.nlu.skill.SkillOutput
 class AiRouterSkill(
     private val llmClient: LlmClient,
     private val modelHarness: ModelHarness = ModelHarness(),
+    private val personalContextProvider: com.asistente.celular.ai.rag.PersonalContextProvider? = null,
     private val configProvider: () -> LlmConfig
 ) : Skill {
 
@@ -56,7 +57,12 @@ class AiRouterSkill(
     }
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
-        val config = configProvider()
+        val baseConfig = configProvider()
+
+        // 0. Enriquecimiento de contexto personal y memoria (RAG local)
+        val enrichedPrompt = personalContextProvider?.buildEnrichedSystemPrompt(baseConfig.systemPrompt, input)
+            ?: baseConfig.systemPrompt
+        val config = baseConfig.copy(systemPrompt = enrichedPrompt)
 
         // 1. Verificación de conectividad offline
         if (!context.isConnectedToInternet && config.provider != AiProvider.LOCAL_SLM) {
@@ -104,7 +110,7 @@ class AiRouterSkill(
         }
 
         // 4. Ejecución estándar con modelo fijo
-        val result = llmClient.generateResponse(input)
+        val result = llmClient.generateResponse(input, config)
 
         return if (result.isSuccess) {
             val aiResponse = result.getOrThrow()

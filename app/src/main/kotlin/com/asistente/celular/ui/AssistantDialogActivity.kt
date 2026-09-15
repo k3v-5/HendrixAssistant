@@ -106,9 +106,19 @@ class AssistantDialogActivity : ComponentActivity() {
         com.asistente.celular.util.MicCoordinator.acquireMicLock("AssistantDialogActivity")
 
         val activeLlmConfig = settingsRepo.loadLlmConfig()
+        val taskScheduler = com.asistente.celular.service.TaskReminderScheduler(this)
+        val taskRepository = com.asistente.celular.data.JsonTaskRepository(this, taskScheduler, lifecycleScope)
+        val noteRepository = com.asistente.celular.data.JsonNoteRepository(this, lifecycleScope)
+        val personalContextProvider = com.asistente.celular.ai.rag.DefaultPersonalContextProvider(taskRepository, noteRepository)
+
         val llmClient = LlmClient { activeLlmConfig }
         val modelHarness = ModelHarness()
-        val aiFallback = AiRouterSkill(llmClient, modelHarness) { activeLlmConfig }
+        val aiFallback = AiRouterSkill(
+            llmClient = llmClient,
+            modelHarness = modelHarness,
+            personalContextProvider = personalContextProvider,
+            configProvider = { activeLlmConfig }
+        )
 
         val localSkills = listOf(
             FlashlightSkill(),
@@ -116,7 +126,13 @@ class AssistantDialogActivity : ComponentActivity() {
             AlarmSkill(),
             AppLauncherSkill(),
             CurrentTimeSkill(),
-            MediaControlSkill()
+            MediaControlSkill(),
+            com.asistente.celular.skills.system.VolumeSkill(),
+            com.asistente.celular.skills.system.SystemSettingsSkill(),
+            com.asistente.celular.skills.communication.PhoneCallSkill(),
+            com.asistente.celular.skills.communication.WhatsAppSkill(),
+            com.asistente.celular.skills.tasks.TasksSkill(taskRepository, taskScheduler),
+            com.asistente.celular.skills.notes.NotesSkill(noteRepository)
         )
 
         val ranker = SkillRanker(localSkills, aiFallback)

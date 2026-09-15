@@ -67,19 +67,6 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Configuración persistida de IA
     private var activeLlmConfig: LlmConfig = settingsRepo.loadLlmConfig()
 
-    // Cliente IA y Model Routing Harness
-    private val llmClient = LlmClient(
-        localModelManager = localModelManager,
-        localInferenceEngine = localInferenceEngine,
-        configProvider = { activeLlmConfig }
-    )
-    private val modelHarness = ModelHarness()
-    private val aiFallbackSkill = AiRouterSkill(
-        llmClient = llmClient,
-        modelHarness = modelHarness,
-        configProvider = { activeLlmConfig }
-    )
-
     // Subconjunto de Tareas y Notas (Google Tasks & Google Keep offline-first)
     val taskScheduler: com.asistente.celular.service.TaskReminderScheduler =
         com.asistente.celular.service.TaskReminderScheduler(application)
@@ -93,6 +80,24 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val tasksState = taskRepository.tasks
     val notesState = noteRepository.notes
 
+    // Proveedor de Contexto Personal y Memoria (RAG Local)
+    val personalContextProvider: com.asistente.celular.ai.rag.PersonalContextProvider =
+        com.asistente.celular.ai.rag.DefaultPersonalContextProvider(taskRepository, noteRepository)
+
+    // Cliente IA y Model Routing Harness
+    private val llmClient = LlmClient(
+        localModelManager = localModelManager,
+        localInferenceEngine = localInferenceEngine,
+        configProvider = { activeLlmConfig }
+    )
+    private val modelHarness = ModelHarness()
+    private val aiFallbackSkill = AiRouterSkill(
+        llmClient = llmClient,
+        modelHarness = modelHarness,
+        personalContextProvider = personalContextProvider,
+        configProvider = { activeLlmConfig }
+    )
+
     // Habilidades locales del dispositivo (PNL Offline)
     private val localSkills = listOf(
         HelpSkill(),
@@ -102,6 +107,10 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         AppLauncherSkill(),
         CurrentTimeSkill(),
         MediaControlSkill(),
+        com.asistente.celular.skills.system.VolumeSkill(),
+        com.asistente.celular.skills.system.SystemSettingsSkill(),
+        com.asistente.celular.skills.communication.PhoneCallSkill(),
+        com.asistente.celular.skills.communication.WhatsAppSkill(),
         com.asistente.celular.skills.tasks.TasksSkill(taskRepository, taskScheduler),
         com.asistente.celular.skills.notes.NotesSkill(noteRepository)
     )

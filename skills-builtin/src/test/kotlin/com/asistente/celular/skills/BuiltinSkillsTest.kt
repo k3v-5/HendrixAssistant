@@ -142,4 +142,65 @@ class BuiltinSkillsTest {
         val score4 = skill.score(dummyContext, "ayuda")
         assertTrue(score4.isMatch)
     }
+
+    @Test
+    fun testVolumeSkillMatches() {
+        val skill = com.asistente.celular.skills.system.VolumeSkill()
+        val scoreRaise = skill.score(dummyContext, "sube el volumen")
+        assertTrue(scoreRaise.isMatch)
+
+        val scoreLower = skill.score(dummyContext, "baja el volumen")
+        assertTrue(scoreLower.isMatch)
+
+        val scoreLevel = skill.score(dummyContext, "pon el volumen al 50%")
+        assertTrue(scoreLevel.isMatch)
+        assertEquals("50", scoreLevel.capturedSlots["level"])
+
+        val scoreSilence = skill.score(dummyContext, "silencia el celular")
+        assertTrue(scoreSilence.isMatch)
+
+        val scoreMute = skill.score(dummyContext, "modo silencio")
+        assertTrue(scoreMute.isMatch)
+    }
+
+    @Test
+    fun testSystemSettingsSkillMatches() {
+        val skill = com.asistente.celular.skills.system.SystemSettingsSkill()
+        val scoreWifi = skill.score(dummyContext, "abre los ajustes de wifi")
+        assertTrue(scoreWifi.isMatch)
+
+        val scoreBt = skill.score(dummyContext, "configurar bluetooth")
+        assertTrue(scoreBt.isMatch)
+
+        val scoreDnd = skill.score(dummyContext, "modo no molestar")
+        assertTrue(scoreDnd.isMatch)
+    }
+
+    @Test
+    fun testPhoneCallSkillMatches() {
+        val skill = com.asistente.celular.skills.communication.PhoneCallSkill()
+        val scoreName = skill.score(dummyContext, "llama a Juan")
+        assertTrue(scoreName.isMatch)
+        assertEquals("juan", scoreName.capturedSlots["target"])
+
+        val scoreNum = skill.score(dummyContext, "marcar al 5512345678")
+        assertTrue(scoreNum.isMatch)
+        assertEquals("5512345678", scoreNum.capturedSlots["target"])
+
+        val scoreCall = skill.score(dummyContext, "haz una llamada a Mama")
+        assertTrue(scoreCall.isMatch)
+        assertEquals("mama", scoreCall.capturedSlots["target"])
+    }
+
+    @Test
+    fun testWhatsAppSkillMatches() {
+        val skill = com.asistente.celular.skills.communication.WhatsAppSkill()
+        val score1 = skill.score(dummyContext, "manda un mensaje por whatsapp a Juan diciendo ya voy en camino")
+        assertTrue(score1.isMatch)
+
+        val score2 = skill.score(dummyContext, "escribe a Carlos por whatsapp hola como estas")
+        assertTrue(score2.isMatch)
+        assertEquals("carlos", score2.capturedSlots["contact"])
+        assertEquals("hola como estas", score2.capturedSlots["message"])
+    }
 }

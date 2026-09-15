@@ -32,8 +32,8 @@ open class LlmClient(
     /**
      * Envía un prompt a la IA configurada y retorna el texto de respuesta.
      */
-    suspend fun generateResponse(prompt: String): Result<String> = withContext(Dispatchers.IO) {
-        val config = configProvider()
+    suspend fun generateResponse(prompt: String, overrideConfig: LlmConfig? = null): Result<String> = withContext(Dispatchers.IO) {
+        val config = overrideConfig ?: configProvider()
 
         return@withContext try {
             val responseText = when (config.provider) {
