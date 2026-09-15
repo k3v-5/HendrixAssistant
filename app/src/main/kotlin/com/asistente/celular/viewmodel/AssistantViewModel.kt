@@ -67,58 +67,19 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Configuración persistida de IA
     private var activeLlmConfig: LlmConfig = settingsRepo.loadLlmConfig()
 
-    // Subconjunto de Tareas y Notas (Google Tasks & Google Keep offline-first)
-    val taskScheduler: com.asistente.celular.service.TaskReminderScheduler =
-        com.asistente.celular.service.TaskReminderScheduler(application)
+    // Factoría unificada de habilidades, repositorios y contexto personal
+    private val factory = com.asistente.celular.di.AssistantSkillFactory(application, viewModelScope)
 
-    val taskRepository: com.asistente.celular.nlu.tasks.TaskRepository =
-        com.asistente.celular.data.JsonTaskRepository(application, taskScheduler, viewModelScope)
-
-    val noteRepository: com.asistente.celular.nlu.notes.NoteRepository =
-        com.asistente.celular.data.JsonNoteRepository(application, viewModelScope)
+    val taskScheduler = factory.taskScheduler
+    val taskRepository = factory.taskRepository
+    val noteRepository = factory.noteRepository
+    val routineRepository = factory.routineRepository
+    val semanticMemoryRepository = factory.semanticMemoryRepository
+    val calendarRepository = factory.calendarRepository
+    val personalContextProvider = factory.personalContextProvider
 
     val tasksState = taskRepository.tasks
     val notesState = noteRepository.notes
-
-    // Proveedor de Contexto Personal y Memoria (RAG Local)
-    val personalContextProvider: com.asistente.celular.ai.rag.PersonalContextProvider =
-        com.asistente.celular.ai.rag.DefaultPersonalContextProvider(taskRepository, noteRepository)
-
-    // Cliente IA y Model Routing Harness
-    private val llmClient = LlmClient(
-        localModelManager = localModelManager,
-        localInferenceEngine = localInferenceEngine,
-        configProvider = { activeLlmConfig }
-    )
-    private val modelHarness = ModelHarness()
-    private val aiFallbackSkill = AiRouterSkill(
-        llmClient = llmClient,
-        modelHarness = modelHarness,
-        personalContextProvider = personalContextProvider,
-        configProvider = { activeLlmConfig }
-    )
-
-    // Habilidades locales del dispositivo (PNL Offline)
-    private val localSkills = listOf(
-        HelpSkill(),
-        FlashlightSkill(),
-        TimerSkill(),
-        AlarmSkill(),
-        AppLauncherSkill(),
-        CurrentTimeSkill(),
-        MediaControlSkill(),
-        com.asistente.celular.skills.system.VolumeSkill(),
-        com.asistente.celular.skills.system.SystemSettingsSkill(),
-        com.asistente.celular.skills.communication.PhoneCallSkill(),
-        com.asistente.celular.skills.communication.WhatsAppSkill(),
-        com.asistente.celular.skills.tasks.TasksSkill(taskRepository, taskScheduler),
-        com.asistente.celular.skills.notes.NotesSkill(noteRepository)
-    )
-
-    private val skillRanker = SkillRanker(
-        skills = localSkills,
-        fallbackSkill = aiFallbackSkill
-    )
 
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(application)
@@ -134,9 +95,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Evaluador y orquestador
-    private val evaluator = SkillEvaluator(
-        ranker = skillRanker,
+    private val evaluator = factory.createSkillEvaluator(
         skillContext = skillContext,
+        localModelManager = localModelManager,
+        localInferenceEngine = localInferenceEngine,
+        configProvider = { activeLlmConfig },
         onSpeak = { text ->
             _uiState.value = _uiState.value.copy(isSpeaking = true)
             try {

@@ -105,37 +105,8 @@ class AssistantDialogActivity : ComponentActivity() {
         // Pausar el motor de segundo plano para ceder el micrófono
         com.asistente.celular.util.MicCoordinator.acquireMicLock("AssistantDialogActivity")
 
+        val factory = com.asistente.celular.di.AssistantSkillFactory(this, lifecycleScope)
         val activeLlmConfig = settingsRepo.loadLlmConfig()
-        val taskScheduler = com.asistente.celular.service.TaskReminderScheduler(this)
-        val taskRepository = com.asistente.celular.data.JsonTaskRepository(this, taskScheduler, lifecycleScope)
-        val noteRepository = com.asistente.celular.data.JsonNoteRepository(this, lifecycleScope)
-        val personalContextProvider = com.asistente.celular.ai.rag.DefaultPersonalContextProvider(taskRepository, noteRepository)
-
-        val llmClient = LlmClient { activeLlmConfig }
-        val modelHarness = ModelHarness()
-        val aiFallback = AiRouterSkill(
-            llmClient = llmClient,
-            modelHarness = modelHarness,
-            personalContextProvider = personalContextProvider,
-            configProvider = { activeLlmConfig }
-        )
-
-        val localSkills = listOf(
-            FlashlightSkill(),
-            TimerSkill(),
-            AlarmSkill(),
-            AppLauncherSkill(),
-            CurrentTimeSkill(),
-            MediaControlSkill(),
-            com.asistente.celular.skills.system.VolumeSkill(),
-            com.asistente.celular.skills.system.SystemSettingsSkill(),
-            com.asistente.celular.skills.communication.PhoneCallSkill(),
-            com.asistente.celular.skills.communication.WhatsAppSkill(),
-            com.asistente.celular.skills.tasks.TasksSkill(taskRepository, taskScheduler),
-            com.asistente.celular.skills.notes.NotesSkill(noteRepository)
-        )
-
-        val ranker = SkillRanker(localSkills, aiFallback)
 
         val skillContext = object : SkillContext {
             override val androidContext: Context get() = this@AssistantDialogActivity
@@ -143,9 +114,11 @@ class AssistantDialogActivity : ComponentActivity() {
             override val previousOutput: SkillOutput? = null
         }
 
-        evaluator = SkillEvaluator(
-            ranker = ranker,
+        evaluator = factory.createSkillEvaluator(
             skillContext = skillContext,
+            localModelManager = com.asistente.celular.ai.local.DefaultLocalModelManager(this),
+            localInferenceEngine = com.asistente.celular.ai.local.LlamaCppInferenceEngine(),
+            configProvider = { activeLlmConfig },
             onSpeak = { text ->
                 ttsEngine.speak(text)
             }

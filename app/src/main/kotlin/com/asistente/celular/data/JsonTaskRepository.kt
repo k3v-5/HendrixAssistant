@@ -84,6 +84,7 @@ class JsonTaskRepository(
             } else {
                 file.writeText(serialized)
             }
+            com.asistente.celular.widget.TasksWidgetProvider.notifyDataChanged(context)
         } catch (e: Exception) {
             android.util.Log.e("JsonTaskRepository", "Error persistiendo tareas: ${e.message}")
         }

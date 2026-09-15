@@ -5,4 +5,6 @@
     <string name="speaking">Hablando…</string>
     <string name="ready">Listo para escuchar</string>
     <string name="wake_word_active">Wake Word activo ("Oye Hendrix")</string>
+    <string name="widget_quick_assistant_desc">Acceso rápido de un toque para hablar con Hendrix</string>
+    <string name="widget_tasks_desc">Lista interactiva de tareas pendientes de Hendrix</string>
 </resources>

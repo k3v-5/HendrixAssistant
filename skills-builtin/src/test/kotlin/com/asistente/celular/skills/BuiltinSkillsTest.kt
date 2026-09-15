@@ -203,4 +203,92 @@ class BuiltinSkillsTest {
         assertEquals("carlos", score2.capturedSlots["contact"])
         assertEquals("hola como estas", score2.capturedSlots["message"])
     }
+
+    @Test
+    fun testRoutineSkillMatches() {
+        val mockRepo = object : com.asistente.celular.nlu.routines.RoutineRepository {
+            override val routines = kotlinx.coroutines.flow.MutableStateFlow(
+                listOf(
+                    com.asistente.celular.nlu.routines.RoutineItem(
+                        id = "r_night",
+                        name = "Buenas Noches",
+                        triggerPhrases = listOf("buenas noches", "a dormir"),
+                        actions = listOf(com.asistente.celular.nlu.routines.RoutineAction.SpeakAction("Que descanses"))
+                    )
+                )
+            )
+            override suspend fun getRoutineById(id: String) = routines.value.find { it.id == id }
+            override suspend fun findMatchingRoutine(inputPhrase: String) = routines.value.firstOrNull()
+            override suspend fun saveRoutine(routine: com.asistente.celular.nlu.routines.RoutineItem) {}
+            override suspend fun deleteRoutine(id: String) = true
+        }
+
+        val skill = com.asistente.celular.skills.routines.RoutineSkill(mockRepo)
+        val score1 = skill.score(dummyContext, "buenas noches")
+        assertTrue(score1.isMatch)
+
+        val score2 = skill.score(dummyContext, "modo estudio")
+        assertTrue(score2.isMatch)
+
+        val scoreList = skill.score(dummyContext, "cuales son mis rutinas")
+        assertTrue(scoreList.isMatch)
+    }
+
+    @Test
+    fun testSemanticMemorySkillMatches() {
+        val mockMemoryRepo = object : com.asistente.celular.ai.memory.SemanticMemoryRepository {
+            override val memories = kotlinx.coroutines.flow.MutableStateFlow<List<com.asistente.celular.ai.memory.MemoryEntry>>(emptyList())
+            override suspend fun remember(text: String, category: String, tags: List<String>) =
+                com.asistente.celular.ai.memory.MemoryEntry(text = text, category = category)
+            override suspend fun search(query: String, topK: Int, minSimilarity: Float) = emptyList<com.asistente.celular.ai.memory.MemorySearchResult>()
+            override suspend fun getAllMemories() = memories.value
+            override suspend fun forget(id: String) = true
+            override suspend fun forgetByQuery(query: String) = 1
+        }
+
+        val skill = com.asistente.celular.skills.memory.SemanticMemorySkill(mockMemoryRepo)
+        val scoreRemember = skill.score(dummyContext, "recuerda que soy alérgico al maní")
+        assertTrue(scoreRemember.isMatch)
+        assertEquals("remember", scoreRemember.capturedSlots["action"])
+
+        val scoreQuery = skill.score(dummyContext, "qué sabes sobre mí")
+        assertTrue(scoreQuery.isMatch)
+        assertEquals("query", scoreQuery.capturedSlots["action"])
+
+        val scoreForget = skill.score(dummyContext, "olvida que soy alérgico al maní")
+        assertTrue(scoreForget.isMatch)
+        assertEquals("forget", scoreForget.capturedSlots["action"])
+    }
+
+    @Test
+    fun testCalendarSkillMatches() {
+        val mockCalendarRepo = object : com.asistente.celular.nlu.calendar.CalendarRepository {
+            override fun hasCalendarPermission() = true
+            override suspend fun getEvents(startMillis: Long, endMillis: Long) = emptyList<com.asistente.celular.nlu.calendar.CalendarEventItem>()
+            override suspend fun getUpcomingEvents(limit: Int) = emptyList<com.asistente.celular.nlu.calendar.CalendarEventItem>()
+            override suspend fun createEvent(title: String, startMillis: Long, durationMinutes: Int, description: String, location: String) = 1L
+        }
+
+        val skill = com.asistente.celular.skills.calendar.CalendarSkill(mockCalendarRepo)
+        val scoreQuery = skill.score(dummyContext, "qué tengo en el calendario hoy")
+        assertTrue(scoreQuery.isMatch)
+
+        val scoreCreate = skill.score(dummyContext, "agrega un evento cita con el médico")
+        assertTrue(scoreCreate.isMatch)
+        assertEquals("create", scoreCreate.capturedSlots["action"])
+    }
+
+    @Test
+    fun testDeepMediaSkillMatches() {
+        val skill = com.asistente.celular.skills.media.DeepMediaSkill()
+        val scoreSpotify = skill.score(dummyContext, "pon Bohemian Rhapsody en Spotify")
+        assertTrue(scoreSpotify.isMatch)
+        assertEquals("bohemian rhapsody", scoreSpotify.capturedSlots["query"]?.trim()?.lowercase())
+        assertEquals("spotify", scoreSpotify.capturedSlots["platform"]?.trim()?.lowercase())
+
+        val scoreYtm = skill.score(dummyContext, "reproduce rock en youtube music")
+        assertTrue(scoreYtm.isMatch)
+        assertEquals("rock", scoreYtm.capturedSlots["query"]?.trim()?.lowercase())
+        assertEquals("youtube music", scoreYtm.capturedSlots["platform"]?.trim()?.lowercase())
+    }
 }

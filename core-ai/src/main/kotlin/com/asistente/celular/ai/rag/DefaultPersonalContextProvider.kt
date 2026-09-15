@@ -1,5 +1,9 @@
 package com.asistente.celular.ai.rag
 
+import com.asistente.celular.ai.memory.MemoryEntry
+import com.asistente.celular.ai.memory.SemanticMemoryRepository
+import com.asistente.celular.nlu.calendar.CalendarEventItem
+import com.asistente.celular.nlu.calendar.CalendarRepository
 import com.asistente.celular.nlu.notes.NoteItem
 import com.asistente.celular.nlu.notes.NoteRepository
 import com.asistente.celular.nlu.tasks.TaskItem
@@ -13,17 +17,34 @@ import java.util.Locale
 
 /**
  * Implementación por defecto del proveedor de contexto personal (RAG y memoria del usuario).
- * Concatena inteligentemente tareas pendientes y notas relevantes para inyectarlas al LLM.
+ * Concatena inteligentemente tareas pendientes, notas relevantes, recuerdos a largo plazo y eventos de calendario.
  */
 class DefaultPersonalContextProvider(
     private val taskRepository: TaskRepository,
     private val noteRepository: NoteRepository,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
-    private val locale: Locale = Locale("es", "ES")
+    private val locale: Locale = Locale("es", "ES"),
+    private val semanticMemoryRepository: SemanticMemoryRepository? = null,
+    private val calendarRepository: CalendarRepository? = null
 ) : PersonalContextProvider {
+
+    constructor(
+        taskRepository: TaskRepository,
+        noteRepository: NoteRepository,
+        semanticMemoryRepository: SemanticMemoryRepository? = null,
+        calendarRepository: CalendarRepository? = null
+    ) : this(
+        taskRepository = taskRepository,
+        noteRepository = noteRepository,
+        zoneId = ZoneId.systemDefault(),
+        locale = Locale("es", "ES"),
+        semanticMemoryRepository = semanticMemoryRepository,
+        calendarRepository = calendarRepository
+    )
 
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy, HH:mm", locale)
     private val shortDateFormatter = DateTimeFormatter.ofPattern("d/MM/yyyy HH:mm", locale)
+    private val timeOnlyFormatter = DateTimeFormatter.ofPattern("HH:mm", locale)
 
     override suspend fun getContextSnapshot(userQuery: String): PersonalContextSnapshot {
         val now = System.currentTimeMillis()
@@ -55,7 +76,6 @@ class DefaultPersonalContextProvider(
             .sortedWith(
                 compareByDescending<NoteItem> { it.isPinned }
                     .thenByDescending { note ->
-                        // Calcular relevancia por coincidencia de palabras clave
                         var score = 0
                         val titleLower = note.title.lowercase(locale)
                         val contentLower = note.content.lowercase(locale)
@@ -69,11 +89,51 @@ class DefaultPersonalContextProvider(
             )
             .take(MAX_NOTES_IN_CONTEXT)
 
+        // 3. Recuerdos a largo plazo (Memoria semántica vectorial)
+        val relevantMemories: List<MemoryEntry> = if (semanticMemoryRepository != null) {
+            val queryLower = userQuery.lowercase(locale)
+            if (queryLower.contains("que sabes") || queryLower.contains("que recuerdas") || queryLower.contains("mis recuerdos")) {
+                semanticMemoryRepository.getAllMemories().take(MAX_MEMORIES_IN_CONTEXT)
+            } else {
+                semanticMemoryRepository.search(userQuery, topK = MAX_MEMORIES_IN_CONTEXT, minSimilarity = 0.20f)
+                    .map { it.entry }
+            }
+        } else {
+            emptyList()
+        }
+
+        // 4. Eventos de calendario (Hoy y próximas 48 horas)
+        val upcomingEvents: List<CalendarEventItem> = if (calendarRepository != null && calendarRepository.hasCalendarPermission()) {
+            val startOfToday = currentDateTime.toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val endOfNext48h = startOfToday + 48L * 3600 * 1000
+            try {
+                calendarRepository.getEvents(startOfToday, endOfNext48h).take(MAX_EVENTS_IN_CONTEXT)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+
         val contextPrompt = buildString {
             appendLine("=== CONTEXTO PERSONAL Y MEMORIA DEL USUARIO ===")
             appendLine("Fecha y hora actual del usuario: $formattedDate")
             appendLine()
 
+            // Eventos del calendario
+            if (upcomingEvents.isNotEmpty()) {
+                appendLine("📅 EVENTOS DE CALENDARIO (${upcomingEvents.size}):")
+                for (ev in upcomingEvents) {
+                    val startDt = LocalDateTime.ofInstant(Instant.ofEpochMilli(ev.startMillis), zoneId)
+                    val endDt = LocalDateTime.ofInstant(Instant.ofEpochMilli(ev.endMillis), zoneId)
+                    val timeSpan = if (ev.isAllDay) "[Todo el día]" else "[${startDt.format(shortDateFormatter)} - ${endDt.format(timeOnlyFormatter)}]"
+                    val locStr = if (ev.location.isNotBlank()) " en ${ev.location}" else ""
+                    appendLine("- $timeSpan ${ev.title}$locStr")
+                }
+                appendLine()
+            }
+
+            // Tareas pendientes
             if (pendingTasks.isNotEmpty()) {
                 appendLine("📋 TAREAS PENDIENTES DEL USUARIO (${pendingTasks.size}):")
                 for (task in pendingTasks) {
@@ -95,6 +155,7 @@ class DefaultPersonalContextProvider(
                 appendLine()
             }
 
+            // Notas relevantes
             if (relevantNotes.isNotEmpty()) {
                 appendLine("📝 NOTAS RELEVANTES DEL USUARIO (${relevantNotes.size}):")
                 for (note in relevantNotes) {
@@ -103,15 +164,21 @@ class DefaultPersonalContextProvider(
                     appendLine("- $pinnedPrefix$titlePrefix${note.content.replace("\n", " ")}")
                 }
                 appendLine()
-            } else {
-                appendLine("📝 NOTAS: No hay notas almacenadas.")
+            }
+
+            // Recuerdos y preferencias del usuario
+            if (relevantMemories.isNotEmpty()) {
+                appendLine("🧠 PREFERENCIAS Y RECUERDOS DEL USUARIO (${relevantMemories.size}):")
+                for (mem in relevantMemories) {
+                    appendLine("- [${mem.category.uppercase(locale)}] ${mem.text}")
+                }
                 appendLine()
             }
 
             appendLine("DIRECTRICES DE USO DE ESTE CONTEXTO:")
-            appendLine("1. Tienes acceso legítimo a las notas y tareas del usuario mostradas arriba.")
-            appendLine("2. Si el usuario te pregunta por sus pendientes, planes, notas o información personal (ej: claves, listas, recetas, recordatorios), responde con precisión, naturalidad y concisión basándote en esta información.")
-            appendLine("3. Si el usuario te pide organizar su día o tarde, analiza sus tareas pendientes y horas de vencimiento para proponerle un itinerario lógico y motivador.")
+            appendLine("1. Tienes acceso legítimo a las notas, tareas, calendario y preferencias del usuario mostradas arriba.")
+            appendLine("2. Si el usuario te pregunta por sus pendientes, reuniones, notas o información personal (ej: claves, listas, gustos, alergias), responde con precisión, naturalidad y concisión basándote en esta información.")
+            appendLine("3. Si el usuario te pide organizar su día o tarde, analiza sus eventos de calendario y tareas pendientes para proponerle un itinerario lógico y motivador.")
             appendLine("4. Si una información específica no se encuentra en las notas o tareas, indícalo de forma honesta y amable.")
             appendLine("==============================================")
         }
@@ -119,6 +186,8 @@ class DefaultPersonalContextProvider(
         return PersonalContextSnapshot(
             pendingTasks = pendingTasks,
             relevantNotes = relevantNotes,
+            relevantMemories = relevantMemories,
+            upcomingEvents = upcomingEvents,
             currentDateFormatted = formattedDate,
             formattedContextPrompt = contextPrompt
         )
@@ -149,6 +218,8 @@ class DefaultPersonalContextProvider(
     companion object {
         private const val MAX_TASKS_IN_CONTEXT = 8
         private const val MAX_NOTES_IN_CONTEXT = 5
+        private const val MAX_MEMORIES_IN_CONTEXT = 4
+        private const val MAX_EVENTS_IN_CONTEXT = 5
 
         private val STOP_WORDS = setOf(
             "el", "la", "los", "las", "un", "una", "unos", "unas",

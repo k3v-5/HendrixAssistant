@@ -24,8 +24,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
-    <!-- Declaración de visibilidad obligatoria en Android 11+ (API 30+) para SpeechRecognizer, TTS y WhatsApp -->
+    <!-- Declaración de visibilidad obligatoria en Android 11+ (API 30+) para SpeechRecognizer, TTS, WhatsApp y Música -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -34,6 +36,9 @@
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
         <package android:name="com.whatsapp" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.google.android.youtube" />
     </queries>
 
     <uses-feature
@@ -96,6 +101,36 @@
                 <action android:name="com.asistente.celular.ACTION_SNOOZE_TASK" />
             </intent-filter>
         </receiver>
+
+        <!-- Widget de Acceso Rápido al Micrófono -->
+        <receiver
+            android:name=".widget.QuickAssistantWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_assistant_info" />
+        </receiver>
+
+        <!-- Widget de Lista de Tareas -->
+        <receiver
+            android:name=".widget.TasksWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.asistente.celular.widget.ACTION_TASKS_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_tasks_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.TasksWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
 
     </application>
 

@@ -9,6 +9,8 @@ import com.asistente.celular.nlu.tasks.TaskItem
 data class PersonalContextSnapshot(
     val pendingTasks: List<TaskItem> = emptyList(),
     val relevantNotes: List<NoteItem> = emptyList(),
+    val relevantMemories: List<com.asistente.celular.ai.memory.MemoryEntry> = emptyList(),
+    val upcomingEvents: List<com.asistente.celular.nlu.calendar.CalendarEventItem> = emptyList(),
     val currentDateFormatted: String = "",
     val formattedContextPrompt: String = ""
 )

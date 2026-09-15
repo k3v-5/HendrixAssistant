@@ -51,18 +51,17 @@ class HelpSkill : StandardRecognizerSkill(
     )
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
-        val speech = "Puedo gestionar tus tareas y notas, controlar el volumen y ajustes, realizar llamadas y enviar WhatsApp, encender la linterna, programar alarmas y temporizadores, controlar tu música, abrir aplicaciones y responder preguntas con Inteligencia Artificial."
+        val speech = "Puedo ejecutar tus rutinas, recordar tus preferencias, consultar tu calendario, reproducir música en Spotify o YouTube, gestionar tus tareas y notas, controlar el volumen y ajustes, realizar llamadas y responder preguntas con Inteligencia Artificial."
         val displayText = """¡Hola! Esto es lo que puedo hacer:
+⚡ Rutinas: "Buenas noches", "Modo estudio", "Mis rutinas"
+🧠 Memoria Personal: "Recuerda que no tomo café", "¿Qué sabes sobre mí?"
+📅 Calendario: "¿Qué tengo en mi calendario hoy?", "Agrega evento cita mañana a las 4 pm"
+🎵 Música: "Pon Starboy en Spotify", "Reproduce rock en YouTube Music"
 ✅ Tareas: "Recuérdame comprar leche mañana a las 5 pm", "¿Cuáles son mis tareas?"
 📝 Notas: "Toma una nota: código de puerta 1234", "Mis notas"
-🔊 Volumen: "Sube el volumen", "Volumen al 50%", "Silencia el teléfono"
-📞 Llamadas: "Llama a Juan", "Llamar al 5512345678"
-💬 WhatsApp: "Envía un WhatsApp a Mamá diciendo ya llegué"
-⚙️ Ajustes: "Abre los ajustes de Wi-Fi", "Ajustes de Bluetooth", "Modo No Molestar"
-🔦 Linterna: "Enciende la linterna", "Apaga la linterna"
-⏰ Alarmas y Hora: "Pon una alarma a las 7:00", "Temporizador de 5 minutos", "¿Qué hora es?"
-🎵 Música: "Pausa la música", "Siguiente canción", "Reproduce"
-📱 Aplicaciones: "Abre WhatsApp", "Abre YouTube"
+🔊 Volumen y Sistema: "Volumen al 50%", "Silencia el teléfono", "Ajustes de Wi-Fi", "No Molestar"
+📞 Llamadas y WhatsApp: "Llama a Juan", "Envía un WhatsApp a Mamá diciendo ya voy"
+🔦 Linterna y Herramientas: "Enciende la linterna", "Pon una alarma a las 7 am", "Temporizador de 5 minutos"
 🤖 Inteligencia Artificial: Pregúntame sobre tus pendientes o cualquier tema libre."""
 
         return SkillOutput(
