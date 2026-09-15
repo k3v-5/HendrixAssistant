@@ -143,7 +143,13 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
             onError = { err ->
                 com.asistente.celular.util.MicCoordinator.releaseMicLock("MainActivity")
                 hapticManager.vibrateError()
-                val friendlyError = if (err.message?.contains("palabra clara") == true || err.message?.contains("tiempo agotado") == true) {
+                val msg = err.message ?: ""
+                val friendlyError = if (
+                    msg.contains("palabra clara") ||
+                    msg.contains("tiempo agotado") ||
+                    msg.contains("desconectó temporalmente") ||
+                    msg.contains("11")
+                ) {
                     "No te escuché con claridad. Toca el micrófono para intentar de nuevo."
                 } else {
                     err.message
@@ -241,6 +247,10 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun stopSpeech() {
         ttsEngine.stop()
         _uiState.value = _uiState.value.copy(isSpeaking = false)
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
     }
 
     // Operaciones de Tareas

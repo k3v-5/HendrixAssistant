@@ -8,6 +8,7 @@ import com.asistente.celular.nlu.construct.WordConstruct
 import com.asistente.celular.nlu.model.SkillScore
 import com.asistente.celular.nlu.model.Specificity
 import com.asistente.celular.nlu.parser.SpanishDateTimeParser
+import com.asistente.celular.nlu.skill.InteractionPlan
 import com.asistente.celular.nlu.skill.SkillContext
 import com.asistente.celular.nlu.skill.SkillInfo
 import com.asistente.celular.nlu.skill.SkillOutput
@@ -100,7 +101,32 @@ class TasksSkill(
         )
     )
 
+    override fun score(context: SkillContext, input: String): SkillScore {
+        val previous = context.previousOutput
+        if (previous?.payload is PendingTaskState) {
+            val normalized = SpanishDateTimeParser.normalize(input)
+            if (normalized in listOf("cancelar", "cancela", "olvidalo", "olvida", "no", "nada")) {
+                return SkillScore.NO_MATCH
+            }
+            return SkillScore(
+                confidence = 0.99f,
+                matchedWords = 1,
+                totalWords = 1,
+                specificity = Specificity.HIGH,
+                capturedSlots = mapOf("pending_title" to input)
+            )
+        }
+        return super.score(context, input)
+    }
+
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
+        val previous = context.previousOutput
+        val pending = previous?.payload as? PendingTaskState
+        if (pending != null && score.capturedSlots.containsKey("pending_title")) {
+            val pendingTitle = score.capturedSlots["pending_title"] ?: input
+            return completePendingTask(pending, pendingTitle)
+        }
+
         val normalizedInput = SpanishDateTimeParser.normalize(input)
 
         // 1. Caso: Consultar tareas pendientes
@@ -165,6 +191,54 @@ class TasksSkill(
         }
     }
 
+    private suspend fun completePendingTask(pending: PendingTaskState, userTitleInput: String): SkillOutput {
+        val additionalDateTime = SpanishDateTimeParser.parseDateTime(userTitleInput)
+        val finalDateTime = additionalDateTime ?: pending.targetDateTime
+
+        var cleanTitle = SpanishDateTimeParser.stripTemporalExpressions(userTitleInput)
+        cleanTitle = cleanTitle
+            .replace("^(?:de|que|para|a|sobre)\\s+".toRegex(RegexOption.IGNORE_CASE), "")
+            .replace("^(?:comprar|hacer|pagar|llamar)\\s+".toRegex(RegexOption.IGNORE_CASE)) { it.value }
+            .trim()
+            .ifBlank { userTitleInput.trim() }
+
+        val capitalizedTitle = cleanTitle.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        }
+
+        var dueDateMillis: Long? = null
+        var reminderMillis: Long? = null
+
+        if (finalDateTime != null) {
+            val millis = finalDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            dueDateMillis = millis
+            reminderMillis = millis
+        }
+
+        val newTask = TaskItem(
+            title = capitalizedTitle,
+            dueDateMillis = dueDateMillis,
+            reminderMillis = reminderMillis
+        )
+
+        val saved = taskRepository.addTask(newTask)
+
+        if (saved.reminderMillis != null) {
+            scheduler?.scheduleReminder(saved)
+        }
+
+        val feedback = if (finalDateTime != null) {
+            val formatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'a las' h:mm a", Locale("es", "ES"))
+            val formattedDate = finalDateTime.format(formatter)
+            "Recordatorio programado: '$capitalizedTitle' para el $formattedDate"
+        } else {
+            "Tarea guardada: '$capitalizedTitle'"
+        }
+        val cleanFeedback = feedback.replace("..", ".").trimEnd('.') + "."
+
+        return SkillOutput(speech = cleanFeedback, displayText = cleanFeedback, success = true)
+    }
+
     private suspend fun createTask(rawBody: String): SkillOutput {
         // Extraer fecha y hora
         val targetDateTime = SpanishDateTimeParser.parseDateTime(rawBody)
@@ -176,7 +250,18 @@ class TasksSkill(
             .trim()
 
         if (cleanTitle.isBlank()) {
-            cleanTitle = rawBody.trim()
+            val timeNotice = targetDateTime?.let {
+                val formatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale("es", "ES"))
+                " para el ${it.format(formatter)}"
+            } ?: ""
+            val prompt = "¿Qué tarea deseas que te recuerde$timeNotice?"
+            return SkillOutput(
+                speech = prompt,
+                displayText = prompt,
+                interactionPlan = InteractionPlan.ReopenMicrophone(prompt),
+                payload = PendingTaskState(targetDateTime),
+                success = true
+            )
         }
 
         // Capitalizar la primera letra
@@ -209,11 +294,20 @@ class TasksSkill(
         val feedback = if (targetDateTime != null) {
             val formatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'a las' h:mm a", Locale("es", "ES"))
             val formattedDate = targetDateTime.format(formatter)
-            "Recordatorio programado: '$capitalizedTitle' para el $formattedDate."
+            "Recordatorio programado: '$capitalizedTitle' para el $formattedDate"
         } else {
-            "Tarea guardada: '$capitalizedTitle'."
+            "Tarea guardada: '$capitalizedTitle'"
         }
+        val cleanFeedback = feedback.replace("..", ".").trimEnd('.') + "."
 
-        return SkillOutput(speech = feedback, displayText = feedback, success = true)
+        return SkillOutput(speech = cleanFeedback, displayText = cleanFeedback, success = true)
     }
 }
+
+/**
+ * Estado temporal retenido para soportar interacciones multi-turno al crear tareas.
+ */
+data class PendingTaskState(
+    val targetDateTime: LocalDateTime?,
+    val timestamp: Long = System.currentTimeMillis()
+)

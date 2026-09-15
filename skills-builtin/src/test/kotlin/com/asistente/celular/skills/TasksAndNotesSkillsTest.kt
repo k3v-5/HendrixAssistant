@@ -182,4 +182,42 @@ class TasksAndNotesSkillsTest {
         val task = repo.tasks.value.first()
         assertTrue(task.title.contains("Comprar leche", ignoreCase = true))
     }
+
+    @Test
+    fun testMultiTurnTaskCreationPromptWhenTitleMissing() = runBlocking {
+        val repo = InMemoryTaskRepository()
+        val skill = TasksSkill(taskRepository = repo)
+
+        // Turno 1: Usuario dice "Agrégame una tarea para mañana" sin especificar el título
+        val prompt1 = "agrégame una tarea para mañana"
+        val score1 = skill.score(dummyContext, prompt1)
+        assertTrue(score1.isMatch)
+
+        val output1 = skill.execute(dummyContext, prompt1, score1)
+        assertTrue(output1.success)
+        // No debe crear ninguna tarea titulada 'Mañana'
+        assertEquals(0, repo.tasks.value.size)
+        // Debe pedir el título y reabrir el micrófono
+        assertTrue(output1.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone)
+        assertTrue(output1.speech.contains("¿Qué tarea deseas que te recuerde"))
+
+        // Turno 2: Usuario responde con el título de la tarea
+        val multiTurnContext = object : SkillContext {
+            override val androidContext: android.content.Context get() = error("Dummy")
+            override val isConnectedToInternet: Boolean = false
+            override val previousOutput: SkillOutput? = output1
+        }
+
+        val prompt2 = "comprar leche"
+        val score2 = skill.score(multiTurnContext, prompt2)
+        assertTrue("El segundo turno debe ser capturado por la habilidad de tareas", score2.isMatch)
+
+        val output2 = skill.execute(multiTurnContext, prompt2, score2)
+        assertTrue(output2.success)
+        assertEquals(1, repo.tasks.value.size)
+
+        val savedTask = repo.tasks.value.first()
+        assertEquals("Comprar leche", savedTask.title)
+        assertNotNull(savedTask.dueDateMillis)
+    }
 }

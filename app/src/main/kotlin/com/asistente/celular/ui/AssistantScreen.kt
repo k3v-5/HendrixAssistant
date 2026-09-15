@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Send
@@ -70,7 +71,8 @@ fun AssistantScreen(
     onStopListening: () -> Unit,
     onSendCommand: (String) -> Unit,
     onStopSpeech: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onClearError: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -78,6 +80,13 @@ fun AssistantScreen(
     LaunchedEffect(state.interactions.size) {
         if (state.interactions.isNotEmpty()) {
             listState.animateScrollToItem(state.interactions.size - 1)
+        }
+    }
+
+    LaunchedEffect(state.error) {
+        if (state.error != null) {
+            kotlinx.coroutines.delay(4000)
+            onClearError()
         }
     }
 
@@ -110,7 +119,7 @@ fun AssistantScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    // Mensaje de error visible si algo falla
+                    // Mensaje de error visible si algo falla con botón de cierre
                     AnimatedVisibility(visible = !state.isListening && state.error != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.errorContainer,
@@ -119,12 +128,31 @@ fun AssistantScreen(
                                 .fillMaxWidth()
                                 .padding(bottom = 8.dp)
                         ) {
-                            Text(
-                                text = state.error ?: "",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = state.error ?: "",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = onClearError,
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Cerrar",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 

@@ -24,6 +24,7 @@ class AndroidSpeechRecognizerEngine(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var lastRecognizedPartial: String = ""
+    private var hasRetriedDisconnect: Boolean = false
 
     @Volatile
     override var isListening: Boolean = false
@@ -34,17 +35,19 @@ class AndroidSpeechRecognizerEngine(
         onFinalResult: (String) -> Unit,
         onError: (Throwable) -> Unit
     ) {
+        hasRetriedDisconnect = false
+        startListeningInternal(onPartialResult, onFinalResult, onError, isRetry = false)
+    }
+
+    private fun startListeningInternal(
+        onPartialResult: (String) -> Unit,
+        onFinalResult: (String) -> Unit,
+        onError: (Throwable) -> Unit,
+        isRetry: Boolean
+    ) {
         mainHandler.post {
             try {
                 lastRecognizedPartial = ""
-                // Destruir limpiamente cualquier sesión anterior para evitar ERROR_RECOGNIZER_BUSY o ERROR_CLIENT
-                try {
-                    speechRecognizer?.cancel()
-                    speechRecognizer?.destroy()
-                } catch (cleanupEx: Exception) {
-                    Log.w(TAG, "Limpieza de reconocedor anterior: ${cleanupEx.message}")
-                }
-                speechRecognizer = null
 
                 val appContext = context.applicationContext
                 if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
@@ -52,7 +55,18 @@ class AndroidSpeechRecognizerEngine(
                     onError(IllegalStateException("Reconocimiento de voz no disponible en este dispositivo."))
                     return@post
                 }
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(appContext)
+
+                // Si no existe el reconocedor o venimos de un error de desconexión, crearlo
+                if (speechRecognizer == null) {
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(appContext)
+                } else {
+                    // Si ya existe, cancelar cualquier sesión activa previa sin destruir el enlace IPC
+                    try {
+                        speechRecognizer?.cancel()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error cancelando sesión previa de reconocedor: ${e.message}")
+                    }
+                }
 
                 var isFinalDelivered = false
 
@@ -81,6 +95,21 @@ class AndroidSpeechRecognizerEngine(
                             return
                         }
                         Log.w(TAG, "SpeechRecognizer onError ($error): ${getErrorDescription(error)}")
+
+                        // Si el servicio del sistema se desconectó (error 11 = ERROR_SERVER_DISCONNECTED), reintentar una vez
+                        if (error == 11 && !hasRetriedDisconnect) {
+                            hasRetriedDisconnect = true
+                            Log.w(TAG, "ERROR_SERVER_DISCONNECTED (11) detectado. Reintentando reconexión limpia en 200ms...")
+                            try {
+                                speechRecognizer?.destroy()
+                            } catch (_: Exception) {}
+                            speechRecognizer = null
+                            mainHandler.postDelayed({
+                                startListeningInternal(onPartialResult, onFinalResult, onError, isRetry = true)
+                            }, 200L)
+                            return
+                        }
+
                         // Si ya teníamos texto parcial antes de que el motor cortara por timeout o silencio, ¡usarlo como resultado final!
                         if (lastRecognizedPartial.isNotBlank()) {
                             isFinalDelivered = true
@@ -185,7 +214,12 @@ class AndroidSpeechRecognizerEngine(
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El motor de reconocimiento está ocupado."
             SpeechRecognizer.ERROR_SERVER -> "Error en el servidor de reconocimiento."
             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No se detectó voz (tiempo agotado)."
-            else -> "Error desconocido ($errorCode)."
+            10 -> "Demasiadas peticiones al servicio de voz."
+            11 -> "El servicio de voz se desconectó temporalmente. Toca el micrófono para intentar de nuevo."
+            12 -> "Idioma no soportado por el motor de voz."
+            13 -> "Idioma no disponible sin conexión."
+            14 -> "No se pudo verificar el soporte del idioma."
+            else -> "Error del servicio de voz ($errorCode)."
         }
     }
 

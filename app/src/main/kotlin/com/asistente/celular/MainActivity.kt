@@ -140,7 +140,8 @@ class MainActivity : ComponentActivity() {
                                     onStopListening = { viewModel.stopListening() },
                                     onSendCommand = { text -> viewModel.processCommand(text) },
                                     onStopSpeech = { viewModel.stopSpeech() },
-                                    onOpenSettings = { currentScreenFlow.value = Screen.Settings }
+                                    onOpenSettings = { currentScreenFlow.value = Screen.Settings },
+                                    onClearError = { viewModel.clearError() }
                                 )
                             }
                             Screen.Tasks -> {

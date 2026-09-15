@@ -279,6 +279,48 @@ class BuiltinSkillsTest {
     }
 
     @Test
+    fun testCalendarMultiTurnCreation() = kotlinx.coroutines.runBlocking {
+        var createdEventTitle: String? = null
+        val mockCalendarRepo = object : com.asistente.celular.nlu.calendar.CalendarRepository {
+            override fun hasCalendarPermission() = true
+            override suspend fun getEvents(startMillis: Long, endMillis: Long) = emptyList<com.asistente.celular.nlu.calendar.CalendarEventItem>()
+            override suspend fun getUpcomingEvents(limit: Int) = emptyList<com.asistente.celular.nlu.calendar.CalendarEventItem>()
+            override suspend fun createEvent(title: String, startMillis: Long, durationMinutes: Int, description: String, location: String): Long? {
+                createdEventTitle = title
+                return 101L
+            }
+        }
+
+        val skill = com.asistente.celular.skills.calendar.CalendarSkill(mockCalendarRepo)
+
+        // Turno 1: Usuario solo dice fecha/hora sin el nombre del evento
+        val prompt1 = "agrega un evento para mañana"
+        val score1 = skill.score(dummyContext, prompt1)
+        assertTrue(score1.isMatch)
+
+        val output1 = skill.execute(dummyContext, prompt1, score1)
+        assertTrue(output1.success)
+        assertTrue(output1.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone)
+        assertTrue(output1.speech.contains("¿Qué evento o reunión deseas que agende"))
+        assertNull(createdEventTitle)
+
+        // Turno 2: Usuario responde con el nombre
+        val followUpContext = object : SkillContext {
+            override val androidContext: android.content.Context get() = error("Dummy")
+            override val isConnectedToInternet: Boolean = false
+            override val previousOutput: SkillOutput? = output1
+        }
+
+        val prompt2 = "Cita con el dentista"
+        val score2 = skill.score(followUpContext, prompt2)
+        assertTrue(score2.isMatch)
+
+        val output2 = skill.execute(followUpContext, prompt2, score2)
+        assertTrue(output2.success)
+        assertEquals("Cita con el dentista", createdEventTitle)
+    }
+
+    @Test
     fun testDeepMediaSkillMatches() {
         val skill = com.asistente.celular.skills.media.DeepMediaSkill()
         val scoreSpotify = skill.score(dummyContext, "pon Bohemian Rhapsody en Spotify")

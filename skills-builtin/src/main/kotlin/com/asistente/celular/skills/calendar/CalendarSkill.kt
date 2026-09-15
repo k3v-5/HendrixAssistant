@@ -13,6 +13,7 @@ import com.asistente.celular.nlu.construct.WordConstruct
 import com.asistente.celular.nlu.model.SkillScore
 import com.asistente.celular.nlu.model.Specificity
 import com.asistente.celular.nlu.parser.SpanishDateTimeParser
+import com.asistente.celular.nlu.skill.InteractionPlan
 import com.asistente.celular.nlu.skill.Skill
 import com.asistente.celular.nlu.skill.SkillContext
 import com.asistente.celular.nlu.skill.SkillInfo
@@ -81,6 +82,21 @@ class CalendarSkill(
     )
 
     override fun score(context: SkillContext, input: String): SkillScore {
+        val previous = context.previousOutput
+        if (previous?.payload is PendingCalendarState) {
+            val normalized = SpanishDateTimeParser.normalize(input)
+            if (normalized in listOf("cancelar", "cancela", "olvidalo", "olvida", "no", "nada")) {
+                return SkillScore.NO_MATCH
+            }
+            return SkillScore(
+                confidence = 0.99f,
+                matchedWords = 1,
+                totalWords = 1,
+                specificity = Specificity.HIGH,
+                capturedSlots = mapOf("action" to "create_pending", "pending_event_title" to input)
+            )
+        }
+
         val normalized = MatchContext.normalize(input)
         if (normalized.isBlank()) return SkillScore.NO_MATCH
 
@@ -127,6 +143,13 @@ class CalendarSkill(
     }
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
+        val previous = context.previousOutput
+        val pending = previous?.payload as? PendingCalendarState
+        if (pending != null && score.capturedSlots["action"] == "create_pending") {
+            val titleInput = score.capturedSlots["pending_event_title"] ?: input
+            return completePendingCalendar(context, pending, titleInput)
+        }
+
         val action = score.capturedSlots["action"] ?: "query"
 
         if (!calendarRepository.hasCalendarPermission()) {
@@ -192,11 +215,17 @@ class CalendarSkill(
         return SkillOutput(speech = speech, displayText = display.trim(), success = true)
     }
 
-    private suspend fun handleCreateEvent(context: SkillContext, fullInput: String, titleSlot: String): SkillOutput {
-        val parsedDate = SpanishDateTimeParser.parseDate(fullInput) ?: LocalDate.now(zoneId)
-        val parsedTime = SpanishDateTimeParser.parseTime(fullInput) ?: LocalTime.of(10, 0)
-        val cleanTitle = SpanishDateTimeParser.stripTemporalExpressions(titleSlot).trim()
-            .ifBlank { "Nuevo Evento" }
+    private suspend fun completePendingCalendar(
+        context: SkillContext,
+        pending: PendingCalendarState,
+        titleInput: String
+    ): SkillOutput {
+        val parsedDate = SpanishDateTimeParser.parseDate(titleInput) ?: pending.date ?: LocalDate.now(zoneId)
+        val parsedTime = SpanishDateTimeParser.parseTime(titleInput) ?: pending.time ?: LocalTime.of(10, 0)
+        var cleanTitle = SpanishDateTimeParser.stripTemporalExpressions(titleInput).trim()
+            .replace("^(?:de|que|para|a|sobre)\\s+".toRegex(RegexOption.IGNORE_CASE), "")
+            .trim()
+            .ifBlank { titleInput.trim() }
             .replaceFirstChar { it.uppercase() }
 
         val startDateTime = LocalDateTime.of(parsedDate, parsedTime)
@@ -205,7 +234,7 @@ class CalendarSkill(
         val eventId = calendarRepository.createEvent(
             title = cleanTitle,
             startMillis = startMillis,
-            durationMinutes = 60
+            durationMinutes = pending.durationMinutes
         )
 
         return if (eventId != null) {
@@ -215,6 +244,50 @@ class CalendarSkill(
         } else {
             openSystemCalendarInsert(context, cleanTitle, startMillis)
             val msg = "Abrí el calendario para que confirmes y guardes el evento '$cleanTitle'."
+            SkillOutput(speech = msg, displayText = msg, success = true)
+        }
+    }
+
+    private suspend fun handleCreateEvent(context: SkillContext, fullInput: String, titleSlot: String): SkillOutput {
+        val parsedDate = SpanishDateTimeParser.parseDate(fullInput) ?: LocalDate.now(zoneId)
+        val parsedTime = SpanishDateTimeParser.parseTime(fullInput) ?: LocalTime.of(10, 0)
+        val candidate = if (titleSlot.isNotBlank()) titleSlot else fullInput
+        val cleanTitle = SpanishDateTimeParser.stripTemporalExpressions(candidate).trim()
+            .replace("^(?:de|que|para|a|sobre|reunion|evento)\\s+".toRegex(RegexOption.IGNORE_CASE), "")
+            .trim()
+
+        if (cleanTitle.isBlank()) {
+            val dateNotice = parsedDate.let {
+                val formatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale("es", "ES"))
+                " para el ${it.format(formatter)}"
+            }
+            val prompt = "¿Qué evento o reunión deseas que agende$dateNotice?"
+            return SkillOutput(
+                speech = prompt,
+                displayText = prompt,
+                interactionPlan = InteractionPlan.ReopenMicrophone(prompt),
+                payload = PendingCalendarState(parsedDate, parsedTime),
+                success = true
+            )
+        }
+
+        val capitalizedTitle = cleanTitle.replaceFirstChar { it.uppercase() }
+        val startDateTime = LocalDateTime.of(parsedDate, parsedTime)
+        val startMillis = startDateTime.atZone(zoneId).toInstant().toEpochMilli()
+
+        val eventId = calendarRepository.createEvent(
+            title = capitalizedTitle,
+            startMillis = startMillis,
+            durationMinutes = 60
+        )
+
+        return if (eventId != null) {
+            val speech = "Agendé '$capitalizedTitle' para el ${parsedDate.format(dateFormatter)} a las ${parsedTime.format(timeFormatter)}."
+            val display = "📅 **Evento Agendado:**\n• **$capitalizedTitle**\n• Fecha: ${parsedDate.format(dateFormatter)}\n• Hora: ${parsedTime.format(timeFormatter)}"
+            SkillOutput(speech = speech, displayText = display, success = true)
+        } else {
+            openSystemCalendarInsert(context, capitalizedTitle, startMillis)
+            val msg = "Abrí el calendario para que confirmes y guardes el evento '$capitalizedTitle'."
             SkillOutput(speech = msg, displayText = msg, success = true)
         }
     }
@@ -244,3 +317,13 @@ class CalendarSkill(
         } catch (_: Exception) {}
     }
 }
+
+/**
+ * Estado temporal retenido para soportar interacciones multi-turno al agendar eventos.
+ */
+data class PendingCalendarState(
+    val date: LocalDate?,
+    val time: LocalTime?,
+    val durationMinutes: Int = 60,
+    val timestamp: Long = System.currentTimeMillis()
+)

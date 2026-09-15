@@ -42,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,10 +109,12 @@ class AssistantDialogActivity : ComponentActivity() {
         val factory = com.asistente.celular.di.AssistantSkillFactory(this, lifecycleScope)
         val activeLlmConfig = settingsRepo.loadLlmConfig()
 
+        var lastOutput: SkillOutput? = null
+
         val skillContext = object : SkillContext {
             override val androidContext: Context get() = this@AssistantDialogActivity
             override val isConnectedToInternet: Boolean get() = checkInternet()
-            override val previousOutput: SkillOutput? = null
+            override val previousOutput: SkillOutput? get() = lastOutput
         }
 
         evaluator = factory.createSkillEvaluator(
@@ -136,15 +139,22 @@ class AssistantDialogActivity : ComponentActivity() {
                     onProcessCommand = { command, onDone ->
                         lifecycleScope.launch {
                             val output = evaluator.processInput(command)
+                            lastOutput = output
                             if (output.success) {
                                 hapticManager.vibrateSuccess()
                             } else {
                                 hapticManager.vibrateError()
                             }
                             onDone(output)
-                            // Esperar a que termine de hablar antes de cerrar
-                            delay(1200)
-                            finish()
+
+                            // Si la habilidad requiere reabrir el micrófono (multi-turno), mantener la actividad abierta
+                            if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
+                                // No cerramos la actividad flotante
+                            } else {
+                                // Esperar a que termine de hablar antes de cerrar
+                                delay(1400)
+                                finish()
+                            }
                         }
                     },
                     onStopSpeech = {
@@ -184,9 +194,11 @@ fun FloatingAssistantBottomSheet(
     var recognizedText by remember { mutableStateOf("") }
     var resultOutput by remember { mutableStateOf<SkillOutput?>(null) }
     var statusText by remember { mutableStateOf("Escuchando…") }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    fun startListenSession() {
         isListening = true
+        statusText = "Escuchando…"
         onStartListening(
             { isListening = true },
             { partial -> recognizedText = partial },
@@ -199,13 +211,34 @@ fun FloatingAssistantBottomSheet(
                     isProcessing = false
                     resultOutput = output
                     statusText = if (output.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
+                    if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
+                        scope.launch {
+                            delay(500)
+                            startListenSession()
+                        }
+                    }
                 }
             },
             { error ->
                 isListening = false
-                statusText = "Error: ${error.message}"
+                val msg = error.message ?: ""
+                val friendly = if (
+                    msg.contains("palabra clara") ||
+                    msg.contains("tiempo agotado") ||
+                    msg.contains("desconectó") ||
+                    msg.contains("11")
+                ) {
+                    "No te escuché con claridad. Toca el micrófono para intentar de nuevo."
+                } else {
+                    error.message ?: "Error al escuchar"
+                }
+                statusText = friendly
             }
         )
+    }
+
+    LaunchedEffect(Unit) {
+        startListenSession()
     }
 
     // Fondo oscurecido semitransparente que cubre la app anterior
