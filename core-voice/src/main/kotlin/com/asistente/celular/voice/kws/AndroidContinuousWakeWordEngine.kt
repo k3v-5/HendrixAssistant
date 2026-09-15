@@ -33,6 +33,7 @@ class AndroidContinuousWakeWordEngine(
     private val audioRecordSource = AudioRecordSource(sampleRate = 16000)
     private var speechRecognizer: SpeechRecognizer? = null
     private var onKeywordDetectedCallback: ((String) -> Unit)? = null
+    private var onEventDetectedCallback: ((com.asistente.celular.voice.WakeWordEvent) -> Unit)? = null
 
     @Volatile
     override var isListening: Boolean = false
@@ -51,6 +52,18 @@ class AndroidContinuousWakeWordEngine(
 
     override fun startListening(onKeywordDetected: (keyword: String) -> Unit) {
         this.onKeywordDetectedCallback = onKeywordDetected
+        this.onEventDetectedCallback = null
+        this.isListening = true
+        this.isPaused = false
+        this.consecutiveVoiceFrames = 0
+        this.isVerifyingSpeech.set(false)
+
+        startSilentAudioMonitoring()
+    }
+
+    override fun startListeningWithEvent(onEventDetected: (com.asistente.celular.voice.WakeWordEvent) -> Unit) {
+        this.onEventDetectedCallback = onEventDetected
+        this.onKeywordDetectedCallback = { kw -> onEventDetected(com.asistente.celular.voice.WakeWordEvent(kw)) }
         this.isListening = true
         this.isPaused = false
         this.consecutiveVoiceFrames = 0
@@ -95,11 +108,14 @@ class AndroidContinuousWakeWordEngine(
         Log.d(TAG, "Monitoreo silencioso de audio activo (AudioRecord).")
     }
 
+    private var lastDetectedEvent: com.asistente.celular.voice.WakeWordEvent? = null
+
     private fun triggerSpeechVerification() {
         if (!isListening || isPaused || !isVerifyingSpeech.compareAndSet(false, true)) return
 
         // 1. Detener AudioRecord para liberar el hardware del micrófono
         audioRecordSource.stop()
+        lastDetectedEvent = null
 
         mainHandler.post {
             try {
@@ -122,14 +138,20 @@ class AndroidContinuousWakeWordEngine(
 
                         override fun onError(error: Int) {
                             Log.d(TAG, "Verificación de palabra clave onError ($error)")
-                            finishVerificationAndResume()
+                            val fallbackEvent = lastDetectedEvent
+                            if (fallbackEvent != null) {
+                                Log.i(TAG, "Activando con evento de respaldo detectado en parciales tras error ASR ($error)")
+                                handleKeywordMatch(fallbackEvent)
+                            } else {
+                                finishVerificationAndResume()
+                            }
                         }
 
                         override fun onResults(results: Bundle?) {
                             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            val detected = matches?.let { checkMatches(it) }
-                            if (detected != null) {
-                                handleKeywordMatch(detected)
+                            val event = matches?.let { extractWakeWordEvent(it) } ?: lastDetectedEvent
+                            if (event != null) {
+                                handleKeywordMatch(event)
                             } else {
                                 finishVerificationAndResume()
                             }
@@ -137,9 +159,10 @@ class AndroidContinuousWakeWordEngine(
 
                         override fun onPartialResults(partialResults: Bundle?) {
                             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            val detected = matches?.let { checkMatches(it) }
-                            if (detected != null) {
-                                handleKeywordMatch(detected)
+                            val event = matches?.let { extractWakeWordEvent(it) }
+                            if (event != null) {
+                                lastDetectedEvent = event
+                                Log.d(TAG, "Palabra clave en parciales: ${event.keyword}, comando provisional: '${event.command}'")
                             }
                         }
 
@@ -155,8 +178,9 @@ class AndroidContinuousWakeWordEngine(
                     putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, appContext.packageName)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 2500L)
-                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1800L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 700L)
                 }
 
                 speechRecognizer?.startListening(intent)
@@ -181,11 +205,15 @@ class AndroidContinuousWakeWordEngine(
         }, delayMillis)
     }
 
-    private fun handleKeywordMatch(detectedKeyword: String) {
-        Log.i(TAG, "¡Palabra de activación detectada!: '$detectedKeyword'")
+    private fun handleKeywordMatch(event: com.asistente.celular.voice.WakeWordEvent) {
+        Log.i(TAG, "¡Activación detectada!: keyword='${event.keyword}', command='${event.command}'")
         destroyRecognizer()
         pause()
-        onKeywordDetectedCallback?.invoke(detectedKeyword)
+        if (onEventDetectedCallback != null) {
+            onEventDetectedCallback?.invoke(event)
+        } else {
+            onKeywordDetectedCallback?.invoke(event.keyword)
+        }
     }
 
     fun pause() {
@@ -216,15 +244,47 @@ class AndroidContinuousWakeWordEngine(
     override fun release() {
         stopListening()
         onKeywordDetectedCallback = null
+        onEventDetectedCallback = null
     }
 
-    private fun checkMatches(candidates: List<String>): String? {
+    private fun extractWakeWordEvent(candidates: List<String>): com.asistente.celular.voice.WakeWordEvent? {
+        val sortedKeywords = keywords.sortedByDescending { it.length }
         for (candidate in candidates) {
             val normalized = normalizeText(candidate)
-            for (kw in keywords) {
+            for (kw in sortedKeywords) {
                 val normalizedKw = normalizeText(kw)
-                if (normalized.contains(normalizedKw)) {
-                    return kw
+                val idx = normalized.indexOf(normalizedKw)
+                if (idx >= 0) {
+                    val after = normalized.substring(idx + normalizedKw.length).trim()
+                    val before = normalized.substring(0, idx).trim()
+                    val rawCommand = if (after.isNotBlank()) after else before
+
+                    var clean = rawCommand.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+                    val fillers = listOf(
+                        "por favor", "porfa", "puedes", "podrias", "podrías",
+                        "me puedes", "me podrias", "me podrías", "quiero que", "hazme el favor de", "me"
+                    )
+                    var changed = true
+                    while (changed) {
+                        changed = false
+                        clean = clean.trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+                        for (filler in fillers) {
+                            if (clean.startsWith(filler)) {
+                                clean = clean.removePrefix(filler).trim()
+                                changed = true
+                            }
+                        }
+                    }
+                    val cleanCommand = clean
+                        .trimStart { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+                        .trimEnd { it == ',' || it == ':' || it == ';' || it == '.' || it.isWhitespace() }
+                        .takeIf { it.isNotBlank() }
+
+                    return com.asistente.celular.voice.WakeWordEvent(
+                        keyword = kw,
+                        fullUtterance = candidate,
+                        command = cleanCommand
+                    )
                 }
             }
         }

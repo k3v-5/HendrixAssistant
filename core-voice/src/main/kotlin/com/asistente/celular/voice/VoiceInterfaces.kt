@@ -45,6 +45,15 @@ interface TtsEngine {
 }
 
 /**
+ * Datos del evento de activación de palabra clave.
+ */
+data class WakeWordEvent(
+    val keyword: String,
+    val fullUtterance: String = keyword,
+    val command: String? = null
+)
+
+/**
  * Interfaz para la detección de palabra de activación (KWS / Wake Word).
  */
 interface WakeWordEngine {
@@ -52,6 +61,9 @@ interface WakeWordEngine {
     val currentKeyword: String
 
     fun startListening(onKeywordDetected: (keyword: String) -> Unit)
+    fun startListeningWithEvent(onEventDetected: (WakeWordEvent) -> Unit) {
+        startListening { onEventDetected(WakeWordEvent(it)) }
+    }
     fun stopListening()
     fun release()
 }

@@ -24,7 +24,7 @@ class AndroidNativeTtsEngine(
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
-    private val pendingSpeechQueue = mutableListOf<String>()
+    private val initDeferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
 
     @Volatile
     override var isSpeaking: Boolean = false
@@ -47,9 +47,15 @@ class AndroidNativeTtsEngine(
                 configureBestFriendlyVoice()
 
                 isInitialized = true
+                if (!initDeferred.isCompleted) {
+                    initDeferred.complete(true)
+                }
                 Log.d(TAG, "TTS nativo inicializado con voz amigable (pitch=$pitch, rate=$speechRate).")
             } else {
                 Log.e(TAG, "Fallo al inicializar TTS de Android.")
+                if (!initDeferred.isCompleted) {
+                    initDeferred.complete(false)
+                }
             }
         }
     }
@@ -80,18 +86,25 @@ class AndroidNativeTtsEngine(
         }
     }
 
-    override suspend fun speak(text: String) = suspendCancellableCoroutine<Unit> { continuation ->
+    override suspend fun speak(text: String) {
         val cleanText = text.trim()
-        if (cleanText.isBlank()) {
-            continuation.resume(Unit)
-            return@suspendCancellableCoroutine
+        if (cleanText.isBlank()) return
+
+        if (!isInitialized) {
+            val ready = try {
+                kotlinx.coroutines.withTimeoutOrNull(2500L) {
+                    initDeferred.await()
+                } ?: false
+            } catch (e: Exception) {
+                false
+            }
+            if (!ready || tts == null) {
+                Log.w(TAG, "TTS aún no inicializado o falló, omitiendo reproducción inmediata.")
+                return
+            }
         }
 
-        if (!isInitialized || tts == null) {
-            Log.w(TAG, "TTS aún no inicializado, omitiendo reproducción inmediata.")
-            continuation.resume(Unit)
-            return@suspendCancellableCoroutine
-        }
+        suspendCancellableCoroutine<Unit> { continuation ->
 
         val utteranceId = UUID.randomUUID().toString()
         isSpeaking = true
@@ -133,6 +146,7 @@ class AndroidNativeTtsEngine(
 
         continuation.invokeOnCancellation {
             stop()
+        }
         }
     }
 

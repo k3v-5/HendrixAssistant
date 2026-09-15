@@ -127,9 +127,12 @@ class AssistantDialogActivity : ComponentActivity() {
             }
         )
 
+        val initialCommand = intent.getStringExtra(EXTRA_INITIAL_COMMAND)
+
         setContent {
             AsistenteTheme {
                 FloatingAssistantBottomSheet(
+                    initialCommand = initialCommand,
                     onDismiss = { finish() },
                     onStartListening = { onStart, onPartial, onFinal, onError ->
                         hapticManager.vibrateStartListening()
@@ -152,7 +155,10 @@ class AssistantDialogActivity : ComponentActivity() {
                                 // No cerramos la actividad flotante
                             } else {
                                 // Esperar a que termine de hablar antes de cerrar
-                                delay(1400)
+                                while (ttsEngine.isSpeaking) {
+                                    delay(150)
+                                }
+                                delay(1000)
                                 finish()
                             }
                         }
@@ -179,10 +185,15 @@ class AssistantDialogActivity : ComponentActivity() {
         ttsEngine.release()
         super.onDestroy()
     }
+
+    companion object {
+        const val EXTRA_INITIAL_COMMAND = "extra_initial_command"
+    }
 }
 
 @Composable
 fun FloatingAssistantBottomSheet(
+    initialCommand: String? = null,
     onDismiss: () -> Unit,
     onStartListening: (onStart: () -> Unit, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (Throwable) -> Unit) -> Unit,
     onStopListening: () -> Unit,
@@ -238,7 +249,24 @@ fun FloatingAssistantBottomSheet(
     }
 
     LaunchedEffect(Unit) {
-        startListenSession()
+        if (!initialCommand.isNullOrBlank()) {
+            recognizedText = initialCommand
+            isProcessing = true
+            statusText = "Analizando…"
+            onProcessCommand(initialCommand) { output ->
+                isProcessing = false
+                resultOutput = output
+                statusText = if (output.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
+                if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
+                    scope.launch {
+                        delay(500)
+                        startListenSession()
+                    }
+                }
+            }
+        } else {
+            startListenSession()
+        }
     }
 
     // Fondo oscurecido semitransparente que cubre la app anterior
