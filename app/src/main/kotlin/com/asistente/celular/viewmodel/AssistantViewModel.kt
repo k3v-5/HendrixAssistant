@@ -76,10 +76,12 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val routineRepository = factory.routineRepository
     val semanticMemoryRepository = factory.semanticMemoryRepository
     val calendarRepository = factory.calendarRepository
+    val smartHomeRepository = factory.smartHomeRepository
     val personalContextProvider = factory.personalContextProvider
 
     val tasksState = taskRepository.tasks
     val notesState = noteRepository.notes
+    val smartDevicesState = smartHomeRepository.devices
 
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(application)
@@ -300,6 +302,39 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun toggleNotePin(noteId: String) {
         viewModelScope.launch {
             noteRepository.togglePin(noteId)
+        }
+    }
+
+    // Operaciones de Domótica / Foco Xiaomi
+    fun discoverSmartDevices() {
+        viewModelScope.launch {
+            smartHomeRepository.discoverDevices()
+        }
+    }
+
+    fun addManualSmartDevice(name: String, ip: String) {
+        viewModelScope.launch {
+            val device = com.asistente.celular.nlu.smarthome.SmartDevice(
+                id = "manual_${ip.replace(".", "_")}",
+                name = name.ifBlank { "Foco Xiaomi" },
+                aliases = listOf("foco", "luz", "foco xiaomi", "bombilla"),
+                ipAddress = ip.trim(),
+                port = 55443,
+                protocol = com.asistente.celular.nlu.smarthome.SmartProtocol.YEELIGHT_LAN
+            )
+            smartHomeRepository.addOrUpdateDevice(device)
+        }
+    }
+
+    fun deleteSmartDevice(id: String) {
+        viewModelScope.launch {
+            smartHomeRepository.removeDevice(id)
+        }
+    }
+
+    fun toggleSmartDevice(device: com.asistente.celular.nlu.smarthome.SmartDevice) {
+        viewModelScope.launch {
+            smartHomeRepository.executeAction(device.id, com.asistente.celular.nlu.smarthome.DeviceAction.Toggle)
         }
     }
 

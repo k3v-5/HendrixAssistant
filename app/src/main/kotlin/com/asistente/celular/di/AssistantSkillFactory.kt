@@ -32,6 +32,9 @@ import com.asistente.celular.skills.notes.NotesSkill
 import com.asistente.celular.skills.routines.RoutineSkill
 import com.asistente.celular.skills.system.SystemSettingsSkill
 import com.asistente.celular.skills.system.VolumeSkill
+import com.asistente.celular.data.JsonSmartHomeRepository
+import com.asistente.celular.nlu.smarthome.SmartHomeRepository
+import com.asistente.celular.skills.smarthome.SmartHomeSkill
 import com.asistente.celular.skills.tasks.TasksSkill
 import com.asistente.celular.skills.time.CurrentTimeSkill
 import com.asistente.celular.skills.timer.TimerSkill
@@ -52,6 +55,7 @@ class AssistantSkillFactory(
     val routineRepository = JsonRoutineRepository(context, scope)
     val semanticMemoryRepository = JsonSemanticMemoryRepository(context, scope)
     val calendarRepository = AndroidCalendarRepository(context)
+    val smartHomeRepository: SmartHomeRepository = JsonSmartHomeRepository(context, scope)
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -68,6 +72,7 @@ class AssistantSkillFactory(
             RoutineSkill(routineRepository, commandExecutor),
             SemanticMemorySkill(semanticMemoryRepository),
             CalendarSkill(calendarRepository),
+            SmartHomeSkill(smartHomeRepository),
             DeepMediaSkill(),
             FlashlightSkill(),
             TimerSkill(),

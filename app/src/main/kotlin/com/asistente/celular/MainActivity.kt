@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 val currentScreen by currentScreenFlow.collectAsState()
                 val tasks by viewModel.tasksState.collectAsState()
                 val notes by viewModel.notesState.collectAsState()
+                val smartDevices by viewModel.smartDevicesState.collectAsState()
 
                 Scaffold(
                     bottomBar = {
@@ -167,12 +168,17 @@ class MainActivity : ComponentActivity() {
                                     currentConfig = uiState.llmConfig,
                                     isWakeWordActive = uiState.isWakeWordActive,
                                     localModelManager = viewModel.localModelManager,
+                                    smartDevices = smartDevices,
                                     onSaveConfig = { newConfig -> viewModel.updateLlmConfig(newConfig) },
                                     onToggleWakeWord = { enable -> toggleBackgroundWakeWord(enable) },
                                     onDownloadModel = { modelId -> viewModel.startModelDownload(modelId) },
                                     onCancelDownload = { modelId -> viewModel.cancelModelDownload(modelId) },
                                     onDeleteModel = { modelId -> viewModel.deleteLocalModel(modelId) },
                                     onSelectLocalModel = { modelId -> viewModel.selectLocalModel(modelId) },
+                                    onDiscoverSmartDevices = { viewModel.discoverSmartDevices() },
+                                    onAddManualSmartDevice = { name, ip -> viewModel.addManualSmartDevice(name, ip) },
+                                    onDeleteSmartDevice = { id -> viewModel.deleteSmartDevice(id) },
+                                    onToggleSmartDevice = { dev -> viewModel.toggleSmartDevice(dev) },
                                     onBack = { currentScreenFlow.value = Screen.Assistant }
                                 )
                             }

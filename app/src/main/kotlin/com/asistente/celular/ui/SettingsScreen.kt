@@ -1,6 +1,7 @@
 package com.asistente.celular.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,10 +9,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -22,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -50,12 +55,17 @@ fun SettingsScreen(
     currentConfig: LlmConfig,
     isWakeWordActive: Boolean,
     localModelManager: com.asistente.celular.ai.local.LocalModelManager? = null,
+    smartDevices: List<com.asistente.celular.nlu.smarthome.SmartDevice> = emptyList(),
     onSaveConfig: (LlmConfig) -> Unit,
     onToggleWakeWord: (Boolean) -> Unit,
     onDownloadModel: (String) -> Unit = {},
     onCancelDownload: (String) -> Unit = {},
     onDeleteModel: (String) -> Unit = {},
     onSelectLocalModel: (String) -> Unit = {},
+    onDiscoverSmartDevices: () -> Unit = {},
+    onAddManualSmartDevice: (name: String, ip: String) -> Unit = { _, _ -> },
+    onDeleteSmartDevice: (String) -> Unit = {},
+    onToggleSmartDevice: (com.asistente.celular.nlu.smarthome.SmartDevice) -> Unit = {},
     onBack: () -> Unit
 ) {
     var selectedProvider by remember { mutableStateOf(currentConfig.provider) }
@@ -64,6 +74,11 @@ fun SettingsScreen(
     var customEndpoint by remember { mutableStateOf(currentConfig.customEndpoint ?: "") }
     var isModelHarnessEnabled by remember { mutableStateOf(currentConfig.isModelHarnessEnabled) }
     var showApiKey by remember { mutableStateOf(false) }
+
+    var isScanningDevices by remember { mutableStateOf(false) }
+    var manualName by remember { mutableStateOf("") }
+    var manualIp by remember { mutableStateOf("") }
+    var showManualAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -101,6 +116,147 @@ fun SettingsScreen(
                     checked = isWakeWordActive,
                     onCheckedChange = onToggleWakeWord
                 )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sección: Domótica y Focos Inteligentes Xiaomi
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Focos Xiaomi / Yeelight (WiFi Local)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Control local offline sin internet (puerto LAN 55443)",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                IconButton(onClick = { onDiscoverSmartDevices() }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Buscar focos")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (smartDevices.isEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            "No hay focos vinculados aún.",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "Asegúrate de activar 'Control en LAN' en la app Xiaomi Home o Yeelight y presiona buscar, o ingresa la IP del foco.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            } else {
+                smartDevices.forEach { device ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (device.isPoweredOn)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(if (device.isPoweredOn) "💡" else "🌑", fontSize = 24.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(device.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("${device.ipAddress}:${device.port} • ${if (device.isPoweredOn) "Encendido (${device.brightness}%)" else "Apagado"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                            Switch(
+                                checked = device.isPoweredOn,
+                                onCheckedChange = { onToggleSmartDevice(device) }
+                            )
+                            IconButton(onClick = { onDeleteSmartDevice(device.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onDiscoverSmartDevices() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("🔍 Buscar en WiFi")
+                }
+                OutlinedButton(
+                    onClick = { showManualAddDialog = !showManualAddDialog },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (showManualAddDialog) "Ocultar IP" else "➕ Añadir IP")
+                }
+            }
+
+            if (showManualAddDialog) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Añadir foco por dirección IP", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = manualName,
+                            onValueChange = { manualName = it },
+                            label = { Text("Nombre (ej: Foco Sala)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = manualIp,
+                            onValueChange = { manualIp = it },
+                            label = { Text("Dirección IP (ej: 192.168.1.105)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                if (manualIp.isNotBlank()) {
+                                    onAddManualSmartDevice(manualName, manualIp)
+                                    manualIp = ""
+                                    manualName = ""
+                                    showManualAddDialog = false
+                                }
+                            },
+                            enabled = manualIp.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Guardar Foco")
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
