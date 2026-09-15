@@ -16,7 +16,7 @@ import com.asistente.celular.nlu.skill.SkillOutput
 import com.asistente.celular.nlu.skill.StandardRecognizerSkill
 
 /**
- * Habilidad offline para controlar la reproducción de medios (música, podcasts).
+ * Habilidad offline para controlar la reproducción de música/medios en Android.
  */
 class MediaControlSkill : StandardRecognizerSkill(
     info = SkillInfo(
@@ -29,19 +29,19 @@ class MediaControlSkill : StandardRecognizerSkill(
     override val patterns: List<Construct> = listOf(
         // "pausa la música", "para la música", "detén música"
         SequenceConstruct(
-            WordConstruct("pausa", "pausar", "para", "parar", "deten", "detener"),
+            WordConstruct("pausa", "pausar", "pausame", "para", "parar", "deten", "detener", "detenme"),
             OptionalConstruct(WordConstruct("la", "el")),
-            OptionalConstruct(WordConstruct("musica", "reproduccion", "cancion"))
+            OptionalConstruct(WordConstruct("musica", "reproduccion", "cancion", "audio"))
         ),
-        // "reanuda la música", "sigue la música", "play"
+        // "reanuda la música", "sigue la música", "play", "reproduce", "pon música"
         SequenceConstruct(
-            WordConstruct("reanuda", "reanudar", "continua", "continuar", "play"),
+            WordConstruct("reproduce", "reproducir", "reproduceme", "reanuda", "reanudar", "continua", "continuar", "play", "pon", "ponme"),
             OptionalConstruct(WordConstruct("la", "el")),
-            OptionalConstruct(WordConstruct("musica", "reproduccion"))
+            OptionalConstruct(WordConstruct("musica", "reproduccion", "cancion", "audio"))
         ),
         // "siguiente canción", "pasa canción"
         SequenceConstruct(
-            WordConstruct("siguiente", "proxima", "adelanta", "pasa"),
+            WordConstruct("siguiente", "proxima", "adelanta", "pasa", "cambia"),
             OptionalConstruct(WordConstruct("la")),
             OptionalConstruct(WordConstruct("cancion", "pista", "musica"))
         ),
@@ -58,32 +58,38 @@ class MediaControlSkill : StandardRecognizerSkill(
         val audioManager = context.androidContext.getSystemService<AudioManager>()
 
         if (audioManager == null) {
-            val err = "No se pudo acceder al servicio de audio."
+            val err = "No se pudo acceder al control de audio del sistema."
             return SkillOutput(speech = err, displayText = err, success = false)
         }
 
-        val (keyCode, speech) = when {
+        return when {
+            lower.contains("pausa") || lower.contains("para") || lower.contains("deten") -> {
+                sendMediaKeyEvent(audioManager, KeyEvent.KEYCODE_MEDIA_PAUSE)
+                val msg = "Música pausada."
+                SkillOutput(speech = msg, displayText = msg, success = true)
+            }
             lower.contains("siguiente") || lower.contains("proxima") || lower.contains("adelanta") || lower.contains("pasa") -> {
-                KeyEvent.KEYCODE_MEDIA_NEXT to "Siguiente canción."
+                sendMediaKeyEvent(audioManager, KeyEvent.KEYCODE_MEDIA_NEXT)
+                val msg = "Siguiente canción."
+                SkillOutput(speech = msg, displayText = msg, success = true)
             }
             lower.contains("anterior") || lower.contains("regresa") || lower.contains("vuelve") -> {
-                KeyEvent.KEYCODE_MEDIA_PREVIOUS to "Canción anterior."
-            }
-            lower.contains("reanuda") || lower.contains("continua") || lower.contains("play") -> {
-                KeyEvent.KEYCODE_MEDIA_PLAY to "Reanudando reproducción."
+                sendMediaKeyEvent(audioManager, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                val msg = "Canción anterior."
+                SkillOutput(speech = msg, displayText = msg, success = true)
             }
             else -> {
-                KeyEvent.KEYCODE_MEDIA_PAUSE to "Música pausada."
+                sendMediaKeyEvent(audioManager, KeyEvent.KEYCODE_MEDIA_PLAY)
+                val msg = "Reanudando reproducción."
+                SkillOutput(speech = msg, displayText = msg, success = true)
             }
         }
+    }
 
-        return try {
-            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-            audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
-            SkillOutput(speech = speech, displayText = speech, success = true)
-        } catch (e: Exception) {
-            val err = "No se pudo enviar el comando multimedia: ${e.message}"
-            SkillOutput(speech = err, displayText = err, success = false)
-        }
+    private fun sendMediaKeyEvent(audioManager: AudioManager, keyCode: Int) {
+        val eventDown = KeyEvent(KeyEvent.ACTION_DOWN, keyCode)
+        val eventUp = KeyEvent(KeyEvent.ACTION_UP, keyCode)
+        audioManager.dispatchMediaKeyEvent(eventDown)
+        audioManager.dispatchMediaKeyEvent(eventUp)
     }
 }

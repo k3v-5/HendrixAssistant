@@ -27,13 +27,23 @@ class TimerSkill : StandardRecognizerSkill(
     specificity = Specificity.HIGH
 ) {
     override val patterns: List<Construct> = listOf(
-        // "pon un temporizador de [duración]"
+        // "pon/ponme un temporizador de [duración]"
         SequenceConstruct(
-            OptionalConstruct(WordConstruct("pon", "inicia", "crea", "configura")),
-            OptionalConstruct(WordConstruct("un", "una")),
-            WordConstruct("temporizador", "cuenta", "alarma"),
+            OptionalConstruct(
+                WordConstruct(
+                    "pon", "ponme", "poner",
+                    "inicia", "iniciame", "iniciar",
+                    "crea", "creame", "creeme", "crear",
+                    "configura", "configurame", "configurar",
+                    "activa", "activame", "activar",
+                    "haz", "hazme", "hacer",
+                    "cuenta"
+                )
+            ),
+            OptionalConstruct(WordConstruct("un", "una", "el", "la")),
+            WordConstruct("temporizador", "cuenta", "cronometro", "alarma"),
             OptionalConstruct(WordConstruct("regresiva")),
-            OptionalConstruct(WordConstruct("de", "para", "en")),
+            OptionalConstruct(WordConstruct("de", "para", "en", "por")),
             CapturingConstruct("duration")
         )
     )

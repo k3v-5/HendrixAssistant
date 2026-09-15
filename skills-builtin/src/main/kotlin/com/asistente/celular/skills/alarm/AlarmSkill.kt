@@ -28,19 +28,31 @@ class AlarmSkill : StandardRecognizerSkill(
     specificity = Specificity.HIGH
 ) {
     override val patterns: List<Construct> = listOf(
-        // "pon una alarma [a las 7]"
+        // "pon/ponme una alarma [a las 7 de la noche]"
         SequenceConstruct(
-            OptionalConstruct(WordConstruct("pon", "coloca", "programa", "crea")),
-            OptionalConstruct(WordConstruct("una", "la")),
+            OptionalConstruct(
+                WordConstruct(
+                    "pon", "ponme", "poner",
+                    "coloca", "colocame", "colocar",
+                    "programa", "programame", "programar",
+                    "crea", "creame", "creeme", "crear",
+                    "activa", "activame", "activar",
+                    "configura", "configurame", "configurar",
+                    "haz", "hazme", "hacer",
+                    "nueva", "nuevo"
+                )
+            ),
+            OptionalConstruct(WordConstruct("una", "un", "la", "el")),
             WordConstruct("alarma", "despertador"),
-            OptionalConstruct(WordConstruct("para", "a")),
+            OptionalConstruct(WordConstruct("para", "a", "de", "en")),
             OptionalConstruct(WordConstruct("las", "la")),
             CapturingConstruct("time")
         ),
         // "despiértame [a las 8]"
         SequenceConstruct(
-            WordConstruct("despiertame", "despertar"),
-            OptionalConstruct(WordConstruct("a", "para", "las")),
+            WordConstruct("despiertame", "despierta", "despertarme", "despertar"),
+            OptionalConstruct(WordConstruct("para", "a", "de")),
+            OptionalConstruct(WordConstruct("las", "la")),
             CapturingConstruct("time")
         )
     )

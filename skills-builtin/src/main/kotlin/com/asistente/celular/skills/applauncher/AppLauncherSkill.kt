@@ -1,6 +1,7 @@
 package com.asistente.celular.skills.applauncher
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import com.asistente.celular.nlu.construct.CapturingConstruct
 import com.asistente.celular.nlu.construct.Construct
@@ -14,7 +15,6 @@ import com.asistente.celular.nlu.skill.SkillInfo
 import com.asistente.celular.nlu.skill.SkillOutput
 import com.asistente.celular.nlu.skill.StandardRecognizerSkill
 import java.text.Normalizer
-import java.util.Locale
 
 /**
  * Habilidad offline para buscar e iniciar aplicaciones instaladas en Android.
@@ -29,7 +29,14 @@ class AppLauncherSkill : StandardRecognizerSkill(
 ) {
     override val patterns: List<Construct> = listOf(
         SequenceConstruct(
-            WordConstruct("abre", "abrir", "inicia", "iniciar", "ejecuta", "lanza", "corre"),
+            WordConstruct(
+                "abre", "abreme", "abrir",
+                "inicia", "iniciame", "iniciar",
+                "ejecuta", "ejecutame", "ejecutar",
+                "lanza", "lanzame", "lanzar",
+                "corre",
+                "pon", "ponme"
+            ),
             OptionalConstruct(WordConstruct("la", "el")),
             OptionalConstruct(WordConstruct("aplicacion", "app")),
             CapturingConstruct("appName")
@@ -44,50 +51,39 @@ class AppLauncherSkill : StandardRecognizerSkill(
         )
 
         val cleanQuery = normalize(appQuery)
-        val pm = context.androidContext.packageManager
-        val intent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
+        val packageManager = context.androidContext.packageManager
+        val installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
 
-        val resolveInfos = pm.queryIntentActivities(intent, 0)
-        var matchedPackage: String? = null
-        var matchedLabel: String? = null
+        // Buscar coincidencia por nombre de etiqueta de la app
+        var matchedApp: ApplicationInfo? = null
+        for (app in installedApps) {
+            // Filtrar apps del sistema que no tienen launcher
+            if (packageManager.getLaunchIntentForPackage(app.packageName) == null) continue
 
-        for (info in resolveInfos) {
-            val label = normalize(info.loadLabel(pm).toString())
-            if (label == cleanQuery || label.contains(cleanQuery) || cleanQuery.contains(label)) {
-                matchedPackage = info.activityInfo.packageName
-                matchedLabel = info.loadLabel(pm).toString()
+            val appLabel = normalize(packageManager.getApplicationLabel(app).toString())
+            if (appLabel == cleanQuery || appLabel.contains(cleanQuery) || cleanQuery.contains(appLabel)) {
+                matchedApp = app
                 break
             }
         }
 
-        if (matchedPackage == null) {
-            val notFound = "No encontré la aplicación '$appQuery' en tu dispositivo."
-            return SkillOutput(speech = notFound, displayText = notFound, success = false)
+        if (matchedApp != null) {
+            val launchIntent = packageManager.getLaunchIntentForPackage(matchedApp.packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.androidContext.startActivity(launchIntent)
+                val label = packageManager.getApplicationLabel(matchedApp).toString()
+                val msg = "Abriendo $label."
+                return SkillOutput(speech = msg, displayText = msg, success = true)
+            }
         }
 
-        return try {
-            val launchIntent = pm.getLaunchIntentForPackage(matchedPackage)?.apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            if (launchIntent != null) {
-                context.androidContext.startActivity(launchIntent)
-                val msg = "Abriendo $matchedLabel."
-                SkillOutput(speech = msg, displayText = msg, success = true)
-            } else {
-                val err = "No se pudo abrir $matchedLabel."
-                SkillOutput(speech = err, displayText = err, success = false)
-            }
-        } catch (e: Exception) {
-            val err = "Error al abrir la aplicación: ${e.message}"
-            SkillOutput(speech = err, displayText = err, success = false)
-        }
+        val notFoundMsg = "No encontré la aplicación '$appQuery' instalada en tu teléfono."
+        return SkillOutput(speech = notFoundMsg, displayText = notFoundMsg, success = false)
     }
 
     private fun normalize(text: String): String {
-        return Normalizer.normalize(text.lowercase(Locale.ROOT), Normalizer.Form.NFD)
-            .replace("[\\p{InCombiningDiacriticalMarks}]".toRegex(), "")
-            .trim()
+        val normalized = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
+        return normalized.replace("[\\p{InCombiningDiacriticalMarks}]".toRegex(), "").trim()
     }
 }

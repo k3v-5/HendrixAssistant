@@ -39,6 +39,10 @@ class BuiltinSkillsTest {
         val score = skill.score(dummyContext, "pon un temporizador de 5 minutos")
         assertTrue(score.isMatch)
         assertEquals("5 minutos", score.capturedSlots["duration"])
+
+        val score2 = skill.score(dummyContext, "ponme un temporizador de 10 minutos")
+        assertTrue(score2.isMatch)
+        assertEquals("10 minutos", score2.capturedSlots["duration"])
     }
 
     @Test
@@ -47,6 +51,10 @@ class BuiltinSkillsTest {
         val score = skill.score(dummyContext, "pon una alarma a las 7 de la manana")
         assertTrue(score.isMatch)
         assertEquals("7 de la manana", score.capturedSlots["time"])
+
+        val score2 = skill.score(dummyContext, "Ponme una alarma a las 7 de la noche")
+        assertTrue("Ponme una alarma a las 7 de la noche debe coincidir", score2.isMatch)
+        assertEquals("7 de la noche", score2.capturedSlots["time"])
     }
 
     @Test

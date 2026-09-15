@@ -4,6 +4,7 @@ import android.hardware.camera2.CameraManager
 import androidx.core.content.getSystemService
 import com.asistente.celular.nlu.construct.Construct
 import com.asistente.celular.nlu.construct.OrConstruct
+import com.asistente.celular.nlu.construct.OptionalConstruct
 import com.asistente.celular.nlu.construct.SequenceConstruct
 import com.asistente.celular.nlu.construct.WordConstruct
 import com.asistente.celular.nlu.model.SkillScore
@@ -25,29 +26,28 @@ class FlashlightSkill : StandardRecognizerSkill(
     specificity = Specificity.NORMAL
 ) {
     override val patterns: List<Construct> = listOf(
-        // "enciende la linterna", "prende linterna"
+        // "enciende la linterna", "prende linterna", "enciéndeme la luz"
         SequenceConstruct(
-            WordConstruct("enciende", "prende", "activar", "activa", "encender"),
-            WordConstruct("la", "el"),
-            WordConstruct("linterna", "flash")
+            WordConstruct(
+                "enciende", "enciendeme", "encender",
+                "prende", "prendeme", "prender",
+                "activa", "activame", "activar"
+            ),
+            OptionalConstruct(WordConstruct("la", "el")),
+            WordConstruct("linterna", "flash", "luz")
         ),
+        // "apaga la linterna", "desactiva linterna", "apágame la luz"
         SequenceConstruct(
-            WordConstruct("enciende", "prende", "activa"),
-            WordConstruct("linterna", "flash")
-        ),
-        // "apaga la linterna", "desactiva linterna"
-        SequenceConstruct(
-            WordConstruct("apaga", "desactiva", "apagar", "desactivar"),
-            WordConstruct("la", "el"),
-            WordConstruct("linterna", "flash")
-        ),
-        SequenceConstruct(
-            WordConstruct("apaga", "desactiva"),
-            WordConstruct("linterna", "flash")
+            WordConstruct(
+                "apaga", "apagame", "apagar",
+                "desactiva", "desactivame", "desactivar"
+            ),
+            OptionalConstruct(WordConstruct("la", "el")),
+            WordConstruct("linterna", "flash", "luz")
         ),
         // "linterna on", "linterna off"
         SequenceConstruct(
-            WordConstruct("linterna"),
+            WordConstruct("linterna", "flash", "luz"),
             OrConstruct(
                 WordConstruct("on", "encendida", "prendida"),
                 WordConstruct("off", "apagada")
