@@ -28,7 +28,7 @@ class AlarmSkill : StandardRecognizerSkill(
     specificity = Specificity.HIGH
 ) {
     override val patterns: List<Construct> = listOf(
-        // "pon/ponme una alarma [a las 7 de la noche]"
+        // 1. Con hora: "pon/ponme una alarma [a las 7 de la noche]"
         SequenceConstruct(
             OptionalConstruct(
                 WordConstruct(
@@ -48,22 +48,50 @@ class AlarmSkill : StandardRecognizerSkill(
             OptionalConstruct(WordConstruct("las", "la")),
             CapturingConstruct("time")
         ),
-        // "despiértame [a las 8]"
+        // 2. Despertar con hora: "despiértame [a las 8]"
         SequenceConstruct(
             WordConstruct("despiertame", "despierta", "despertarme", "despertar"),
             OptionalConstruct(WordConstruct("para", "a", "de")),
             OptionalConstruct(WordConstruct("las", "la")),
             CapturingConstruct("time")
+        ),
+        // 3. Sin hora: "ponme una alarma", "pon una alarma", "crear alarma", "alarma"
+        SequenceConstruct(
+            OptionalConstruct(
+                WordConstruct(
+                    "pon", "ponme", "poner",
+                    "coloca", "colocame", "colocar",
+                    "programa", "programame", "programar",
+                    "crea", "creame", "creeme", "crear",
+                    "activa", "activame", "activar",
+                    "configura", "configurame", "configurar",
+                    "haz", "hazme", "hacer",
+                    "nueva", "nuevo"
+                )
+            ),
+            OptionalConstruct(WordConstruct("una", "un", "la", "el")),
+            WordConstruct("alarma", "despertador")
         )
     )
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
-        val timeStr = score.capturedSlots["time"] ?: input
-        val time = SpanishDateTimeParser.parseTime(timeStr)
+        val timeStr = score.capturedSlots["time"]
+        val time = timeStr?.let { SpanishDateTimeParser.parseTime(it) } ?: SpanishDateTimeParser.parseTime(input)
 
         if (time == null) {
-            val err = "¿Para qué hora deseas la alarma?"
-            return SkillOutput(speech = err, displayText = err, success = false)
+            // Si no se especificó hora, abrir la interfaz del reloj para configurar la alarma
+            return try {
+                val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                }
+                context.androidContext.startActivity(intent)
+                val msg = "¿A qué hora deseas la alarma? Abrí el reloj para que la configures."
+                SkillOutput(speech = msg, displayText = msg, success = true)
+            } catch (e: Exception) {
+                val msg = "¿Para qué hora deseas la alarma? Por ejemplo: 'a las 7 de la mañana'."
+                SkillOutput(speech = msg, displayText = msg, success = true)
+            }
         }
 
         return try {

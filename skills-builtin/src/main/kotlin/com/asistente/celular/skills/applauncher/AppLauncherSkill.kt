@@ -28,17 +28,25 @@ class AppLauncherSkill : StandardRecognizerSkill(
     specificity = Specificity.HIGH
 ) {
     override val patterns: List<Construct> = listOf(
+        // "abre [la app] [whatsapp]", "inicia [youtube]"
         SequenceConstruct(
             WordConstruct(
                 "abre", "abreme", "abrir",
                 "inicia", "iniciame", "iniciar",
                 "ejecuta", "ejecutame", "ejecutar",
                 "lanza", "lanzame", "lanzar",
-                "corre",
-                "pon", "ponme"
+                "corre"
             ),
             OptionalConstruct(WordConstruct("la", "el")),
             OptionalConstruct(WordConstruct("aplicacion", "app")),
+            CapturingConstruct("appName")
+        ),
+        // "pon la app de [spotify]" (solo si se especifica app/aplicación para no colisionar con alarmas/música)
+        SequenceConstruct(
+            WordConstruct("pon", "ponme"),
+            OptionalConstruct(WordConstruct("la", "el")),
+            WordConstruct("aplicacion", "app"),
+            OptionalConstruct(WordConstruct("de")),
             CapturingConstruct("appName")
         )
     )

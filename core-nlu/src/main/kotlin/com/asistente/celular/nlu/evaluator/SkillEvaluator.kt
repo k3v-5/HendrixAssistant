@@ -55,18 +55,54 @@ class SkillEvaluator(
         // para que las habilidades locales offline coincidan al 100% aunque el usuario incluya el nombre.
         var cleanedInput = rawTrimmed
         val lower = rawTrimmed.lowercase()
-        val prefixes = listOf("oye hendrix", "hey hendrix", "hola hendrix", "ok hendrix", "hendrix", "oye", "hola")
+        val prefixes = listOf(
+            "oye hendrix", "hey hendrix", "hola hendrix", "ok hendrix", "hendrix",
+            "buenos dias", "buenos días", "buenas tardes", "buenas noches",
+            "oye", "hola"
+        )
+        var matchedPrefixOnly = false
         for (prefix in prefixes) {
-            if (lower.startsWith(prefix)) {
+            if (lower == prefix || lower.startsWith("$prefix ") || lower.startsWith("$prefix,") || lower.startsWith("$prefix:") || lower.startsWith("$prefix;")) {
                 var candidate = rawTrimmed.substring(prefix.length).trim().trimStart(',', ':', ';', '-').trim()
                 if (candidate.lowercase().startsWith("por favor")) {
                     candidate = candidate.substring(9).trim().trimStart(',', ':', ';', '-').trim()
                 }
                 if (candidate.isNotBlank()) {
                     cleanedInput = candidate
+                } else {
+                    matchedPrefixOnly = true
                 }
                 break
             }
+        }
+
+        if (matchedPrefixOnly) {
+            val greeting = "¡Hola! ¿En qué te puedo ayudar?"
+            val output = SkillOutput(
+                speech = greeting,
+                displayText = greeting,
+                interactionPlan = InteractionPlan.ReopenMicrophone()
+            )
+            val entry = InteractionEntry(
+                userInput = rawTrimmed,
+                skillName = "Hendrix",
+                output = output
+            )
+            _state.value = _state.value.copy(
+                isProcessing = false,
+                currentPrompt = null,
+                history = _state.value.history + entry
+            )
+            if (output.speech.isNotBlank()) {
+                _state.value = _state.value.copy(isSpeaking = true)
+                try {
+                    onSpeak(output.speech)
+                } finally {
+                    _state.value = _state.value.copy(isSpeaking = false)
+                }
+            }
+            onReopenMic()
+            return output
         }
 
         _state.value = _state.value.copy(

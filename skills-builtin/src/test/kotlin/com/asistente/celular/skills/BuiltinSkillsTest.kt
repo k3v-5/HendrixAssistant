@@ -9,6 +9,8 @@ import com.asistente.celular.skills.media.MediaControlSkill
 import com.asistente.celular.skills.time.CurrentTimeSkill
 import com.asistente.celular.skills.timer.TimerSkill
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,6 +45,14 @@ class BuiltinSkillsTest {
         val score2 = skill.score(dummyContext, "ponme un temporizador de 10 minutos")
         assertTrue(score2.isMatch)
         assertEquals("10 minutos", score2.capturedSlots["duration"])
+
+        // Sin duración especificada
+        val scoreNoDuration = skill.score(dummyContext, "ponme un temporizador")
+        assertTrue(scoreNoDuration.isMatch)
+        assertNull(scoreNoDuration.capturedSlots["duration"])
+
+        val scoreOnlyWord = skill.score(dummyContext, "temporizador")
+        assertTrue(scoreOnlyWord.isMatch)
     }
 
     @Test
@@ -55,6 +65,17 @@ class BuiltinSkillsTest {
         val score2 = skill.score(dummyContext, "Ponme una alarma a las 7 de la noche")
         assertTrue("Ponme una alarma a las 7 de la noche debe coincidir", score2.isMatch)
         assertEquals("7 de la noche", score2.capturedSlots["time"])
+
+        // Sin hora especificada ("Ponme una alarma")
+        val scoreNoTime = skill.score(dummyContext, "Ponme una alarma")
+        assertTrue("Ponme una alarma sin hora debe coincidir con AlarmSkill", scoreNoTime.isMatch)
+        assertNull(scoreNoTime.capturedSlots["time"])
+
+        val scoreNoTime2 = skill.score(dummyContext, "pon una alarma")
+        assertTrue(scoreNoTime2.isMatch)
+
+        val scoreOnlyAlarm = skill.score(dummyContext, "alarma")
+        assertTrue(scoreOnlyAlarm.isMatch)
     }
 
     @Test
@@ -63,6 +84,17 @@ class BuiltinSkillsTest {
         val score = skill.score(dummyContext, "abre la app spotify")
         assertTrue(score.isMatch)
         assertEquals("spotify", score.capturedSlots["appName"])
+
+        val scoreAppExplicit = skill.score(dummyContext, "pon la app de spotify")
+        assertTrue(scoreAppExplicit.isMatch)
+        assertEquals("spotify", scoreAppExplicit.capturedSlots["appName"])
+
+        // "ponme una alarma" NO debe ser interceptado por AppLauncherSkill
+        val scoreAlarmCollision = skill.score(dummyContext, "ponme una alarma")
+        assertFalse("AppLauncherSkill NO debe capturar 'ponme una alarma'", scoreAlarmCollision.isMatch)
+
+        val scoreTimerCollision = skill.score(dummyContext, "pon un temporizador")
+        assertFalse("AppLauncherSkill NO debe capturar 'pon un temporizador'", scoreTimerCollision.isMatch)
     }
 
     @Test

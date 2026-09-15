@@ -27,7 +27,7 @@ class TimerSkill : StandardRecognizerSkill(
     specificity = Specificity.HIGH
 ) {
     override val patterns: List<Construct> = listOf(
-        // "pon/ponme un temporizador de [duración]"
+        // 1. Con duración: "pon/ponme un temporizador de [duración]"
         SequenceConstruct(
             OptionalConstruct(
                 WordConstruct(
@@ -41,20 +41,46 @@ class TimerSkill : StandardRecognizerSkill(
                 )
             ),
             OptionalConstruct(WordConstruct("un", "una", "el", "la")),
-            WordConstruct("temporizador", "cuenta", "cronometro", "alarma"),
+            WordConstruct("temporizador", "cronometro", "cuenta"),
             OptionalConstruct(WordConstruct("regresiva")),
             OptionalConstruct(WordConstruct("de", "para", "en", "por")),
             CapturingConstruct("duration")
+        ),
+        // 2. Sin duración: "ponme un temporizador", "iniciar temporizador", "temporizador"
+        SequenceConstruct(
+            OptionalConstruct(
+                WordConstruct(
+                    "pon", "ponme", "poner",
+                    "inicia", "iniciame", "iniciar",
+                    "crea", "creame", "creeme", "crear",
+                    "configura", "configurame", "configurar",
+                    "activa", "activame", "activar",
+                    "haz", "hazme", "hacer"
+                )
+            ),
+            OptionalConstruct(WordConstruct("un", "una", "el", "la")),
+            WordConstruct("temporizador", "cronometro")
         )
     )
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
-        val durationStr = score.capturedSlots["duration"] ?: input
-        val seconds = SpanishDateTimeParser.parseDurationSeconds(durationStr)
+        val durationStr = score.capturedSlots["duration"]
+        val seconds = durationStr?.let { SpanishDateTimeParser.parseDurationSeconds(it) }
+            ?: SpanishDateTimeParser.parseDurationSeconds(input)
 
         if (seconds == null || seconds <= 0) {
-            val err = "¿Para cuánto tiempo deseas el temporizador?"
-            return SkillOutput(speech = err, displayText = err, success = false)
+            return try {
+                val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                }
+                context.androidContext.startActivity(intent)
+                val msg = "¿Para cuánto tiempo deseas el temporizador? Abrí el reloj para que lo configures."
+                SkillOutput(speech = msg, displayText = msg, success = true)
+            } catch (e: Exception) {
+                val msg = "¿Para cuánto tiempo deseas el temporizador? Por ejemplo: 'de 5 minutos'."
+                SkillOutput(speech = msg, displayText = msg, success = true)
+            }
         }
 
         return try {
