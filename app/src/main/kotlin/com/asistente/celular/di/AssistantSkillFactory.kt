@@ -23,6 +23,8 @@ import com.asistente.celular.skills.applauncher.AppLauncherSkill
 import com.asistente.celular.skills.calendar.CalendarSkill
 import com.asistente.celular.skills.communication.PhoneCallSkill
 import com.asistente.celular.skills.communication.WhatsAppSkill
+import com.asistente.celular.skills.flashlight.AndroidFlashlightController
+import com.asistente.celular.skills.flashlight.FlashlightController
 import com.asistente.celular.skills.flashlight.FlashlightSkill
 import com.asistente.celular.skills.help.HelpSkill
 import com.asistente.celular.skills.media.DeepMediaSkill
@@ -59,6 +61,7 @@ class AssistantSkillFactory(
     val semanticMemoryRepository = JsonSemanticMemoryRepository(context, scope)
     val calendarRepository = AndroidCalendarRepository(context)
     val smartHomeRepository: SmartHomeRepository = JsonSmartHomeRepository(context, scope)
+    val flashlightController: FlashlightController = AndroidFlashlightController(context)
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -80,7 +83,7 @@ class AssistantSkillFactory(
             MathSkill(),
             DeviceControlSkill(),
             DeepMediaSkill(),
-            FlashlightSkill(),
+            FlashlightSkill(flashlightController),
             TimerSkill(),
             AlarmSkill(),
             AppLauncherSkill(),
