@@ -250,9 +250,9 @@ class AndroidContinuousWakeWordEngine(
 
     companion object {
         private const val TAG = "ContinuousWakeWord"
-        private const val VOICE_RMS_THRESHOLD = 0.040f
-        private const val REQUIRED_VOICE_FRAMES = 2
-        private const val COOLDOWN_MILLIS = 2000L
+        private const val VOICE_RMS_THRESHOLD = 0.075f
+        private const val REQUIRED_VOICE_FRAMES = 4
+        private const val COOLDOWN_MILLIS = 3500L
 
         val DEFAULT_KEYWORDS = listOf(
             "oye hendrix",

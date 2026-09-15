@@ -54,7 +54,12 @@ class YeelightLanDriver(
 
         try {
             val response = sendJsonRpcCommand(device.ipAddress, device.port, method, params)
-            if (response != null && response.has("result")) {
+            val hasResult = response?.has("result") == true
+            val isPropsNotification = response?.optString("method") == "props"
+            val hasError = response?.has("error") == true
+
+            // Si el foco respondió con result, props o no reportó error, el comando fue ejecutado con éxito
+            if (response != null && !hasError) {
                 val updatedProps = when (action) {
                     is DeviceAction.TurnOn -> mapOf("power" to "on")
                     is DeviceAction.TurnOff -> mapOf("power" to "off")
@@ -67,7 +72,7 @@ class YeelightLanDriver(
                     updatedProperties = updatedProps
                 )
             } else {
-                val errorMsg = response?.optJSONObject("error")?.optString("message") ?: "Sin respuesta del foco"
+                val errorMsg = response?.optJSONObject("error")?.optString("message") ?: "Sin confirmación del foco"
                 DeviceActionResult(
                     success = false,
                     message = "Fallo al enviar comando a '${device.name}': $errorMsg"
@@ -308,24 +313,47 @@ class YeelightLanDriver(
         }
         val requestStr = request.toString() + "\r\n"
 
-        val socket = Socket()
-        socket.soTimeout = socketTimeoutMillis
-        socket.connect(InetSocketAddress(ip, port), socketTimeoutMillis)
+        var finalJson: JSONObject? = null
+        try {
+            Socket().use { socket ->
+                socket.soTimeout = socketTimeoutMillis
+                socket.connect(InetSocketAddress(ip, port), socketTimeoutMillis)
 
-        val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream()))
-        val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream()))
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
 
-        writer.write(requestStr)
-        writer.flush()
+                writer.write(requestStr)
+                writer.flush()
 
-        val responseStr = reader.readLine()
-        socket.close()
+                // Leer respuestas: Yeelight suele enviar notificaciones "props" antes del "result"
+                val deadline = System.currentTimeMillis() + socketTimeoutMillis
+                while (System.currentTimeMillis() < deadline) {
+                    val line = try {
+                        reader.readLine()
+                    } catch (_: Exception) {
+                        null
+                    } ?: break
 
-        return if (!responseStr.isNullOrBlank()) {
-            JSONObject(responseStr)
-        } else {
-            null
+                    if (line.isBlank()) continue
+                    val parsed = try { JSONObject(line) } catch (_: Exception) { null } ?: continue
+
+                    // Si encontramos la respuesta al id solicitado o con result, la priorizamos
+                    if (parsed.has("result") || parsed.optInt("id") == id) {
+                        finalJson = parsed
+                        break
+                    }
+
+                    // Notificación de estado cambiado
+                    if (parsed.optString("method") == "props") {
+                        finalJson = parsed
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error comunicándose por JSON-RPC a $ip:$port -> ${e.message}")
         }
+
+        return finalJson
     }
 
     companion object {
