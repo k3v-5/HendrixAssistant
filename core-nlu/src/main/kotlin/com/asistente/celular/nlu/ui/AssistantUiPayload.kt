@@ -82,3 +82,44 @@ data class TallyCounterWidgetPayload(
     val currentCount: Int = 0,
     val step: Int = 1
 ) : AssistantUiPayload
+
+data class ScreenVisionUiPayload(
+    val packageName: String?,
+    val title: String?,
+    val texts: List<String>,
+    val summary: String
+) : AssistantUiPayload
+
+data class OcrGlanceUiPayload(
+    val fullText: String,
+    val lines: List<String>
+) : AssistantUiPayload
+
+data class DrivingModeUiPayload(
+    val isActive: Boolean,
+    val connectedDeviceName: String? = null
+) : AssistantUiPayload
+
+data class ExpenseReportUiPayload(
+    val totalAmount: Double,
+    val currency: String,
+    val recentExpenses: List<com.asistente.celular.nlu.expenses.ExpenseItem>,
+    val categoryTotals: Map<String, Double>
+) : AssistantUiPayload
+
+data class LocalFileResultsUiPayload(
+    val query: String,
+    val files: List<com.asistente.celular.nlu.files.LocalFileItem>
+) : AssistantUiPayload
+
+data class EmergencySosUiPayload(
+    val isTriggered: Boolean,
+    val locationUrl: String?,
+    val emergencyContactsNotified: List<String>
+) : AssistantUiPayload
+
+data class Otp2FaUiPayload(
+    val code: String,
+    val sender: String,
+    val serviceName: String? = null
+) : AssistantUiPayload

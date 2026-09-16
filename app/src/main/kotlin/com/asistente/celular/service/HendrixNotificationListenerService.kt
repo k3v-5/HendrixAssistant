@@ -10,6 +10,9 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.asistente.celular.notifications.NotificationRuleEngine
+import com.asistente.celular.notifications.ParsedNotification
+import com.asistente.celular.nlu.ui.Otp2FaUiPayload
 import com.asistente.celular.nlu.ui.WhatsAppQuickReplyPayload
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,42 +35,59 @@ class HendrixNotificationListenerService : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
 
-        val pkg = sbn.packageName
-        if (pkg != "com.whatsapp") return
-
+        val pkg = sbn.packageName ?: ""
         val extras = sbn.notification.extras ?: return
-        val sender = extras.getString(Notification.EXTRA_TITLE) ?: return
-        val message = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
+        val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
+        val message = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
 
-        if (sender.isBlank() || message.isBlank()) return
+        if (title.isBlank() && message.isBlank()) return
 
-        // Buscar acción con RemoteInput para respuesta directa
-        val actions = sbn.notification.actions ?: return
-        var replyAction: Notification.Action? = null
+        // 1. Procesamiento inteligente de reglas (2FA, Bancos, OTP)
+        val parsed = NotificationRuleEngine.parse(pkg, title, message)
+        when (parsed) {
+            is ParsedNotification.OtpCode -> {
+                NotificationRuleEngine.copyToClipboard(this, parsed.code, "Código 2FA ${parsed.serviceOrSender}")
+                _lastOtpCode.value = Otp2FaUiPayload(
+                    code = parsed.code,
+                    sender = parsed.serviceOrSender
+                )
+                Log.i(TAG, "Código OTP 2FA ${parsed.code} copiado al portapapeles automáticamente.")
+            }
+            is ParsedNotification.BankAlert -> {
+                _lastBankAlert.value = parsed
+                Log.i(TAG, "Alerta bancaria procesada: ${parsed.transactionType} por $${parsed.amount}")
+            }
+            else -> { /* Continuar con mensajería */ }
+        }
 
-        for (action in actions) {
-            val remoteInputs = action.remoteInputs
-            if (!remoteInputs.isNullOrEmpty()) {
-                replyAction = action
-                break
+        // 2. Procesamiento de mensajería (WhatsApp y apps con RemoteInput)
+        if (pkg == "com.whatsapp" || pkg.contains("telegram") || pkg.contains("messaging")) {
+            val actions = sbn.notification.actions ?: return
+            var replyAction: Notification.Action? = null
+
+            for (action in actions) {
+                val remoteInputs = action.remoteInputs
+                if (!remoteInputs.isNullOrEmpty()) {
+                    replyAction = action
+                    break
+                }
+            }
+
+            if (replyAction != null) {
+                activeReplyActions[sbn.key] = replyAction
+            }
+
+            if (message.isNotBlank()) {
+                val suggestions = generateSmartReplies(message)
+                val payload = WhatsAppQuickReplyPayload(
+                    senderName = title,
+                    messageSnippet = message,
+                    suggestedReplies = suggestions,
+                    notificationKey = sbn.key
+                )
+                _lastWhatsAppNotification.value = payload
             }
         }
-
-        if (replyAction != null) {
-            activeReplyActions[sbn.key] = replyAction
-        }
-
-        // Generar 3 sugerencias contextuales rápidas
-        val suggestions = generateSmartReplies(message)
-        val payload = WhatsAppQuickReplyPayload(
-            senderName = sender,
-            messageSnippet = message,
-            suggestedReplies = suggestions,
-            notificationKey = sbn.key
-        )
-
-        _lastWhatsAppNotification.value = payload
-        Log.i(TAG, "Notificación WhatsApp de '$sender': \"$message\" con ${suggestions.size} sugerencias.")
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
@@ -91,6 +111,12 @@ class HendrixNotificationListenerService : NotificationListenerService() {
 
         private val _lastWhatsAppNotification = MutableStateFlow<WhatsAppQuickReplyPayload?>(null)
         val lastWhatsAppNotification: StateFlow<WhatsAppQuickReplyPayload?> = _lastWhatsAppNotification.asStateFlow()
+
+        private val _lastOtpCode = MutableStateFlow<Otp2FaUiPayload?>(null)
+        val lastOtpCode: StateFlow<Otp2FaUiPayload?> = _lastOtpCode.asStateFlow()
+
+        private val _lastBankAlert = MutableStateFlow<ParsedNotification.BankAlert?>(null)
+        val lastBankAlert: StateFlow<ParsedNotification.BankAlert?> = _lastBankAlert.asStateFlow()
 
         fun isEnabled(): Boolean = instance != null
 

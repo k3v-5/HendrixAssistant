@@ -29,6 +29,11 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- Declaración de visibilidad obligatoria en Android 11+ (API 30+) para SpeechRecognizer, TTS, WhatsApp y Música -->
     <queries>
@@ -119,6 +124,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_quick_assistant_info" />
+        </receiver>
+
+        <!-- Widget Material You Centro de Comando (Mic, Foco, Nota, SOS) -->
+        <receiver
+            android:name=".widget.HendrixCommandCenterWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.asistente.celular.widget.ACTION_TOGGLE_BULB" />
+                <action android:name="com.asistente.celular.widget.ACTION_TRIGGER_SOS" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_command_center_info" />
         </receiver>
 
         <!-- Widget de Lista de Tareas -->

@@ -37,7 +37,19 @@ import com.asistente.celular.skills.system.BrightnessController
 import com.asistente.celular.skills.system.SystemSettingsSkill
 import com.asistente.celular.skills.system.VolumeSkill
 import com.asistente.celular.data.JsonSmartHomeRepository
+import com.asistente.celular.data.JsonExpenseRepository
+import com.asistente.celular.data.MediaStoreFileSearchEngine
+import com.asistente.celular.driving.DrivingModeCoordinator
+import com.asistente.celular.emergency.EmergencySosCoordinator
 import com.asistente.celular.nlu.smarthome.SmartHomeRepository
+import com.asistente.celular.ocr.LocalOcrEngine
+import com.asistente.celular.rhythm.SleepWakeCoordinator
+import com.asistente.celular.service.HendrixAccessibilityService
+import com.asistente.celular.skills.driving.DrivingModeSkill
+import com.asistente.celular.skills.emergency.EmergencySosSkill
+import com.asistente.celular.skills.expenses.ExpenseSkill
+import com.asistente.celular.skills.files.LocalFileSearchSkill
+import com.asistente.celular.skills.rhythm.SmartRhythmSkill
 import com.asistente.celular.skills.smarthome.SmartHomeSkill
 import com.asistente.celular.skills.tasks.TasksSkill
 import com.asistente.celular.skills.time.CurrentTimeSkill
@@ -46,6 +58,8 @@ import com.asistente.celular.skills.deepapp.DeepAppSkill
 import com.asistente.celular.skills.math.MathSkill
 import com.asistente.celular.skills.system.DeviceControlSkill
 import com.asistente.celular.skills.smarthome.SmartSceneSkill
+import com.asistente.celular.skills.vision.CameraGlanceSkill
+import com.asistente.celular.skills.vision.ScreenUnderstandingSkill
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -65,6 +79,12 @@ class AssistantSkillFactory(
     val calendarRepository = AndroidCalendarRepository(context)
     val smartHomeRepository: SmartHomeRepository = JsonSmartHomeRepository(context, scope)
     val flashlightController: FlashlightController = AndroidFlashlightController(context)
+    val expenseRepository = JsonExpenseRepository(context)
+    val fileSearchEngine = MediaStoreFileSearchEngine(context)
+    val ocrEngine = LocalOcrEngine(context)
+    val drivingModeCoordinator = DrivingModeCoordinator(context)
+    val sleepWakeCoordinator = SleepWakeCoordinator(context, smartHomeRepository)
+    val emergencyCoordinator = EmergencySosCoordinator(context)
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -98,7 +118,14 @@ class AssistantSkillFactory(
             WhatsAppSkill(),
             DeepAppSkill(),
             TasksSkill(taskRepository, taskScheduler),
-            NotesSkill(noteRepository)
+            NotesSkill(noteRepository),
+            ScreenUnderstandingSkill(HendrixAccessibilityService.instance),
+            CameraGlanceSkill(ocrEngine),
+            DrivingModeSkill(drivingModeCoordinator),
+            SmartRhythmSkill(sleepWakeCoordinator),
+            LocalFileSearchSkill(fileSearchEngine),
+            ExpenseSkill(expenseRepository),
+            EmergencySosSkill(emergencyCoordinator)
         )
     }
 

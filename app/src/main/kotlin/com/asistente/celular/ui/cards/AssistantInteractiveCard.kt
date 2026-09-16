@@ -78,10 +78,17 @@ import com.asistente.celular.nlu.ui.AssistantUiPayload
 import com.asistente.celular.nlu.ui.BatteryUiPayload
 import com.asistente.celular.nlu.ui.BrightnessUiPayload
 import com.asistente.celular.nlu.ui.CurrencyUiPayload
+import com.asistente.celular.nlu.ui.DrivingModeUiPayload
+import com.asistente.celular.nlu.ui.EmergencySosUiPayload
+import com.asistente.celular.nlu.ui.ExpenseReportUiPayload
 import com.asistente.celular.nlu.ui.FlashlightUiPayload
+import com.asistente.celular.nlu.ui.LocalFileResultsUiPayload
 import com.asistente.celular.nlu.ui.NotesUiPayload
+import com.asistente.celular.nlu.ui.OcrGlanceUiPayload
+import com.asistente.celular.nlu.ui.Otp2FaUiPayload
 import com.asistente.celular.nlu.ui.PomodoroWidgetPayload
 import com.asistente.celular.nlu.ui.RoutineUiPayload
+import com.asistente.celular.nlu.ui.ScreenVisionUiPayload
 import com.asistente.celular.nlu.ui.SmartBulbUiPayload
 import com.asistente.celular.nlu.ui.TallyCounterWidgetPayload
 import com.asistente.celular.nlu.ui.VolumeUiPayload
@@ -114,6 +121,13 @@ fun AssistantInteractiveCard(
             is WhatsAppQuickReplyPayload -> WhatsAppReplyCard(payload, onExecuteCommand)
             is PomodoroWidgetPayload -> PomodoroCard(payload, onExecuteCommand)
             is TallyCounterWidgetPayload -> TallyCounterCard(payload, onExecuteCommand)
+            is ScreenVisionUiPayload -> ScreenVisionCard(payload, onExecuteCommand)
+            is OcrGlanceUiPayload -> OcrGlanceCard(payload, onExecuteCommand)
+            is DrivingModeUiPayload -> DrivingModeCard(payload, onExecuteCommand)
+            is ExpenseReportUiPayload -> ExpenseReportCard(payload, onExecuteCommand)
+            is LocalFileResultsUiPayload -> LocalFilesCard(payload, onExecuteCommand)
+            is EmergencySosUiPayload -> EmergencySosCard(payload, onExecuteCommand)
+            is Otp2FaUiPayload -> Otp2FaCard(payload)
         }
     }
 }
@@ -1100,6 +1114,367 @@ fun TallyCounterCard(
                     Icon(Icons.Default.Refresh, contentDescription = "Reiniciar")
                 }
             }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Visión de Pantalla en Vivo (Screen Understanding).
+ */
+@Composable
+fun ScreenVisionCard(
+    payload: ScreenVisionUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📱 Visión de Pantalla",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                payload.packageName?.let {
+                    Text(
+                        text = it.substringAfterLast('.'),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = payload.summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onExecuteCommand("resume la pantalla") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Resumir")
+                }
+                OutlinedButton(
+                    onClick = { onExecuteCommand("traduce la pantalla") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Traducir")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Camera Glance & OCR Offline.
+ */
+@Composable
+fun OcrGlanceCard(
+    payload: OcrGlanceUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "📷 Texto Detectado (OCR)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = payload.fullText.ifBlank { "Sin texto legible." },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Modo Conducción.
+ */
+@Composable
+fun DrivingModeCard(
+    payload: DrivingModeUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2638))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🚗 Modo Conducción",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = if (payload.isActive) "● ACTIVO" else "DESACTIVADO",
+                    color = if (payload.isActive) Color(0xFF81C784) else Color.Gray,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+
+            payload.connectedDeviceName?.let {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Conectado a: $it",
+                    color = Color(0xFF90CAF9),
+                    fontSize = 13.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    if (payload.isActive) {
+                        onExecuteCommand("desactiva modo auto")
+                    } else {
+                        onExecuteCommand("activa modo auto")
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (payload.isActive) Color(0xFFD32F2F) else Color(0xFF1976D2)
+                )
+            ) {
+                Text(
+                    text = if (payload.isActive) "Terminar Conducción" else "Activar Modo Conducción",
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva de Finanzas y Reporte de Gastos Rápidos.
+ */
+@Composable
+fun ExpenseReportCard(
+    payload: ExpenseReportUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "💰 Finanzas Personales",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = "$${"%.2f".format(payload.totalAmount)}",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = payload.currency,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            if (payload.recentExpenses.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Últimos movimientos:",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                payload.recentExpenses.take(3).forEach { expense ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "• ${expense.category.displayName}: ${expense.note}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            text = "$${"%.2f".format(expense.amount)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva de Resultados de Búsqueda de Archivos Locales.
+ */
+@Composable
+fun LocalFilesCard(
+    payload: LocalFileResultsUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "📁 Archivos Encontrados (${payload.files.size})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            payload.files.take(4).forEach { file ->
+                val sizeKb = (file.sizeBytes / 1024).coerceAtLeast(1)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = file.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${file.category.displayName} • ${sizeKb} KB",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva de Emergencia SOS Manos Libres.
+ */
+@Composable
+fun EmergencySosCard(
+    payload: EmergencySosUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF4A0E0E))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🚨 ALERTA SOS ACTIVA",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color(0xFFFF8A80)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "• Linterna en código Morse transmitiendo\n• Ubicación GPS calculada y compartida",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = { onExecuteCommand("cancela emergencia") },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Desactivar Alerta SOS", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Códigos 2FA OTP.
+ */
+@Composable
+fun Otp2FaCard(
+    payload: Otp2FaUiPayload
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "🔐 Código de Seguridad 2FA",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "De: ${payload.sender}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = payload.code,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 4.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "✓ Copiado automáticamente al portapapeles",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF4CAF50),
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

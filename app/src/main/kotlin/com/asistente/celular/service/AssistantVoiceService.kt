@@ -45,6 +45,7 @@ class AssistantVoiceService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var ttsEngine: AndroidNativeTtsEngine? = null
     private var evaluator: SkillEvaluator? = null
+    val noiseCalibrator = com.asistente.celular.voice.acoustic.NoiseCalibrator()
 
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -68,6 +69,7 @@ class AssistantVoiceService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         hapticManager = HapticFeedbackManager(this)
         settingsRepo = SettingsRepository(this)
         settingsRepo.registerOnSharedPreferenceChangeListener(prefsListener)
@@ -239,6 +241,9 @@ class AssistantVoiceService : Service() {
     }
 
     override fun onDestroy() {
+        if (instance === this) {
+            instance = null
+        }
         serviceScope.cancel()
         settingsRepo.unregisterOnSharedPreferenceChangeListener(prefsListener)
         sensorCoordinator?.stopListening()
@@ -289,5 +294,9 @@ class AssistantVoiceService : Service() {
         const val NOTIFICATION_ID = 1001
         const val WAKE_NOTIFICATION_ID = 1002
         const val EXTRA_TRIGGERED_BY_WAKE_WORD = "extra_triggered_by_wake_word"
+
+        @Volatile
+        var instance: AssistantVoiceService? = null
+        fun getNoiseCalibrator(): com.asistente.celular.voice.acoustic.NoiseCalibrator? = instance?.noiseCalibrator
     }
 }

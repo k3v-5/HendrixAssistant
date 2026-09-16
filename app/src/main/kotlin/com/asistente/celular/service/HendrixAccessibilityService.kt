@@ -13,13 +13,15 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.asistente.celular.nlu.agent.AutonomousNavigationAgent
 import com.asistente.celular.nlu.agent.NavigationResult
 import com.asistente.celular.nlu.agent.UiNavigationAction
+import com.asistente.celular.nlu.vision.ScreenContentSnapshot
+import com.asistente.celular.nlu.vision.ScreenUnderstandingProvider
 import kotlinx.coroutines.delay
 
 /**
  * Servicio de accesibilidad nativo para navegación autónoma y RPA en Android.
  * Permite a Hendrix inspeccionar nodos de pantalla, hacer clic, scroll, escribir texto y automatizar apps como Spotify.
  */
-class HendrixAccessibilityService : AccessibilityService(), AutonomousNavigationAgent {
+class HendrixAccessibilityService : AccessibilityService(), AutonomousNavigationAgent, ScreenUnderstandingProvider {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -44,6 +46,64 @@ class HendrixAccessibilityService : AccessibilityService(), AutonomousNavigation
 
     override fun isEnabled(): Boolean {
         return instance != null
+    }
+
+    override fun isAvailable(): Boolean {
+        return instance != null
+    }
+
+    override suspend fun captureScreenContent(): ScreenContentSnapshot? {
+        val root = rootInActiveWindow ?: return null
+        val texts = mutableListOf<String>()
+        var interactiveCount = 0
+
+        fun traverse(node: AccessibilityNodeInfo) {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!text.isNullOrBlank()) {
+                texts.add(text)
+            } else if (!desc.isNullOrBlank()) {
+                texts.add(desc)
+            }
+            if (node.isClickable || node.isEditable) {
+                interactiveCount++
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                traverse(child)
+            }
+        }
+
+        traverse(root)
+        val distinct = texts.distinct().filter { it.length > 1 }
+        val dump = distinct.joinToString("\n")
+        val pkg = root.packageName?.toString()
+        val title = root.window?.title?.toString() ?: pkg
+
+        return ScreenContentSnapshot(
+            packageName = pkg,
+            title = title,
+            texts = distinct,
+            rawTextDump = dump,
+            interactiveElementsCount = interactiveCount
+        )
+    }
+
+    fun extractActiveScreenText(): String {
+        val root = rootInActiveWindow ?: return ""
+        val texts = mutableListOf<String>()
+        fun traverse(node: AccessibilityNodeInfo) {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!text.isNullOrBlank()) texts.add(text)
+            else if (!desc.isNullOrBlank()) texts.add(desc)
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                traverse(child)
+            }
+        }
+        traverse(root)
+        return texts.distinct().filter { it.isNotBlank() }.joinToString("\n")
     }
 
     override suspend fun executeAction(action: UiNavigationAction): NavigationResult {

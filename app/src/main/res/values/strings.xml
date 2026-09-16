@@ -6,6 +6,7 @@
     <string name="ready">Listo para escuchar</string>
     <string name="wake_word_active">Wake Word activo ("Oye Hendrix")</string>
     <string name="widget_quick_assistant_desc">Acceso rápido de un toque para hablar con Hendrix</string>
+    <string name="widget_command_center_desc">Centro de comando inteligente: micrófono, foco, notas y SOS</string>
     <string name="widget_tasks_desc">Lista interactiva de tareas pendientes de Hendrix</string>
     <string name="accessibility_service_description">Permite a Hendrix navegar aplicaciones de forma autónoma (ej. Spotify, Uber) y realizar acciones en pantalla solicitadas por voz.</string>
     <string name="notification_listener_description">Permite a Hendrix leer notificaciones entrantes de WhatsApp para sugerir respuestas inteligentes y redactar respuestas rápidas.</string>
