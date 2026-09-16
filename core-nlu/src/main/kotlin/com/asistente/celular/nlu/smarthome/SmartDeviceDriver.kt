@@ -10,6 +10,8 @@ sealed interface DeviceAction {
     data class SetBrightness(val percent: Int) : DeviceAction
     data class SetColor(val colorRgb: Int) : DeviceAction
     data class SetColorTemperature(val kelvin: Int) : DeviceAction
+    data class StartColorFlow(val count: Int, val action: Int, val flowExpression: String) : DeviceAction
+    data object StopColorFlow : DeviceAction
     data class Custom(val command: String, val params: List<Any> = emptyList()) : DeviceAction
 }
 

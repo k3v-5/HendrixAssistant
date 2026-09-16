@@ -5,8 +5,12 @@ import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.asistente.celular.nlu.ui.AssistantUiPayload
+import com.asistente.celular.ui.cards.AssistantInteractiveCard
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -154,6 +158,8 @@ class AssistantDialogActivity : ComponentActivity() {
                             // Si la habilidad requiere reabrir el micrófono (multi-turno), mantener la actividad abierta
                             if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
                                 // No cerramos la actividad flotante
+                            } else if (output.payload is AssistantUiPayload) {
+                                // Dejar la actividad flotante abierta para que el usuario interactúe con los controles táctiles
                             } else {
                                 // Esperar a que termine de hablar antes de cerrar
                                 while (ttsEngine.isSpeaking) {
@@ -162,6 +168,15 @@ class AssistantDialogActivity : ComponentActivity() {
                                 delay(1000)
                                 finish()
                             }
+                        }
+                    },
+                    onRequestBrightnessPermission = {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                                data = Uri.parse("package:$packageName")
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(intent)
                         }
                     },
                     onStopSpeech = {
@@ -204,6 +219,7 @@ fun FloatingAssistantBottomSheet(
     onStartListening: (onStart: () -> Unit, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (Throwable) -> Unit) -> Unit,
     onStopListening: () -> Unit,
     onProcessCommand: (String, (SkillOutput) -> Unit) -> Unit,
+    onRequestBrightnessPermission: () -> Unit = {},
     onStopSpeech: () -> Unit
 ) {
     var isListening by remember { mutableStateOf(false) }
@@ -352,32 +368,50 @@ fun FloatingAssistantBottomSheet(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // Respuesta del Asistente
+                    // Respuesta del Asistente (Tarjeta Interactiva o Respuesta Estándar)
                     resultOutput?.let { output ->
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                val harnessData = output.payload as? HarnessResult
-                                val badgeText = harnessData?.let { "✨ ${it.usedModel.displayName}" }
-                                    ?: if (output.handledByAi) "✨ Inteligencia Artificial" else "⚡ Motor Local"
+                        val payload = output.payload as? AssistantUiPayload
+                        if (payload != null) {
+                            AssistantInteractiveCard(
+                                payload = payload,
+                                onExecuteCommand = { cmd ->
+                                    recognizedText = cmd
+                                    isProcessing = true
+                                    statusText = "Analizando…"
+                                    onProcessCommand(cmd) { newOutput ->
+                                        isProcessing = false
+                                        resultOutput = newOutput
+                                        statusText = if (newOutput.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
+                                    }
+                                },
+                                onRequestBrightnessPermission = onRequestBrightnessPermission
+                            )
+                        } else {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    val harnessData = output.payload as? HarnessResult
+                                    val badgeText = harnessData?.let { "✨ ${it.usedModel.displayName}" }
+                                        ?: if (output.handledByAi) "✨ Inteligencia Artificial" else "⚡ Motor Local"
 
-                                Text(
-                                    text = badgeText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = output.displayText,
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                    Text(
+                                        text = badgeText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = output.displayText,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                             }
                         }
                     }

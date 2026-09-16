@@ -32,6 +32,8 @@ import com.asistente.celular.skills.media.MediaControlSkill
 import com.asistente.celular.skills.memory.SemanticMemorySkill
 import com.asistente.celular.skills.notes.NotesSkill
 import com.asistente.celular.skills.routines.RoutineSkill
+import com.asistente.celular.skills.system.AndroidBrightnessController
+import com.asistente.celular.skills.system.BrightnessController
 import com.asistente.celular.skills.system.SystemSettingsSkill
 import com.asistente.celular.skills.system.VolumeSkill
 import com.asistente.celular.data.JsonSmartHomeRepository

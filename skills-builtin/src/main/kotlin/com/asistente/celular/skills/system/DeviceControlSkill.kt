@@ -169,7 +169,13 @@ class DeviceControlSkill : Skill {
             else append("En descarga")
         }
 
-        return SkillOutput(speech = speech, displayText = display, success = true)
+        val payload = com.asistente.celular.nlu.ui.BatteryUiPayload(
+            percent = pct,
+            isCharging = isCharging,
+            chargeSource = plugType.ifBlank { null }
+        )
+
+        return SkillOutput(speech = speech, displayText = display, success = true, payload = payload)
     }
 
     private fun handleStorage(context: SkillContext): SkillOutput {

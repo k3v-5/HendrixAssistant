@@ -65,3 +65,16 @@ data class SmartDevice(
     val brightness: Int
         get() = properties["bright"]?.toIntOrNull() ?: 100
 }
+
+/**
+ * Estado tipado de un foco o luz para componentes de interfaz interactiva (Generative UI).
+ */
+data class SmartBulbUiData(
+    val deviceName: String,
+    val isPowerOn: Boolean,
+    val brightness: Int = 100,
+    val colorRgb: Int? = null,
+    val colorTemp: Int? = null,
+    val activeMode: String = "normal", // "normal", "candle", "party", "night"
+    val ipAddress: String? = null
+)

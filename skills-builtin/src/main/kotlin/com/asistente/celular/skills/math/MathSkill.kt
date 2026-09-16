@@ -91,11 +91,20 @@ class MathSkill(
                 **${currencyResult.amount} ${currencyResult.fromName}** ≈ **${currencyResult.formattedResult}**
                 *(Tasa ref: 1 ${currencyResult.fromCurrency} ≈ ${currencyResult.rate} ${currencyResult.toCurrency})*
             """.trimIndent()
+            val uiPayload = com.asistente.celular.nlu.ui.CurrencyUiPayload(
+                amount = currencyResult.amount.stripTrailingZeros().toPlainString(),
+                fromCurrency = currencyResult.fromCurrency,
+                fromName = currencyResult.fromName,
+                toCurrency = currencyResult.toCurrency,
+                toName = currencyResult.toName,
+                resultAmount = currencyResult.formattedResult,
+                rate = currencyResult.rate.stripTrailingZeros().toPlainString()
+            )
             return SkillOutput(
                 speech = currencyResult.speechText,
                 displayText = display,
                 success = true,
-                payload = currencyResult
+                payload = uiPayload
             )
         }
 

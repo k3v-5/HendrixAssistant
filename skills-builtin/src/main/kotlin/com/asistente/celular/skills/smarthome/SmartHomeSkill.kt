@@ -14,10 +14,12 @@ import com.asistente.celular.nlu.skill.SkillContext
 import com.asistente.celular.nlu.skill.SkillInfo
 import com.asistente.celular.nlu.skill.SkillOutput
 import com.asistente.celular.nlu.smarthome.DeviceAction
+import com.asistente.celular.nlu.ui.SmartBulbUiPayload
 import com.asistente.celular.nlu.smarthome.SmartHomeRepository
 
 /**
  * Habilidad de Domótica y Hogar Inteligente para controlar focos, luces y dispositivos Xiaomi / Yeelight por voz.
+ * Soporta encendido/apagado, brillo por %, colores RGB, temperaturas Kelvin y efectos dinámicos (Vela, Fiesta, Luz de Noche).
  * 100% Offline-first mediante protocolo local en la red WiFi.
  */
 class SmartHomeSkill(
@@ -27,13 +29,12 @@ class SmartHomeSkill(
     override val info: SkillInfo = SkillInfo(
         id = "smart_home_skill",
         name = "Hogar Inteligente / Foco Xiaomi",
-        description = "Controla focos, luces y dispositivos inteligentes Xiaomi/Yeelight en la red local por voz."
+        description = "Controla focos, luces y dispositivos inteligentes Xiaomi/Yeelight en la red local por voz con soporte de colores y efectos."
     )
 
     override val specificity: Specificity = Specificity.HIGH
 
     private val turnOnPatterns: List<Construct> = listOf(
-        // "[se|me] [prende|enciende|activa|pon] [el|la|los|las|mi|mis] [foco|luz|luces|lampara] [de la sala|xiaomi|...]"
         SequenceConstruct(
             OptionalConstruct(WordConstruct("se", "me", "por", "favor")),
             WordConstruct("prende", "prender", "enciende", "encender", "activa", "activar", "prendeme", "enciendeme", "pon", "poner"),
@@ -48,7 +49,6 @@ class SmartHomeSkill(
     )
 
     private val turnOffPatterns: List<Construct> = listOf(
-        // "[se|me] [apaga|desactiva|quitar] [el|la|los|las|mi|mis] [foco|luz|luces|lampara] [de la sala|...]"
         SequenceConstruct(
             OptionalConstruct(WordConstruct("se", "me", "por", "favor")),
             WordConstruct("apaga", "apagar", "desactiva", "desactivar", "apagame", "apagarme", "quita", "quitar"),
@@ -63,7 +63,6 @@ class SmartHomeSkill(
     )
 
     private val brightnessPatterns: List<Construct> = listOf(
-        // "[pon|sube|baja|ajusta] [el] brillo [del foco|de la luz] [al] [50%]"
         SequenceConstruct(
             OptionalConstruct(WordConstruct("pon", "sube", "baja", "ajusta", "cambia", "coloca")),
             OptionalConstruct(WordConstruct("el", "la")),
@@ -73,7 +72,6 @@ class SmartHomeSkill(
             OptionalConstruct(WordConstruct("a", "al", "en")),
             CapturingConstruct("brightness_value")
         ),
-        // "[pon|cambia] [el foco|la luz] al [50%]"
         SequenceConstruct(
             WordConstruct("pon", "cambia", "ajusta", "sube", "baja"),
             OptionalConstruct(WordConstruct("el", "la")),
@@ -84,18 +82,18 @@ class SmartHomeSkill(
     )
 
     private val colorPatterns: List<Construct> = listOf(
-        // "[pon|cambia] [el foco|la luz] [a|en] color [rojo|azul|verde]"
         SequenceConstruct(
             WordConstruct("pon", "cambia", "cambiar", "coloca"),
             OptionalConstruct(WordConstruct("el", "la")),
             WordConstruct("foco", "luz", "lampara"),
             OptionalConstruct(WordConstruct("a", "al", "en")),
-            OptionalConstruct(WordConstruct("color")),
+            OptionalConstruct(WordConstruct("color", "de")),
             CapturingConstruct("color_name")
         ),
-        // "luz [roja|azul|blanca|calida]"
         SequenceConstruct(
-            WordConstruct("luz", "foco"),
+            WordConstruct("luz", "foco", "lampara"),
+            OptionalConstruct(WordConstruct("de", "a", "en", "color")),
+            OptionalConstruct(WordConstruct("color")),
             CapturingConstruct("color_name")
         )
     )
@@ -104,7 +102,29 @@ class SmartHomeSkill(
         val normalized = MatchContext.normalize(input)
         if (normalized.isBlank()) return SkillScore.NO_MATCH
 
-        // 1. Patrones de Brillo
+        // 1. Efectos Dinámicos (Detener efecto primero, luego Vela, Fiesta, Luz de Noche)
+        val isStopEffect = normalized.contains("deten") || normalized.contains("detener") ||
+                normalized.contains("para el efecto") || normalized.contains("parar el efecto") ||
+                normalized.contains("para las luces") || normalized.contains("para la luz")
+        val isCandle = normalized.contains("vela")
+        val isParty = normalized.contains("fiesta") || normalized.contains("discoteca")
+        val isNight = normalized.contains("luz de noche") || normalized.contains("modo noche") || normalized.contains("luz de luna")
+
+        if (isStopEffect || isCandle || isParty || isNight) {
+            val effectType = when {
+                isStopEffect -> "stop_flow"
+                isCandle -> "candle"
+                isParty -> "party"
+                else -> "night"
+            }
+            return SkillScore(
+                confidence = 0.97f,
+                specificity = Specificity.HIGH,
+                capturedSlots = mapOf("action" to "effect", "effect_type" to effectType)
+            )
+        }
+
+        // 2. Patrones de Brillo
         for (pattern in brightnessPatterns) {
             val ctx = MatchContext(normalized)
             if (pattern.match(ctx)) {
@@ -125,13 +145,14 @@ class SmartHomeSkill(
             }
         }
 
-        // 2. Patrones de Color
+        // 3. Patrones de Color
         for (pattern in colorPatterns) {
             val ctx = MatchContext(normalized)
             if (pattern.match(ctx)) {
                 val colorVal = ctx.capturedSlots["color_name"]?.lowercase() ?: ""
                 val knownColor = parseColorRgb(colorVal)
-                if (knownColor != null || colorVal in listOf("calida", "calido", "fria", "frio", "blanco")) {
+                val isKnownTemp = colorVal in listOf("calida", "calido", "fria", "frio", "blanco", "blanca", "natural", "solar")
+                if (knownColor != null || isKnownTemp) {
                     val slots = ctx.capturedSlots.toMutableMap()
                     slots["action"] = "color"
                     return SkillScore(
@@ -145,7 +166,7 @@ class SmartHomeSkill(
             }
         }
 
-        // 3. Patrones de Encender
+        // 4. Patrones de Encender
         for (pattern in turnOnPatterns) {
             val ctx = MatchContext(normalized)
             if (pattern.match(ctx)) {
@@ -161,7 +182,7 @@ class SmartHomeSkill(
             }
         }
 
-        // 4. Patrones de Apagar
+        // 5. Patrones de Apagar
         for (pattern in turnOffPatterns) {
             val ctx = MatchContext(normalized)
             if (pattern.match(ctx)) {
@@ -177,7 +198,7 @@ class SmartHomeSkill(
             }
         }
 
-        // 5. Palabras clave de control de foco
+        // 6. Palabras clave de control de foco
         if ((normalized.contains("prende") || normalized.contains("enciende")) &&
             (normalized.contains("foco") || normalized.contains("luz"))) {
             return SkillScore(
@@ -203,7 +224,7 @@ class SmartHomeSkill(
         val actionType = score.capturedSlots["action"] ?: "turn_on"
         val targetDevice = score.capturedSlots["target_device"]?.trim()
 
-        // 1. Auto-descubrimiento automático si no hay dispositivos registrados
+        // Auto-descubrimiento automático si no hay dispositivos registrados
         if (smartHomeRepository.devices.value.isEmpty()) {
             val discovered = smartHomeRepository.discoverDevices()
             if (discovered.isEmpty()) {
@@ -212,18 +233,34 @@ class SmartHomeSkill(
             }
         }
 
+        val activeDevice = smartHomeRepository.findDeviceByName(targetDevice)
+        val devName = activeDevice?.name ?: "Foco Xiaomi"
+        val devIp = activeDevice?.ipAddress
+
         return when (actionType) {
             "turn_on" -> {
                 val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.TurnOn)
                 val speech = if (result.success) "Encendí el foco." else result.message
-                val display = if (result.success) "💡 **Foco Inteligente:** Encendido" else "⚠️ ${result.message}"
-                SkillOutput(speech = speech, displayText = display, success = result.success)
+                val display = if (result.success) "💡 **$devName:** Encendido" else "⚠️ ${result.message}"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    brightness = activeDevice?.brightness ?: 100,
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = speech, displayText = display, success = result.success, payload = payload)
             }
             "turn_off" -> {
                 val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.TurnOff)
                 val speech = if (result.success) "Apagué el foco." else result.message
-                val display = if (result.success) "🌑 **Foco Inteligente:** Apagado" else "⚠️ ${result.message}"
-                SkillOutput(speech = speech, displayText = display, success = result.success)
+                val display = if (result.success) "🌑 **$devName:** Apagado" else "⚠️ ${result.message}"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = false,
+                    brightness = activeDevice?.brightness ?: 100,
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = speech, displayText = display, success = result.success, payload = payload)
             }
             "brightness" -> {
                 val rawVal = score.capturedSlots["brightness_value"] ?: "50"
@@ -231,11 +268,21 @@ class SmartHomeSkill(
                 val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetBrightness(percent))
                 val speech = if (result.success) "Ajusté el brillo al $percent por ciento." else result.message
                 val display = if (result.success) "🔆 **Brillo:** $percent%" else "⚠️ ${result.message}"
-                SkillOutput(speech = speech, displayText = display, success = result.success)
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    brightness = percent,
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = speech, displayText = display, success = result.success, payload = payload)
             }
             "color" -> {
                 val colorVal = score.capturedSlots["color_name"] ?: "blanco"
-                handleColorChange(targetDevice, colorVal)
+                handleColorChange(targetDevice, devName, devIp, colorVal)
+            }
+            "effect" -> {
+                val effectType = score.capturedSlots["effect_type"] ?: "candle"
+                handleEffect(targetDevice, devName, devIp, effectType)
             }
             else -> {
                 val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.Toggle)
@@ -244,29 +291,108 @@ class SmartHomeSkill(
         }
     }
 
-    private suspend fun handleColorChange(targetDevice: String?, colorName: String): SkillOutput {
+    private suspend fun handleEffect(targetDevice: String?, devName: String, devIp: String?, effectType: String): SkillOutput {
+        return when (effectType) {
+            "candle" -> {
+                // Modo Vela: Flujo continuo con parpadeo entre 2400K y 2800K a intensidades variables
+                val candleFlow = "800,2,2700,50, 1000,2,2600,75, 600,2,2800,45, 1200,2,2700,70"
+                val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.StartColorFlow(0, 0, candleFlow))
+                val msg = if (result.success) "Activé el modo vela en el foco." else result.message
+                val display = "🕯️ **Modo Vela:** Parpadeo cálido activo"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    brightness = 65,
+                    colorTemp = 2700,
+                    activeMode = "candle",
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = msg, displayText = display, success = result.success, payload = payload)
+            }
+            "party" -> {
+                // Modo Fiesta: Ciclo fluido por colores vivos RGB
+                val partyFlow = "1000,1,16711680,100, 1000,1,65280,100, 1000,1,255,100, 1000,1,16711935,100, 1000,1,16776960,100"
+                val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.StartColorFlow(0, 0, partyFlow))
+                val msg = if (result.success) "Activé el modo fiesta en las luces." else result.message
+                val display = "🎉 **Modo Fiesta:** Ciclo multicolor dinámico"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    brightness = 100,
+                    activeMode = "party",
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = msg, displayText = display, success = result.success, payload = payload)
+            }
+            "night" -> {
+                // Luz de Noche: 2200K cálido al 1% de brillo
+                smartHomeRepository.executeAction(targetDevice, DeviceAction.SetColorTemperature(2200))
+                val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetBrightness(1))
+                val msg = if (result.success) "Activé la luz de noche tenue." else result.message
+                val display = "🌙 **Luz de Noche:** 2200K al 1%"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    brightness = 1,
+                    colorTemp = 2200,
+                    activeMode = "night",
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = msg, displayText = display, success = result.success, payload = payload)
+            }
+            "stop_flow" -> {
+                val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.StopColorFlow)
+                val msg = if (result.success) "Detuve los efectos del foco." else result.message
+                val display = "⏹️ **Efecto:** Detenido"
+                val payload = SmartBulbUiPayload(
+                    deviceName = devName,
+                    isPowerOn = true,
+                    activeMode = "normal",
+                    ipAddress = devIp
+                )
+                SkillOutput(speech = msg, displayText = display, success = result.success, payload = payload)
+            }
+            else -> {
+                SkillOutput(speech = "Efecto no reconocido.", success = false)
+            }
+        }
+    }
+
+    private suspend fun handleColorChange(targetDevice: String?, devName: String, devIp: String?, colorName: String): SkillOutput {
         val clean = colorName.lowercase().trim()
+
+        // Luz Cálida: 2700K
         if (clean.contains("calid") || clean.contains("calient")) {
-            // Temperatura de color cálida: 2700K
             val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetColorTemperature(2700))
             val msg = if (result.success) "Cambié el foco a luz cálida." else result.message
-            return SkillOutput(speech = msg, displayText = "💡 **Luz:** Cálida (2700K)", success = result.success)
+            val payload = SmartBulbUiPayload(deviceName = devName, isPowerOn = true, colorTemp = 2700, ipAddress = devIp)
+            return SkillOutput(speech = msg, displayText = "💡 **Luz:** Cálida (2700K)", success = result.success, payload = payload)
         }
 
+        // Luz Fría / Blanca: 5500K
         if (clean.contains("fri") || clean.contains("blanc")) {
-            // Temperatura de color fría: 5500K
             val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetColorTemperature(5500))
             val msg = if (result.success) "Cambié el foco a luz blanca." else result.message
-            return SkillOutput(speech = msg, displayText = "💡 **Luz:** Blanca (5500K)", success = result.success)
+            val payload = SmartBulbUiPayload(deviceName = devName, isPowerOn = true, colorTemp = 5500, ipAddress = devIp)
+            return SkillOutput(speech = msg, displayText = "💡 **Luz:** Blanca fría (5500K)", success = result.success, payload = payload)
+        }
+
+        // Luz Natural / Solar: 4000K
+        if (clean.contains("natural") || clean.contains("solar") || clean.contains("neutr")) {
+            val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetColorTemperature(4000))
+            val msg = if (result.success) "Cambié el foco a luz natural neutra." else result.message
+            val payload = SmartBulbUiPayload(deviceName = devName, isPowerOn = true, colorTemp = 4000, ipAddress = devIp)
+            return SkillOutput(speech = msg, displayText = "💡 **Luz:** Natural neutra (4000K)", success = result.success, payload = payload)
         }
 
         val rgb = parseColorRgb(clean)
         return if (rgb != null) {
             val result = smartHomeRepository.executeAction(targetDevice, DeviceAction.SetColor(rgb))
             val msg = if (result.success) "Cambié el foco a color $clean." else result.message
-            SkillOutput(speech = msg, displayText = "🎨 **Color:** $clean", success = result.success)
+            val payload = SmartBulbUiPayload(deviceName = devName, isPowerOn = true, colorRgb = rgb, ipAddress = devIp)
+            SkillOutput(speech = msg, displayText = "🎨 **Color:** $clean", success = result.success, payload = payload)
         } else {
-            val msg = "No reconozco el color '$colorName'. Puedes pedirme rojo, azul, verde, amarillo, morado o luz cálida."
+            val msg = "No reconozco el color '$colorName'. Puedes pedirme rojo, azul, verde, amarillo, morado, cian, rosa o luz cálida."
             SkillOutput(speech = msg, displayText = msg, success = false)
         }
     }
@@ -288,7 +414,14 @@ class SmartHomeSkill(
             c.contains("morado") || c.contains("morada") || c.contains("violeta") || c.contains("purpura") -> 0x800080
             c.contains("naranja") -> 0xFFA500
             c.contains("rosa") || c.contains("rosado") || c.contains("rosada") -> 0xFFC0CB
-            c.contains("cian") || c.contains("turquesa") || c.contains("celeste") -> 0x00FFFF
+            c.contains("turquesa") -> 0x40E0D0
+            c.contains("cian") -> 0x00FFFF
+            c.contains("celeste") -> 0x87CEEB
+            c.contains("magenta") -> 0xFF00FF
+            c.contains("lila") -> 0xC8A2C8
+            c.contains("salmon") || c.contains("salmón") -> 0xFA8072
+            c.contains("dorado") || c.contains("oro") -> 0xFFD700
+            c.contains("ambar") || c.contains("ámbar") -> 0xFFBF00
             else -> null
         }
     }

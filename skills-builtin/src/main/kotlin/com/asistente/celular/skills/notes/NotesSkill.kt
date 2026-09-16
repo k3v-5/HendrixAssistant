@@ -320,7 +320,13 @@ class NotesSkill(
         val actionText = if (isPinned) "fijada al inicio" else "desfijada"
         val title = noteToPin.title.ifBlank { noteToPin.content.take(20) }
         val msg = "Nota '$title' $actionText."
-        return SkillOutput(speech = msg, displayText = "📌 $msg", success = true)
+        val uiPayload = com.asistente.celular.nlu.ui.NotesUiPayload(
+            title = noteToPin.title,
+            content = noteToPin.content,
+            isPinned = isPinned,
+            id = noteToPin.id
+        )
+        return SkillOutput(speech = msg, displayText = "📌 $msg", success = true, payload = uiPayload)
     }
 
     private suspend fun createNote(rawBody: String): SkillOutput {
@@ -363,6 +369,12 @@ class NotesSkill(
             *📅 $dateStr*
         """.trimIndent()
 
-        return SkillOutput(speech = speech, displayText = display, success = true, payload = note)
+        val uiPayload = com.asistente.celular.nlu.ui.NotesUiPayload(
+            title = note.title,
+            content = note.content,
+            isPinned = note.isPinned,
+            id = note.id
+        )
+        return SkillOutput(speech = speech, displayText = display, success = true, payload = uiPayload)
     }
 }

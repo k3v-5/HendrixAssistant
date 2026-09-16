@@ -113,7 +113,7 @@ class FlashlightSkill(
             val stateText = if (isOn) "encendida" else "apagada"
             val speech = "La linterna está actualmente $stateText."
             val display = "🔦 **Linterna:** $stateText."
-            return SkillOutput(speech = speech, displayText = display, success = true)
+            return SkillOutput(speech = speech, displayText = display, success = true, payload = com.asistente.celular.nlu.ui.FlashlightUiPayload(isOn = isOn))
         }
 
         // 2. Alternar linterna
@@ -122,7 +122,7 @@ class FlashlightSkill(
             val stateText = if (newState) "encendida" else "apagada"
             val speech = "Linterna $stateText."
             val display = "🔦 **Linterna:** $stateText."
-            return SkillOutput(speech = speech, displayText = display, success = true)
+            return SkillOutput(speech = speech, displayText = display, success = true, payload = com.asistente.celular.nlu.ui.FlashlightUiPayload(isOn = newState))
         }
 
         // 3. Encender o Apagar
@@ -137,7 +137,7 @@ class FlashlightSkill(
             val stateText = if (turnOn) "encendida" else "apagada"
             val speech = "Linterna $stateText."
             val display = "🔦 **Linterna:** $stateText."
-            SkillOutput(speech = speech, displayText = display, success = true)
+            SkillOutput(speech = speech, displayText = display, success = true, payload = com.asistente.celular.nlu.ui.FlashlightUiPayload(isOn = turnOn))
         } else {
             val err = "No se pudo cambiar el estado de la linterna."
             SkillOutput(speech = err, displayText = "⚠️ $err", success = false)

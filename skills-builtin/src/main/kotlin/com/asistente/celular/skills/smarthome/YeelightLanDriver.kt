@@ -49,6 +49,8 @@ class YeelightLanDriver(
             is DeviceAction.SetBrightness -> "set_bright" to listOf(action.percent.coerceIn(1, 100), "smooth", 500)
             is DeviceAction.SetColor -> "set_rgb" to listOf(action.colorRgb and 0xFFFFFF, "smooth", 500)
             is DeviceAction.SetColorTemperature -> "set_ct_abx" to listOf(action.kelvin.coerceIn(1700, 6500), "smooth", 500)
+            is DeviceAction.StartColorFlow -> "start_cf" to listOf(action.count, action.action, action.flowExpression)
+            is DeviceAction.StopColorFlow -> "stop_cf" to emptyList<Any>()
             is DeviceAction.Custom -> action.command to action.params
         }
 
