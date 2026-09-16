@@ -90,6 +90,20 @@ import com.asistente.celular.skills.gesture.HardwareGestureSkill
 import com.asistente.celular.skills.camera.CameraDirectorSkill
 import com.asistente.celular.skills.health.HealthTelemetrySkill
 import com.asistente.celular.skills.planner.AutonomousPlannerSkill
+import com.asistente.celular.automotive.HendrixCarAppCoordinator
+import com.asistente.celular.wear.HendrixWearCoordinator
+import com.asistente.celular.meeting.LocalMeetingRecorderCoordinator
+import com.asistente.celular.ai.LocalMultiModelOrchestrator
+import com.asistente.celular.documents.LocalDocumentKnowledgeCoordinator
+import com.asistente.celular.soundscape.ProceduralSoundscapeCoordinator
+import com.asistente.celular.voicecraft.LocalVoiceCraftStudioCoordinator
+import com.asistente.celular.skills.automotive.AutomotiveSkill
+import com.asistente.celular.skills.wear.WearCompanionSkill
+import com.asistente.celular.skills.meeting.MeetingRecorderSkill
+import com.asistente.celular.skills.ai.MultiModelOrchestratorSkill
+import com.asistente.celular.skills.documents.DocumentChatSkill
+import com.asistente.celular.skills.soundscape.SoundscapeSkill
+import com.asistente.celular.skills.voicecraft.VoiceCraftSkill
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -132,6 +146,15 @@ class AssistantSkillFactory(
     val cameraDirectorCoordinator = VoiceCameraDirectorCoordinator(context)
     val healthTelemetryCoordinator = LocalHealthTelemetryCoordinator(context)
     val plannerCoordinator = LocalAutonomousPlannerCoordinator(context)
+
+    // Coordinadores de grado comercial (Automotive, Wear, Meeting, MultiModel, DocumentChat, Soundscape, VoiceCraft)
+    val automotiveCoordinator = HendrixCarAppCoordinator(context)
+    val wearCoordinator = HendrixWearCoordinator(context)
+    val meetingRecorderCoordinator = LocalMeetingRecorderCoordinator(context, biometricsEngine)
+    val multiModelOrchestrator = LocalMultiModelOrchestrator(context)
+    val documentKnowledgeCoordinator = LocalDocumentKnowledgeCoordinator(context, knowledgeGraphRepository)
+    val soundscapeCoordinator = ProceduralSoundscapeCoordinator(context)
+    val voiceCraftCoordinator = LocalVoiceCraftStudioCoordinator(context)
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -187,7 +210,14 @@ class AssistantSkillFactory(
             HardwareGestureSkill(hardwareGestureDetector),
             CameraDirectorSkill(cameraDirectorCoordinator),
             HealthTelemetrySkill(healthTelemetryCoordinator),
-            AutonomousPlannerSkill(plannerCoordinator)
+            AutonomousPlannerSkill(plannerCoordinator),
+            AutomotiveSkill(automotiveCoordinator),
+            WearCompanionSkill(wearCoordinator),
+            MeetingRecorderSkill(meetingRecorderCoordinator),
+            MultiModelOrchestratorSkill(multiModelOrchestrator),
+            DocumentChatSkill(documentKnowledgeCoordinator),
+            SoundscapeSkill(soundscapeCoordinator),
+            VoiceCraftSkill(voiceCraftCoordinator)
         )
     }
 

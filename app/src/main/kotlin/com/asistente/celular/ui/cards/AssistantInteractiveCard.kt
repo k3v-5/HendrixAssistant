@@ -108,6 +108,13 @@ import com.asistente.celular.nlu.ui.HardwareGestureUiPayload
 import com.asistente.celular.nlu.ui.CameraDirectorUiPayload
 import com.asistente.celular.nlu.ui.HealthTelemetryUiPayload
 import com.asistente.celular.nlu.ui.TaskPlanUiPayload
+import com.asistente.celular.nlu.ui.AutomotiveUiPayload
+import com.asistente.celular.nlu.ui.WearCompanionUiPayload
+import com.asistente.celular.nlu.ui.MeetingRecorderUiPayload
+import com.asistente.celular.nlu.ui.MultiModelOrchestratorUiPayload
+import com.asistente.celular.nlu.ui.DocumentChatUiPayload
+import com.asistente.celular.nlu.ui.SoundscapeUiPayload
+import com.asistente.celular.nlu.ui.VoiceCraftUiPayload
 import kotlin.math.roundToInt
 
 /**
@@ -158,6 +165,13 @@ fun AssistantInteractiveCard(
             is CameraDirectorUiPayload -> CameraDirectorCard(payload, onExecuteCommand)
             is HealthTelemetryUiPayload -> HealthTelemetryCard(payload)
             is TaskPlanUiPayload -> TaskPlanCard(payload, onExecuteCommand)
+            is AutomotiveUiPayload -> AutomotiveCard(payload, onExecuteCommand)
+            is WearCompanionUiPayload -> WearCompanionCard(payload)
+            is MeetingRecorderUiPayload -> MeetingRecorderCard(payload, onExecuteCommand)
+            is MultiModelOrchestratorUiPayload -> MultiModelOrchestratorCard(payload)
+            is DocumentChatUiPayload -> DocumentChatCard(payload, onExecuteCommand)
+            is SoundscapeUiPayload -> SoundscapeCard(payload, onExecuteCommand)
+            is VoiceCraftUiPayload -> VoiceCraftCard(payload, onExecuteCommand)
         }
     }
 }
@@ -2014,3 +2028,302 @@ fun TaskPlanCard(
         }
     }
 }
+
+@Composable
+fun AutomotiveCard(
+    payload: AutomotiveUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🚗", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Android Auto Hendrix Car", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (payload.isCarConnected) "Conectado a ${payload.headUnitName ?: "Vehículo"}" else "Consola desconectada",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (payload.isCarConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Plantilla: ${payload.currentTemplate}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (payload.shortcuts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    payload.shortcuts.forEach { shortcut ->
+                        OutlinedButton(
+                            onClick = { onExecuteCommand("auto $shortcut") },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(text = shortcut, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WearCompanionCard(payload: WearCompanionUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "⌚", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Wear OS Companion", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "${payload.connectedWearCount} smartwatch(es) enlazado(s)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = payload.devicesSummary, style = MaterialTheme.typography.bodySmall)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Última sincronización: ${payload.lastSyncText}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun MeetingRecorderCard(
+    payload: MeetingRecorderUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎙️", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Grabadora & Diarización", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (payload.isRecording) "Grabando: ${payload.meetingTitle}" else "Minuta: ${payload.meetingTitle}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (payload.isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Intervenciones: ${payload.turnsCount} | Último orador: ${payload.latestTurnSpeaker ?: "Ninguno"}",
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (payload.agreements.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Acuerdos detectados:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                payload.agreements.take(3).forEach { agreement ->
+                    Text(
+                        text = "• $agreement",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (payload.isRecording) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onExecuteCommand("detener grabacion reunion") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(text = "Finalizar y Generar Minuta", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MultiModelOrchestratorCard(payload: MultiModelOrchestratorUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "⚡", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Orquestador Multi-Modelo IA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (payload.fastPathActive) "Ruta Ultra-Rápida Activa (<300ms)" else "Ruta Profunda Especializada",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Modelo: ${payload.selectedModel} | Latencia: ${payload.expectedLatencyMs}ms",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text(
+                text = "Complejidad detectada: ${payload.complexity}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun DocumentChatCard(
+    payload: DocumentChatUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📄", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Chat con Documentos & PDFs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = payload.fileName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Q: ${payload.question}",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = payload.answer,
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Ref: ${payload.sectionReference} • Confianza: ${payload.confidencePercent}%",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun SoundscapeCard(
+    payload: SoundscapeUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎧", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Paisaje Sonoro & Ondas Binaurales", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (payload.isPlaying) "Reproduciendo ${payload.soundscapeName}" else "Paisaje sonoro en pausa",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Volumen: ${payload.volumePercent}%" + (payload.remainingMinutes?.let { " • $it min restantes" } ?: ""),
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (payload.isPlaying) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onExecuteCommand("detener sonido") },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(text = "Detener Sonido", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VoiceCraftCard(
+    payload: VoiceCraftUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎚️", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "VoiceCraft Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Perfil acústico: ${payload.styleName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tono: ${payload.pitchShift}x | Velocidad: ${payload.speechRate}x | Formante: ${payload.formantFactor}x",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { onExecuteCommand("restablecer voz") },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(text = "Restablecer Voz Original", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+

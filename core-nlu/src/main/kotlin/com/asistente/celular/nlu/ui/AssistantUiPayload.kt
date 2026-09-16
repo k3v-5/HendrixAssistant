@@ -228,3 +228,53 @@ data class TaskPlanUiPayload(
     val steps: List<com.asistente.celular.nlu.planner.PlanStep>,
     val statusText: String
 ) : AssistantUiPayload
+
+data class AutomotiveUiPayload(
+    val isCarConnected: Boolean,
+    val headUnitName: String?,
+    val currentTemplate: String,
+    val shortcuts: List<String>
+) : AssistantUiPayload
+
+data class WearCompanionUiPayload(
+    val connectedWearCount: Int,
+    val devicesSummary: String,
+    val lastSyncText: String
+) : AssistantUiPayload
+
+data class MeetingRecorderUiPayload(
+    val meetingTitle: String,
+    val turnsCount: Int,
+    val latestTurnSpeaker: String?,
+    val agreements: List<String>,
+    val isRecording: Boolean
+) : AssistantUiPayload
+
+data class MultiModelOrchestratorUiPayload(
+    val selectedModel: String,
+    val expectedLatencyMs: Int,
+    val fastPathActive: Boolean,
+    val complexity: String
+) : AssistantUiPayload
+
+data class DocumentChatUiPayload(
+    val fileName: String,
+    val question: String,
+    val answer: String,
+    val sectionReference: String,
+    val confidencePercent: Int
+) : AssistantUiPayload
+
+data class SoundscapeUiPayload(
+    val soundscapeName: String,
+    val isPlaying: Boolean,
+    val volumePercent: Int,
+    val remainingMinutes: Int? = null
+) : AssistantUiPayload
+
+data class VoiceCraftUiPayload(
+    val styleName: String,
+    val pitchShift: Float,
+    val speechRate: Float,
+    val formantFactor: Float
+) : AssistantUiPayload
