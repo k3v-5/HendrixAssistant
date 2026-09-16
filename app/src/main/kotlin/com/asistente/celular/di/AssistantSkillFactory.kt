@@ -60,6 +60,36 @@ import com.asistente.celular.skills.system.DeviceControlSkill
 import com.asistente.celular.skills.smarthome.SmartSceneSkill
 import com.asistente.celular.skills.vision.CameraGlanceSkill
 import com.asistente.celular.skills.vision.ScreenUnderstandingSkill
+import com.asistente.celular.biometrics.LocalVoiceBiometricsEngine
+import com.asistente.celular.hardware.SensorHardwareGestureDetector
+import com.asistente.celular.data.LocalKnowledgeGraphRepository
+import com.asistente.celular.journal.DefaultVoiceJournalEngine
+import com.asistente.celular.mesh.HendrixMeshCoordinator
+import com.asistente.celular.telecom.HendrixCallScreeningCoordinator
+import com.asistente.celular.translation.DualLanguageInterpreterCoordinator
+import com.asistente.celular.context.GeofenceRuleCoordinator
+import com.asistente.celular.ambient.DockModeCoordinator
+import com.asistente.celular.battery.BatteryHealthCoordinator
+import com.asistente.celular.security.LocalPrivacyFirewallCoordinator
+import com.asistente.celular.security.PackageManagerSecurityAuditor
+import com.asistente.celular.camera.VoiceCameraDirectorCoordinator
+import com.asistente.celular.health.LocalHealthTelemetryCoordinator
+import com.asistente.celular.planner.LocalAutonomousPlannerCoordinator
+import com.asistente.celular.skills.biometrics.VoiceprintSkill
+import com.asistente.celular.skills.rag.KnowledgeRagSkill
+import com.asistente.celular.skills.journal.VoiceJournalSkill
+import com.asistente.celular.skills.mesh.MeshSyncSkill
+import com.asistente.celular.skills.telecom.CallScreeningSkill
+import com.asistente.celular.skills.translation.InterpreterSkill
+import com.asistente.celular.skills.context.ContextTriggerSkill
+import com.asistente.celular.skills.ambient.AmbientDockSkill
+import com.asistente.celular.skills.battery.BatteryHealthSkill
+import com.asistente.celular.skills.security.PrivacyFirewallSkill
+import com.asistente.celular.skills.security.SecurityAuditSkill
+import com.asistente.celular.skills.gesture.HardwareGestureSkill
+import com.asistente.celular.skills.camera.CameraDirectorSkill
+import com.asistente.celular.skills.health.HealthTelemetrySkill
+import com.asistente.celular.skills.planner.AutonomousPlannerSkill
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -85,6 +115,23 @@ class AssistantSkillFactory(
     val drivingModeCoordinator = DrivingModeCoordinator(context)
     val sleepWakeCoordinator = SleepWakeCoordinator(context, smartHomeRepository)
     val emergencyCoordinator = EmergencySosCoordinator(context)
+
+    // Coordinadores de la nueva suite autónoma y de hardware
+    val biometricsEngine = LocalVoiceBiometricsEngine(context)
+    val hardwareGestureDetector = SensorHardwareGestureDetector(context)
+    val knowledgeGraphRepository = LocalKnowledgeGraphRepository(context)
+    val voiceJournalEngine = DefaultVoiceJournalEngine(context)
+    val meshCoordinator = HendrixMeshCoordinator(context)
+    val callScreeningCoordinator = HendrixCallScreeningCoordinator(context)
+    val interpreterCoordinator = DualLanguageInterpreterCoordinator(context)
+    val geofenceCoordinator = GeofenceRuleCoordinator(context)
+    val dockModeCoordinator = DockModeCoordinator(context)
+    val batteryHealthCoordinator = BatteryHealthCoordinator(context, smartHomeRepository)
+    val privacyFirewallCoordinator = LocalPrivacyFirewallCoordinator(context)
+    val securityAuditor = PackageManagerSecurityAuditor(context)
+    val cameraDirectorCoordinator = VoiceCameraDirectorCoordinator(context)
+    val healthTelemetryCoordinator = LocalHealthTelemetryCoordinator(context)
+    val plannerCoordinator = LocalAutonomousPlannerCoordinator(context)
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -125,7 +172,22 @@ class AssistantSkillFactory(
             SmartRhythmSkill(sleepWakeCoordinator),
             LocalFileSearchSkill(fileSearchEngine),
             ExpenseSkill(expenseRepository),
-            EmergencySosSkill(emergencyCoordinator)
+            EmergencySosSkill(emergencyCoordinator),
+            VoiceprintSkill(biometricsEngine),
+            KnowledgeRagSkill(knowledgeGraphRepository),
+            VoiceJournalSkill(voiceJournalEngine),
+            MeshSyncSkill(meshCoordinator),
+            CallScreeningSkill(callScreeningCoordinator),
+            InterpreterSkill(interpreterCoordinator),
+            ContextTriggerSkill(geofenceCoordinator),
+            AmbientDockSkill(dockModeCoordinator),
+            BatteryHealthSkill(batteryHealthCoordinator),
+            PrivacyFirewallSkill(privacyFirewallCoordinator),
+            SecurityAuditSkill(securityAuditor),
+            HardwareGestureSkill(hardwareGestureDetector),
+            CameraDirectorSkill(cameraDirectorCoordinator),
+            HealthTelemetrySkill(healthTelemetryCoordinator),
+            AutonomousPlannerSkill(plannerCoordinator)
         )
     }
 

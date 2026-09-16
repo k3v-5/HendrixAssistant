@@ -123,3 +123,108 @@ data class Otp2FaUiPayload(
     val sender: String,
     val serviceName: String? = null
 ) : AssistantUiPayload
+
+data class VoiceprintUiPayload(
+    val speakerName: String,
+    val isMatch: Boolean,
+    val confidencePercent: Int,
+    val registeredProfilesCount: Int
+) : AssistantUiPayload
+
+data class KnowledgeRagUiPayload(
+    val query: String,
+    val results: List<com.asistente.celular.nlu.rag.KnowledgeSearchResult>,
+    val topEntity: String? = null
+) : AssistantUiPayload
+
+data class VoiceJournalUiPayload(
+    val summary: String,
+    val sentiment: String,
+    val actionItems: List<String>,
+    val topics: List<String>
+) : AssistantUiPayload
+
+data class MeshSyncUiPayload(
+    val localDeviceName: String,
+    val peersCount: Int,
+    val isBroadcasting: Boolean,
+    val lastClipboardSnippet: String? = null
+) : AssistantUiPayload
+
+data class CallScreeningUiPayload(
+    val callerNumber: String,
+    val callerName: String?,
+    val spamPercent: Int,
+    val statusText: String,
+    val liveSnippet: String
+) : AssistantUiPayload
+
+data class InterpreterUiPayload(
+    val langA: String,
+    val langB: String,
+    val lastSpeaker: String,
+    val lastOriginal: String,
+    val lastTranslated: String
+) : AssistantUiPayload
+
+data class ContextTriggerUiPayload(
+    val activeZone: String,
+    val connectedWifi: String?,
+    val activeRulesCount: Int,
+    val triggeredRuleName: String? = null
+) : AssistantUiPayload
+
+data class AmbientDockUiPayload(
+    val isDocked: Boolean,
+    val dockType: String,
+    val isNightMode: Boolean,
+    val ambientMessage: String? = null
+) : AssistantUiPayload
+
+data class BatteryHealthUiPayload(
+    val level: Int,
+    val temperature: Float,
+    val currentMa: Long,
+    val thermalStatus: String,
+    val smartCutoffTarget: Int = 80
+) : AssistantUiPayload
+
+data class PrivacyFirewallUiPayload(
+    val blockedTrackersCount: Int,
+    val recentTrackers: List<String>,
+    val isFirewallActive: Boolean = true
+) : AssistantUiPayload
+
+data class SecurityAuditUiPayload(
+    val securityScore: Int,
+    val riskyAppsCount: Int,
+    val topRiskyApps: List<String>
+) : AssistantUiPayload
+
+data class HardwareGestureUiPayload(
+    val lastDetectedGesture: String,
+    val isListening: Boolean,
+    val sensitivity: Float = 1.0f
+) : AssistantUiPayload
+
+data class CameraDirectorUiPayload(
+    val countdownSeconds: Int,
+    val activeLens: String,
+    val detectedPeopleCount: Int,
+    val statusMessage: String
+) : AssistantUiPayload
+
+data class HealthTelemetryUiPayload(
+    val steps: Int,
+    val goalSteps: Int = 10000,
+    val heartRate: Int,
+    val sleepHours: Float,
+    val recoveryText: String
+) : AssistantUiPayload
+
+data class TaskPlanUiPayload(
+    val planId: String,
+    val userGoal: String,
+    val steps: List<com.asistente.celular.nlu.planner.PlanStep>,
+    val statusText: String
+) : AssistantUiPayload

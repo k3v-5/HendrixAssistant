@@ -33,6 +33,7 @@ android {
 
 dependencies {
     implementation(project(":core-nlu"))
+    implementation(project(":core-voice"))
     implementation(project(":core-ai"))
 
     implementation(libs.androidx.core.ktx)

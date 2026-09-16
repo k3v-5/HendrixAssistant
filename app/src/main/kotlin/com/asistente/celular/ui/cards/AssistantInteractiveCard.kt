@@ -93,6 +93,21 @@ import com.asistente.celular.nlu.ui.SmartBulbUiPayload
 import com.asistente.celular.nlu.ui.TallyCounterWidgetPayload
 import com.asistente.celular.nlu.ui.VolumeUiPayload
 import com.asistente.celular.nlu.ui.WhatsAppQuickReplyPayload
+import com.asistente.celular.nlu.ui.VoiceprintUiPayload
+import com.asistente.celular.nlu.ui.KnowledgeRagUiPayload
+import com.asistente.celular.nlu.ui.VoiceJournalUiPayload
+import com.asistente.celular.nlu.ui.MeshSyncUiPayload
+import com.asistente.celular.nlu.ui.CallScreeningUiPayload
+import com.asistente.celular.nlu.ui.InterpreterUiPayload
+import com.asistente.celular.nlu.ui.ContextTriggerUiPayload
+import com.asistente.celular.nlu.ui.AmbientDockUiPayload
+import com.asistente.celular.nlu.ui.BatteryHealthUiPayload
+import com.asistente.celular.nlu.ui.PrivacyFirewallUiPayload
+import com.asistente.celular.nlu.ui.SecurityAuditUiPayload
+import com.asistente.celular.nlu.ui.HardwareGestureUiPayload
+import com.asistente.celular.nlu.ui.CameraDirectorUiPayload
+import com.asistente.celular.nlu.ui.HealthTelemetryUiPayload
+import com.asistente.celular.nlu.ui.TaskPlanUiPayload
 import kotlin.math.roundToInt
 
 /**
@@ -128,6 +143,21 @@ fun AssistantInteractiveCard(
             is LocalFileResultsUiPayload -> LocalFilesCard(payload, onExecuteCommand)
             is EmergencySosUiPayload -> EmergencySosCard(payload, onExecuteCommand)
             is Otp2FaUiPayload -> Otp2FaCard(payload)
+            is VoiceprintUiPayload -> VoiceprintCard(payload)
+            is KnowledgeRagUiPayload -> KnowledgeRagCard(payload, onExecuteCommand)
+            is VoiceJournalUiPayload -> VoiceJournalCard(payload, onExecuteCommand)
+            is MeshSyncUiPayload -> MeshSyncCard(payload, onExecuteCommand)
+            is CallScreeningUiPayload -> CallScreeningCard(payload, onExecuteCommand)
+            is InterpreterUiPayload -> InterpreterCard(payload)
+            is ContextTriggerUiPayload -> ContextTriggerCard(payload, onExecuteCommand)
+            is AmbientDockUiPayload -> AmbientDockCard(payload, onExecuteCommand)
+            is BatteryHealthUiPayload -> BatteryHealthCard(payload, onExecuteCommand)
+            is PrivacyFirewallUiPayload -> PrivacyFirewallCard(payload)
+            is SecurityAuditUiPayload -> SecurityAuditCard(payload, onExecuteCommand)
+            is HardwareGestureUiPayload -> HardwareGestureCard(payload)
+            is CameraDirectorUiPayload -> CameraDirectorCard(payload, onExecuteCommand)
+            is HealthTelemetryUiPayload -> HealthTelemetryCard(payload)
+            is TaskPlanUiPayload -> TaskPlanCard(payload, onExecuteCommand)
         }
     }
 }
@@ -1475,6 +1505,512 @@ fun Otp2FaCard(
                 color = Color(0xFF4CAF50),
                 fontWeight = FontWeight.Medium
             )
+        }
+    }
+}
+
+@Composable
+fun VoiceprintCard(payload: VoiceprintUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎙️", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Huella Vocal de Propietario",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (payload.isMatch) "Identidad: ${payload.speakerName}" else "Voz no reconocida",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (payload.isMatch) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Coincidencia acústica", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = "${payload.confidencePercent}%",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            LinearProgressIndicator(
+                progress = { payload.confidencePercent / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                color = if (payload.isMatch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
+fun KnowledgeRagCard(
+    payload: KnowledgeRagUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🧠", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Grafo de Conocimiento & RAG",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Consulta: \"${payload.query}\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            payload.results.take(3).forEach { res ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = res.entity?.name ?: "Dato semántico",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "${(res.similarityScore * 100).toInt()}% sim",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            text = res.textSnippet,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VoiceJournalCard(
+    payload: VoiceJournalUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📖", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Diario de Voz & Mind Dump",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Tono: ${payload.sentiment}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = payload.summary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (payload.actionItems.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Acciones extraídas (TODOs):",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
+                payload.actionItems.forEach { item ->
+                    Text(
+                        text = "• $item",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MeshSyncCard(
+    payload: MeshSyncUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🔗", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Hendrix Mesh Local (P2P)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${payload.peersCount} nodo(s) en red LAN",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+            }
+            payload.lastClipboardSnippet?.let { snippet ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Último portapapeles compartido: \"$snippet\"",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = { onExecuteCommand("enviar portapapeles a pc") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Reenviar Portapapeles a PC")
+            }
+        }
+    }
+}
+
+@Composable
+fun CallScreeningCard(
+    payload: CallScreeningUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📞", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Filtro de Llamadas IA",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${payload.callerName ?: payload.callerNumber} (${payload.statusText})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (payload.spamPercent >= 80) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Riesgo de Spam: ${payload.spamPercent}%",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = payload.liveSnippet,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun InterpreterCard(payload: InterpreterUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "🗣️ Modo Intérprete", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(text = "${payload.langA} ⇄ ${payload.langB}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(text = "${payload.lastSpeaker}: \"${payload.lastOriginal}\"", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = "Traducción: \"${payload.lastTranslated}\"", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContextTriggerCard(
+    payload: ContextTriggerUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📍", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Contexto Proactivo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Zona: ${payload.activeZone} (${payload.connectedWifi ?: "Sin Wi-Fi"})", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Reglas activas: ${payload.activeRulesCount}", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun AmbientDockCard(
+    payload: AmbientDockUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🌙", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Modo Ambient Dock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = payload.dockType, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            payload.ambientMessage?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = it, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+fun BatteryHealthCard(
+    payload: BatteryHealthUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🔋", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Salud Térmica de Batería", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Nivel: ${payload.level}% | Temp: ${payload.temperature}°C (${payload.thermalStatus})", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Tasa de carga: ${payload.currentMa} mA | Límite corte inteligente: ${payload.smartCutoffTarget}%", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun PrivacyFirewallCard(payload: PrivacyFirewallUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🛡️", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Firewall de Privacidad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "${payload.blockedTrackersCount} rastreadores bloqueados", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4CAF50))
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            payload.recentTrackers.take(2).forEach {
+                Text(text = "• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+fun SecurityAuditCard(
+    payload: SecurityAuditUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🔍", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Auditoría de Seguridad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Puntaje de salud: ${payload.securityScore}/100", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Apps con permisos críticos: ${payload.riskyAppsCount}", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun HardwareGestureCard(payload: HardwareGestureUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📱", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Gestos Físicos de Hardware", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Último: ${payload.lastDetectedGesture}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CameraDirectorCard(
+    payload: CameraDirectorUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📸", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Asistente de Cámara", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "Lente: ${payload.activeLens} | Cuenta: ${payload.countdownSeconds}s", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = payload.statusMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun HealthTelemetryCard(payload: HealthTelemetryUiPayload) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "❤️", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Hub de Salud Local", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = "${payload.steps} / ${payload.goalSteps} pasos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Pulso: ${payload.heartRate} lpm | Sueño: ${payload.sleepHours} hrs (${payload.recoveryText})", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun TaskPlanCard(
+    payload: TaskPlanUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "📋", fontSize = 24.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(text = "Planificador Autónomo Multi-Paso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(text = payload.statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            payload.steps.forEach { step ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = "${step.stepNumber}. ${step.description}", style = MaterialTheme.typography.bodySmall)
+                    Text(text = "[${step.status.name}]", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
