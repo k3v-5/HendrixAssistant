@@ -85,7 +85,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val isScanningSmartDevices = MutableStateFlow(false)
 
     // Motores de Audio y Voz
-    private val ttsEngine = AndroidNativeTtsEngine(application)
+    private val ttsEngine = AndroidNativeTtsEngine(
+        context = application,
+        pitch = 1.08f * activeLlmConfig.personality.speechPitchMultiplier,
+        speechRate = 1.02f * activeLlmConfig.personality.speechRateMultiplier
+    )
     // Motor STT nativo funcional inmediato
     private val sttEngine: SttEngine = AndroidSpeechRecognizerEngine(application)
 
@@ -214,6 +218,8 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateLlmConfig(newConfig: LlmConfig) {
         activeLlmConfig = newConfig
         settingsRepo.saveLlmConfig(newConfig)
+        ttsEngine.pitch = 1.08f * newConfig.personality.speechPitchMultiplier
+        ttsEngine.speechRate = 1.02f * newConfig.personality.speechRateMultiplier
         _uiState.value = _uiState.value.copy(llmConfig = newConfig)
     }
 

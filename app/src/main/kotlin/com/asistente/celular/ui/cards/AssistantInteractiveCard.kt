@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
@@ -25,13 +26,19 @@ import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
@@ -73,8 +80,12 @@ import com.asistente.celular.nlu.ui.BrightnessUiPayload
 import com.asistente.celular.nlu.ui.CurrencyUiPayload
 import com.asistente.celular.nlu.ui.FlashlightUiPayload
 import com.asistente.celular.nlu.ui.NotesUiPayload
+import com.asistente.celular.nlu.ui.PomodoroWidgetPayload
+import com.asistente.celular.nlu.ui.RoutineUiPayload
 import com.asistente.celular.nlu.ui.SmartBulbUiPayload
+import com.asistente.celular.nlu.ui.TallyCounterWidgetPayload
 import com.asistente.celular.nlu.ui.VolumeUiPayload
+import com.asistente.celular.nlu.ui.WhatsAppQuickReplyPayload
 import kotlin.math.roundToInt
 
 /**
@@ -99,6 +110,10 @@ fun AssistantInteractiveCard(
             is BrightnessUiPayload -> BrightnessCard(payload, onExecuteCommand, onRequestBrightnessPermission)
             is CurrencyUiPayload -> CurrencyCard(payload)
             is NotesUiPayload -> NotesCard(payload, onExecuteCommand)
+            is RoutineUiPayload -> RoutineCard(payload, onExecuteCommand)
+            is WhatsAppQuickReplyPayload -> WhatsAppReplyCard(payload, onExecuteCommand)
+            is PomodoroWidgetPayload -> PomodoroCard(payload, onExecuteCommand)
+            is TallyCounterWidgetPayload -> TallyCounterCard(payload, onExecuteCommand)
         }
     }
 }
@@ -762,6 +777,329 @@ fun NotesCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Rutinas y Macros creadas en Lenguaje Natural (Punto 8).
+ * Muestra el disparador por voz, lista de acciones secuenciales y botón de prueba inmediata.
+ */
+@Composable
+fun RoutineCard(
+    payload: RoutineUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Rutina",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = payload.name.ifBlank { "Rutina Personalizada" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Disparador: \"${payload.triggerPhrase}\"",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Pasos de la rutina (${payload.actionsCount}):",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                payload.actionSummaries.forEachIndexed { index, summary ->
+                    Text(
+                        text = "${index + 1}. $summary",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { onExecuteCommand(payload.triggerPhrase) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Probar Rutina Ahora", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para Ghostwriter de Respuestas Rápidas de WhatsApp (Punto 12).
+ * Muestra el remitente, mensaje recibido y 3 opciones inteligentes generadas por IA.
+ */
+@Composable
+fun WhatsAppReplyCard(
+    payload: WhatsAppQuickReplyPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF25D366).copy(alpha = 0.12f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("💬", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "WhatsApp • ${payload.senderName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1B5E20)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "\"${payload.messageSnippet}\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Respuestas inteligentes sugeridas:",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.outline
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                payload.suggestedReplies.forEach { reply ->
+                    OutlinedButton(
+                        onClick = { onExecuteCommand("responde a ${payload.senderName}: $reply") },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF2E7D32))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = reply, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Widget interactivo de Pomodoro en la ventana flotante (Punto 25).
+ */
+@Composable
+fun PomodoroCard(
+    payload: PomodoroWidgetPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    var isRunning by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFEBEE).copy(alpha = 0.8f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🍅", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "Temporizador Pomodoro",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFB71C1C)
+                        )
+                        Text(
+                            text = if (payload.currentPhase == "work") "Sesión de Enfoque (${payload.workMinutes}m)" else "Descanso (${payload.breakMinutes}m)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFC62828)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "${payload.workMinutes}:00",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFFB71C1C)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        isRunning = !isRunning
+                        onExecuteCommand(if (isRunning) "inicia pomodoro de ${payload.workMinutes} minutos" else "pausa el temporizador")
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (isRunning) "Pausar" else "Iniciar ${payload.workMinutes}m", fontWeight = FontWeight.Bold)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        onExecuteCommand("inicia descanso de ${payload.breakMinutes} minutos")
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Descanso ${payload.breakMinutes}m")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Widget interactivo de Contador Rápido (Tally Counter) en la ventana flotante (Punto 25).
+ */
+@Composable
+fun TallyCounterCard(
+    payload: TallyCounterWidgetPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    var count by remember(payload.currentCount) { mutableStateOf(payload.currentCount) }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        ),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "🔢 ${payload.title}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "$count",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val next = (count - payload.step).coerceAtLeast(0)
+                        count = next
+                        onExecuteCommand("cuenta ${payload.title} es $next")
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Restar")
+                }
+
+                Button(
+                    onClick = {
+                        val next = count + payload.step
+                        count = next
+                        onExecuteCommand("cuenta ${payload.title} es $next")
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Sumar")
+                }
+
+                IconButton(
+                    onClick = {
+                        count = 0
+                        onExecuteCommand("reinicia el contador de ${payload.title}")
+                    }
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reiniciar")
+                }
+            }
         }
     }
 }

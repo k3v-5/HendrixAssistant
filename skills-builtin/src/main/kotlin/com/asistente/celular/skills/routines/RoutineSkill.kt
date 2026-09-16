@@ -59,6 +59,15 @@ class RoutineSkill(
         val normalized = MatchContext.normalize(input)
         if (normalized.isBlank()) return SkillScore.NO_MATCH
 
+        // 0. Detección de creación de rutinas en lenguaje natural ("Cuando diga 'X', haz Y...")
+        if (com.asistente.celular.nlu.routines.RoutineCompiler.compile(input) != null) {
+            return SkillScore(
+                confidence = 0.99f,
+                specificity = Specificity.HIGH,
+                capturedSlots = mapOf("action" to "create")
+            )
+        }
+
         // 1. Listar rutinas
         for (pattern in listPatterns) {
             val ctx = MatchContext(normalized)
@@ -111,6 +120,39 @@ class RoutineSkill(
     private fun countWords(text: String): Int = text.split("\\s+".toRegex()).count { it.isNotBlank() }
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
+        if (score.capturedSlots["action"] == "create") {
+            val compiled = com.asistente.celular.nlu.routines.RoutineCompiler.compile(input)
+            if (compiled != null) {
+                routineRepository.saveRoutine(compiled)
+                val summaries = compiled.actions.map { action ->
+                    when (action) {
+                        is RoutineAction.ExecuteCommandAction -> "• Ejecutar: \"${action.commandText}\""
+                        is RoutineAction.SpeakAction -> "• Decir: \"${action.text}\""
+                        is RoutineAction.DelayAction -> "• Esperar: ${action.delayMillis / 1000}s"
+                        is RoutineAction.SettingAction -> "• Ajuste: ${action.settingKey} = ${action.value}"
+                    }
+                }
+                val trigger = compiled.triggerPhrases.firstOrNull() ?: compiled.name
+                val msg = "Rutina '${compiled.name}' creada con éxito. Se activará cuando digas '$trigger'."
+                val display = """
+                    ⚡ **Rutina Creada: ${compiled.name}**
+                    
+                    **Activación:** "$trigger"
+                    **Acciones (${compiled.actions.size}):**
+                    ${summaries.joinToString("\n")}
+                """.trimIndent()
+                val payload = com.asistente.celular.nlu.ui.RoutineUiPayload(
+                    routineId = compiled.id,
+                    name = compiled.name,
+                    triggerPhrase = trigger,
+                    actionsCount = compiled.actions.size,
+                    actionSummaries = summaries,
+                    isCreated = true
+                )
+                return SkillOutput(speech = msg, displayText = display, success = true, payload = payload)
+            }
+        }
+
         if (score.capturedSlots["action"] == "list") {
             return listRoutines()
         }

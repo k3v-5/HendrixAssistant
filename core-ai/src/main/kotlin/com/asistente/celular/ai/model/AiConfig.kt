@@ -1,6 +1,7 @@
 package com.asistente.celular.ai.model
 
 import com.asistente.celular.ai.BuildConfig
+import com.asistente.celular.ai.personality.AssistantPersonality
 import kotlinx.serialization.Serializable
 
 /**
@@ -27,7 +28,9 @@ data class LlmConfig(
     val temperature: Float = 0.7f,
     val maxTokens: Int = 500,
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
-    val isModelHarnessEnabled: Boolean = true
+    val isModelHarnessEnabled: Boolean = true,
+    val personality: AssistantPersonality = AssistantPersonality.STANDARD,
+    val zeroCloudMode: Boolean = false
 ) {
     companion object {
         val DEFAULT_GOOGLE_API_KEY: String

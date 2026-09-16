@@ -7,6 +7,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+import com.asistente.celular.nlu.context.ConversationSessionTracker
+import com.asistente.celular.nlu.context.CoreferenceResolver
+import com.asistente.celular.nlu.context.DialogEntity
+import com.asistente.celular.nlu.context.EntityType
+import com.asistente.celular.nlu.ui.SmartBulbUiPayload
+import com.asistente.celular.nlu.ui.VolumeUiPayload
+
 /**
  * Evento de interacción registrado en la conversación.
  */
@@ -36,6 +43,7 @@ data class AssistantState(
 class SkillEvaluator(
     private val ranker: SkillRanker,
     private val skillContext: SkillContext,
+    private val sessionTracker: ConversationSessionTracker = ConversationSessionTracker(),
     private val onSpeak: suspend (String) -> Unit = {},
     private val onReopenMic: suspend () -> Unit = {}
 ) {
@@ -112,13 +120,37 @@ class SkillEvaluator(
         )
 
         try {
-            // 1. Determinar la mejor habilidad (evaluando con el texto limpio)
-            val match = ranker.findBestSkill(skillContext, cleanedInput)
+            // 1. Resolver correferencias y anáforas basadas en turnos previos ("apágala", "hazla más tenue", etc.)
+            val resolved = CoreferenceResolver.resolve(cleanedInput, sessionTracker)
+            val effectiveInput = resolved.resolvedText
 
-            // 2. Ejecutar la habilidad seleccionada
-            val output = match.skill.execute(skillContext, cleanedInput, match.score)
+            // 2. Determinar la mejor habilidad
+            val match = ranker.findBestSkill(skillContext, effectiveInput)
 
-            // 3. Registrar en historial
+            // 3. Ejecutar la habilidad seleccionada
+            val output = match.skill.execute(skillContext, effectiveInput, match.score)
+
+            // 4. Rastrear entidad para multiturno
+            val detectedEntity = when (val payload = output.payload) {
+                is SmartBulbUiPayload -> DialogEntity(payload.deviceName, EntityType.LIGHT)
+                is VolumeUiPayload -> DialogEntity(payload.streamName, EntityType.VOLUME_STREAM)
+                else -> {
+                    when {
+                        match.skill.info.id.contains("media") -> DialogEntity("música", EntityType.MEDIA_TRACK)
+                        match.skill.info.id.contains("smarthome") -> DialogEntity("foco", EntityType.LIGHT)
+                        else -> resolved.resolvedEntity
+                    }
+                }
+            }
+
+            sessionTracker.recordTurn(
+                userInput = effectiveInput,
+                executedSkillId = match.skill.info.id,
+                primaryEntity = detectedEntity,
+                assistantResponse = output.speech
+            )
+
+            // 5. Registrar en historial
             val entry = InteractionEntry(
                 userInput = rawTrimmed,
                 skillName = match.skill.info.name,

@@ -19,8 +19,11 @@ import com.asistente.celular.nlu.skill.SkillOutput
 
 /**
  * Habilidad para búsqueda y reproducción profunda de música en Spotify, YouTube Music y YouTube.
+ * Incluye soporte de agente autónomo de navegación UI para interactuar con Spotify (dar Me Gusta, reproducir).
  */
-class DeepMediaSkill : Skill {
+class DeepMediaSkill(
+    private val navigationAgent: com.asistente.celular.nlu.agent.AutonomousNavigationAgent? = null
+) : Skill {
 
     override val info: SkillInfo = SkillInfo(
         id = "deep_media_skill",
@@ -62,6 +65,16 @@ class DeepMediaSkill : Skill {
         val normalized = MatchContext.normalize(input)
         if (normalized.isBlank()) return SkillScore.NO_MATCH
 
+        // Coincidencia para dar Me Gusta / Like en Spotify con agente autónomo
+        if ((normalized.contains("me gusta") || normalized.contains("like") || normalized.contains("favorita") || normalized.contains("favorito")) &&
+            (normalized.contains("spotify") || normalized.contains("cancion") || normalized.contains("canción") || normalized.contains("musica") || normalized.contains("música"))) {
+            return SkillScore(
+                confidence = 0.96f,
+                specificity = Specificity.HIGH,
+                capturedSlots = mapOf("action" to "like_spotify")
+            )
+        }
+
         val hasVerb = normalized.contains("pon") || normalized.contains("reproduce") || normalized.contains("escuchar") || normalized.contains("toca")
         val hasPlatform = normalized.contains("spotify") || normalized.contains("youtube") || normalized.contains("music")
 
@@ -102,6 +115,19 @@ class DeepMediaSkill : Skill {
     }
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
+        if (score.capturedSlots["action"] == "like_spotify") {
+            if (navigationAgent != null && navigationAgent.isEnabled()) {
+                val res = navigationAgent.executeAction(
+                    com.asistente.celular.nlu.agent.UiNavigationAction.ClickByText("Me gusta")
+                )
+                val msg = if (res.success) "Canción agregada a tus favoritos en Spotify." else "Intentando agregar a favoritos en Spotify..."
+                return SkillOutput(speech = msg, displayText = "💚 $msg", success = true)
+            } else {
+                val msg = "Para dar Me Gusta automáticamente en Spotify, habilita el Servicio de Navegación Autónoma de Hendrix en Accesibilidad."
+                return SkillOutput(speech = msg, displayText = "ℹ️ $msg", success = false)
+            }
+        }
+
         val rawQuery = score.capturedSlots["query"]?.trim() ?: extractFallbackQuery(input)
         val platformSlot = score.capturedSlots["platform"]?.trim()?.lowercase() ?: "spotify"
 

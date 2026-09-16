@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.asistente.celular.ai.harness.ModelRegistry
 import com.asistente.celular.ai.model.AiProvider
 import com.asistente.celular.ai.model.LlmConfig
+import com.asistente.celular.ai.personality.AssistantPersonality
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +81,8 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     var selectedProvider by remember { mutableStateOf(currentConfig.provider) }
+    var selectedPersonality by remember { mutableStateOf(currentConfig.personality) }
+    var zeroCloudMode by remember { mutableStateOf(currentConfig.zeroCloudMode) }
     var apiKey by remember { mutableStateOf(currentConfig.apiKey) }
     var modelName by remember { mutableStateOf(currentConfig.modelName) }
     var customEndpoint by remember { mutableStateOf(currentConfig.customEndpoint ?: "") }
@@ -369,6 +373,92 @@ fun SettingsScreen(
             Divider()
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Sección: Personalidad del Asistente (Punto 19)
+            Text("Personalidad del Asistente", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Modula el tono de respuesta, actitud y entonación de voz.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            AssistantPersonality.entries.forEach { pers ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedPersonality = pers }
+                        .padding(vertical = 4.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedPersonality == pers,
+                        onClick = { selectedPersonality = pers }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(pers.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(pers.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sección: Modo Copiloto Offline Seguro / Zero-Cloud (Punto 30)
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (zeroCloudMode)
+                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Text("🛡️", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Copiloto Offline Seguro", fontWeight = FontWeight.Bold)
+                                Text("Zero-Cloud Privacy Mode", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                        Switch(
+                            checked = zeroCloudMode,
+                            onCheckedChange = { isEnabled ->
+                                zeroCloudMode = isEnabled
+                                if (isEnabled) {
+                                    selectedProvider = AiProvider.LOCAL_SLM
+                                }
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (zeroCloudMode)
+                            "🔒 Modo Zero-Cloud ACTIVO: Las consultas se procesan 100% en el dispositivo con modelos SLM locales. Se bloquea cualquier llamada HTTP saliente para absoluta privacidad."
+                        else
+                            "Cuando está activo, fuerza el procesamiento 100% local y desconecta servicios en la nube para garantizar cero fuga de datos.",
+                        fontSize = 12.sp,
+                        color = if (zeroCloudMode) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Sección: Enrutador de Inteligencia Artificial
             Text("Motor de IA para Consultas Complejas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
@@ -508,11 +598,13 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     val updated = currentConfig.copy(
-                        provider = selectedProvider,
+                        provider = if (zeroCloudMode) AiProvider.LOCAL_SLM else selectedProvider,
                         apiKey = apiKey,
                         modelName = modelName,
                         customEndpoint = customEndpoint.takeIf { it.isNotBlank() },
-                        isModelHarnessEnabled = isModelHarnessEnabled
+                        isModelHarnessEnabled = isModelHarnessEnabled,
+                        personality = selectedPersonality,
+                        zeroCloudMode = zeroCloudMode
                     )
                     onSaveConfig(updated)
                     onBack()

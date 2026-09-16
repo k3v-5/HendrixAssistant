@@ -1,5 +1,8 @@
 package com.asistente.celular.skills.memory
 
+import com.asistente.celular.ai.memory.InMemoryPersonalKnowledgeGraph
+import com.asistente.celular.ai.memory.KnowledgeRelationExtractor
+import com.asistente.celular.ai.memory.PersonalKnowledgeGraph
 import com.asistente.celular.ai.memory.SemanticMemoryRepository
 import com.asistente.celular.nlu.construct.CapturingConstruct
 import com.asistente.celular.nlu.construct.Construct
@@ -15,11 +18,12 @@ import com.asistente.celular.nlu.skill.SkillInfo
 import com.asistente.celular.nlu.skill.SkillOutput
 
 /**
- * Habilidad para gestionar la memoria semántica a largo plazo del usuario
- * (guardar preferencias, recordar datos personales y olvidar información).
+ * Habilidad para gestionar la memoria semántica a largo plazo y el gráfico de conocimiento
+ * (guardar preferencias, recordar datos personales, responder preguntas y olvidar información).
  */
 class SemanticMemorySkill(
-    private val memoryRepository: SemanticMemoryRepository
+    private val memoryRepository: SemanticMemoryRepository,
+    private val knowledgeGraph: PersonalKnowledgeGraph = InMemoryPersonalKnowledgeGraph()
 ) : Skill {
 
     override val info: SkillInfo = SkillInfo(
@@ -31,6 +35,14 @@ class SemanticMemorySkill(
     override val specificity: Specificity = Specificity.HIGH
 
     private val queryPatterns: List<Construct> = listOf(
+        SequenceConstruct(
+            OptionalConstruct(WordConstruct("dime", "busca")),
+            WordConstruct("que"),
+            WordConstruct("sabes", "recuerdas", "tienes"),
+            OptionalConstruct(WordConstruct("guardado", "anotado")),
+            WordConstruct("sobre", "de"),
+            CapturingConstruct("query_topic")
+        ),
         SequenceConstruct(
             OptionalConstruct(WordConstruct("dime")),
             WordConstruct("que"),
@@ -128,10 +140,12 @@ class SemanticMemorySkill(
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
         val action = score.capturedSlots["action"] ?: "remember"
+        val queryTopic = score.capturedSlots["query_topic"]
 
-        return when (action) {
-            "query" -> handleQueryMemories()
-            "forget" -> {
+        return when {
+            queryTopic != null -> handleTopicQuery(queryTopic)
+            action == "query" -> handleQueryMemories()
+            action == "forget" -> {
                 val toForget = score.capturedSlots["fact_to_forget"] ?: ""
                 handleForgetMemory(toForget)
             }
@@ -140,6 +154,33 @@ class SemanticMemorySkill(
                 handleRemember(fact, input)
             }
         }
+    }
+
+    private suspend fun handleTopicQuery(topic: String): SkillOutput {
+        val memories = memoryRepository.search(topic, topK = 3, minSimilarity = 0.20f)
+        val relations = knowledgeGraph.findRelationsAbout(topic)
+
+        if (memories.isEmpty() && relations.isEmpty()) {
+            val msg = "No encontré recuerdos guardados sobre '$topic'."
+            return SkillOutput(speech = msg, displayText = "🔍 $msg", success = true)
+        }
+
+        val details = mutableListOf<String>()
+        relations.forEach { rel ->
+            details.add("${rel.subject} -> ${rel.predicate} -> ${rel.obj}")
+        }
+        memories.forEach { m ->
+            details.add(m.entry.text)
+        }
+
+        val speech = "Sobre '$topic' recuerdo: " + details.joinToString("; ") + "."
+        val display = """
+            🧠 **Información sobre '$topic':**
+            
+            ${details.joinToString("\n") { "• $it" }}
+        """.trimIndent()
+
+        return SkillOutput(speech = speech, displayText = display, success = true)
     }
 
     private suspend fun handleRemember(factSlot: String, rawInput: String): SkillOutput {
@@ -171,6 +212,11 @@ class SemanticMemorySkill(
         }
 
         memoryRepository.remember(cleanFact, category = category)
+
+        val relation = KnowledgeRelationExtractor.extract(cleanFact)
+        if (relation != null) {
+            knowledgeGraph.addRelation(relation.subject, relation.predicate, relation.obj)
+        }
 
         val speech = "Anotado en mi memoria: $cleanFact."
         val display = "🧠 **Recuerdo Guardado:**\n• \"$cleanFact\"\n*(Categoría: ${category.replaceFirstChar { it.uppercase() }})*"

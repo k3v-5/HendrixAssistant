@@ -59,10 +59,23 @@ class AiRouterSkill(
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
         val baseConfig = configProvider()
 
+        // Si está activo el modo Zero-Cloud, forzar estrictamente el proveedor LOCAL_SLM (100% privado en dispositivo)
+        val activeConfig = if (baseConfig.zeroCloudMode) {
+            baseConfig.copy(provider = AiProvider.LOCAL_SLM)
+        } else {
+            baseConfig
+        }
+
+        // Formatear el prompt del sistema con la personalidad activa (Jarvis, Friday, Mentor, etc.)
+        val personalizedPrompt = com.asistente.celular.ai.personality.PersonalityEngine.formatSystemPrompt(
+            basePrompt = activeConfig.systemPrompt,
+            personality = activeConfig.personality
+        )
+
         // 0. Enriquecimiento de contexto personal y memoria (RAG local)
-        val enrichedPrompt = personalContextProvider?.buildEnrichedSystemPrompt(baseConfig.systemPrompt, input)
-            ?: baseConfig.systemPrompt
-        val config = baseConfig.copy(systemPrompt = enrichedPrompt)
+        val enrichedPrompt = personalContextProvider?.buildEnrichedSystemPrompt(personalizedPrompt, input)
+            ?: personalizedPrompt
+        val config = activeConfig.copy(systemPrompt = enrichedPrompt)
 
         // 1. Verificación de conectividad offline
         if (!context.isConnectedToInternet && config.provider != AiProvider.LOCAL_SLM) {

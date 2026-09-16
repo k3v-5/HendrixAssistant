@@ -54,3 +54,31 @@ data class NotesUiPayload(
     val isPinned: Boolean = false,
     val id: String = ""
 ) : AssistantUiPayload
+
+data class RoutineUiPayload(
+    val routineId: String,
+    val name: String,
+    val triggerPhrase: String,
+    val actionsCount: Int,
+    val actionSummaries: List<String>,
+    val isCreated: Boolean = true
+) : AssistantUiPayload
+
+data class WhatsAppQuickReplyPayload(
+    val senderName: String,
+    val messageSnippet: String,
+    val suggestedReplies: List<String>,
+    val notificationKey: String = ""
+) : AssistantUiPayload
+
+data class PomodoroWidgetPayload(
+    val workMinutes: Int = 25,
+    val breakMinutes: Int = 5,
+    val currentPhase: String = "work"
+) : AssistantUiPayload
+
+data class TallyCounterWidgetPayload(
+    val title: String,
+    val currentCount: Int = 0,
+    val step: Int = 1
+) : AssistantUiPayload

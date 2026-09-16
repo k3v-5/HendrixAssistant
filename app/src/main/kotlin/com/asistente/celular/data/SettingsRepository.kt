@@ -56,11 +56,26 @@ class SettingsRepository(context: Context) {
             ?: com.asistente.celular.ai.local.LocalModelCatalog.DEFAULT_LOCAL_MODEL.id
         set(value) = prefs.edit().putString(KEY_ACTIVE_LOCAL_MODEL_ID, value).apply()
 
+    var personality: com.asistente.celular.ai.personality.AssistantPersonality
+        get() {
+            val name = prefs.getString(KEY_PERSONALITY, com.asistente.celular.ai.personality.AssistantPersonality.STANDARD.name)
+            return try {
+                com.asistente.celular.ai.personality.AssistantPersonality.valueOf(name ?: com.asistente.celular.ai.personality.AssistantPersonality.STANDARD.name)
+            } catch (_: Exception) {
+                com.asistente.celular.ai.personality.AssistantPersonality.STANDARD
+            }
+        }
+        set(value) = prefs.edit().putString(KEY_PERSONALITY, value.name).apply()
+
+    var zeroCloudMode: Boolean
+        get() = prefs.getBoolean(KEY_ZERO_CLOUD_MODE, false)
+        set(value) = prefs.edit().putBoolean(KEY_ZERO_CLOUD_MODE, value).apply()
+
     /**
      * Carga el objeto LlmConfig completo con los valores persistidos.
      */
     fun loadLlmConfig(): LlmConfig {
-        val provider = selectedProvider
+        val provider = if (zeroCloudMode) AiProvider.LOCAL_SLM else selectedProvider
         val apiKey = when (provider) {
             AiProvider.GEMINI -> geminiApiKey
             else -> prefs.getString("api_key_${provider.name}", "") ?: ""
@@ -77,7 +92,9 @@ class SettingsRepository(context: Context) {
             apiKey = apiKey,
             modelName = model,
             customEndpoint = customEndpoint,
-            isModelHarnessEnabled = isModelHarnessEnabled
+            isModelHarnessEnabled = isModelHarnessEnabled,
+            personality = personality,
+            zeroCloudMode = zeroCloudMode
         )
     }
 
@@ -87,6 +104,8 @@ class SettingsRepository(context: Context) {
     fun saveLlmConfig(config: LlmConfig) {
         selectedProvider = config.provider
         isModelHarnessEnabled = config.isModelHarnessEnabled
+        personality = config.personality
+        zeroCloudMode = config.zeroCloudMode
         if (config.provider == AiProvider.LOCAL_SLM) {
             activeLocalModelId = config.modelName
         } else {
@@ -110,5 +129,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_MODEL_NAME = "model_name"
         private const val KEY_CUSTOM_ENDPOINT = "custom_endpoint"
         private const val KEY_ACTIVE_LOCAL_MODEL_ID = "active_local_model_id"
+        private const val KEY_PERSONALITY = "assistant_personality"
+        private const val KEY_ZERO_CLOUD_MODE = "zero_cloud_mode"
     }
 }

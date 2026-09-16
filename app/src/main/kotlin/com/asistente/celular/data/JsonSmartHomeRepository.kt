@@ -9,6 +9,7 @@ import com.asistente.celular.nlu.smarthome.SmartDevice
 import com.asistente.celular.nlu.smarthome.SmartDeviceDriver
 import com.asistente.celular.nlu.smarthome.SmartHomeRepository
 import com.asistente.celular.nlu.smarthome.SmartProtocol
+import com.asistente.celular.skills.smarthome.HomeAssistantDriver
 import com.asistente.celular.skills.smarthome.YeelightLanDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,10 @@ import java.io.File
 class JsonSmartHomeRepository(
     private val context: Context,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
-    private val drivers: List<SmartDeviceDriver> = listOf(YeelightLanDriver(context = context))
+    private val drivers: List<SmartDeviceDriver> = listOf(
+        YeelightLanDriver(context = context),
+        HomeAssistantDriver()
+    )
 ) : SmartHomeRepository {
 
     private val file = File(context.filesDir, "smart_devices.json")

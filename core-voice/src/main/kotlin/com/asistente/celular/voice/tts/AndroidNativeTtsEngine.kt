@@ -19,7 +19,8 @@ class AndroidNativeTtsEngine(
     context: Context,
     private val preferredLocale: Locale = Locale("es", "ES"),
     var pitch: Float = 1.08f,
-    var speechRate: Float = 1.02f
+    var speechRate: Float = 1.02f,
+    var isWhisperMode: Boolean = false
 ) : TtsEngine {
 
     private var tts: TextToSpeech? = null
@@ -140,8 +141,15 @@ class AndroidNativeTtsEngine(
 
         val params = Bundle()
         params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-        tts?.setPitch(pitch)
-        tts?.setSpeechRate(speechRate)
+        
+        val effectivePitch = if (isWhisperMode) pitch * 0.88f else pitch
+        val effectiveRate = if (isWhisperMode) speechRate * 0.90f else speechRate
+        val effectiveVolume = if (isWhisperMode) 0.35f else 1.0f
+
+        tts?.setPitch(effectivePitch)
+        tts?.setSpeechRate(effectiveRate)
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, effectiveVolume)
+
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
 
         continuation.invokeOnCancellation {
