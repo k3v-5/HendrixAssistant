@@ -40,14 +40,68 @@ class AssistantVoiceService : Service() {
 
     private var wakeWordEngine: AndroidContinuousWakeWordEngine? = null
     private lateinit var hapticManager: HapticFeedbackManager
+    private lateinit var settingsRepo: SettingsRepository
+    private var sensorCoordinator: com.asistente.celular.hardware.HardwareSensorCoordinator? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var ttsEngine: AndroidNativeTtsEngine? = null
     private var evaluator: SkillEvaluator? = null
 
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        when (key) {
+            "shake_to_wake_enabled" -> {
+                val enabled = settingsRepo.isShakeToWakeEnabled
+                sensorCoordinator?.isShakeToWakeEnabled = enabled
+                Log.i(TAG, "Sensor config actualizada dinámicamente: shake_to_wake_enabled=$enabled")
+            }
+            "pocket_silence_enabled" -> {
+                val enabled = settingsRepo.isPocketSilenceEnabled
+                sensorCoordinator?.isPocketSilenceEnabled = enabled
+                Log.i(TAG, "Sensor config actualizada dinámicamente: pocket_silence_enabled=$enabled")
+            }
+            "flip_to_mute_enabled" -> {
+                val enabled = settingsRepo.isFlipToMuteEnabled
+                sensorCoordinator?.isFlipToMuteEnabled = enabled
+                Log.i(TAG, "Sensor config actualizada dinámicamente: flip_to_mute_enabled=$enabled")
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         hapticManager = HapticFeedbackManager(this)
+        settingsRepo = SettingsRepository(this)
+        settingsRepo.registerOnSharedPreferenceChangeListener(prefsListener)
         wakeWordEngine = AndroidContinuousWakeWordEngine(this)
+
+        // Inicializar coordinador de sensores de hardware
+        sensorCoordinator = com.asistente.celular.hardware.HardwareSensorCoordinator(
+            context = this,
+            isShakeToWakeEnabled = settingsRepo.isShakeToWakeEnabled,
+            isPocketSilenceEnabled = settingsRepo.isPocketSilenceEnabled,
+            isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled,
+            onShakeDetected = {
+                hapticManager.vibrateStartListening()
+                val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                }
+                startActivity(dialogIntent)
+            },
+            onFlipToMute = {
+                ttsEngine?.stop()
+            },
+            onPocketStateChanged = { isPocketed ->
+                if (isPocketed) {
+                    wakeWordEngine?.pause()
+                } else {
+                    if (MicCoordinator.isMicLockedByUi.value != true) {
+                        wakeWordEngine?.resume()
+                    }
+                }
+            }
+        ).apply {
+            startListening()
+        }
 
         // Observar si una pantalla interactiva (MainActivity o AssistantDialogActivity)
         // toma el control del micrófono para pausar la escucha de fondo y evitar colisiones de audio.
@@ -55,7 +109,7 @@ class AssistantVoiceService : Service() {
             MicCoordinator.isMicLockedByUi.collect { isLocked ->
                 if (isLocked) {
                     wakeWordEngine?.pause()
-                } else {
+                } else if (sensorCoordinator?.isPocketed?.value != true) {
                     wakeWordEngine?.resume()
                 }
             }
@@ -186,6 +240,9 @@ class AssistantVoiceService : Service() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        settingsRepo.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        sensorCoordinator?.stopListening()
+        sensorCoordinator = null
         wakeWordEngine?.stopListening()
         wakeWordEngine?.release()
         wakeWordEngine = null

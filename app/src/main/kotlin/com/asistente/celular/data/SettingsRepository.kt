@@ -18,6 +18,18 @@ class SettingsRepository(context: Context) {
         get() = prefs.getBoolean(KEY_WAKE_WORD_ACTIVE, false)
         set(value) = prefs.edit().putBoolean(KEY_WAKE_WORD_ACTIVE, value).apply()
 
+    var isShakeToWakeEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SHAKE_TO_WAKE, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHAKE_TO_WAKE, value).apply()
+
+    var isPocketSilenceEnabled: Boolean
+        get() = prefs.getBoolean(KEY_POCKET_SILENCE, true)
+        set(value) = prefs.edit().putBoolean(KEY_POCKET_SILENCE, value).apply()
+
+    var isFlipToMuteEnabled: Boolean
+        get() = prefs.getBoolean(KEY_FLIP_TO_MUTE, true)
+        set(value) = prefs.edit().putBoolean(KEY_FLIP_TO_MUTE, value).apply()
+
     var isModelHarnessEnabled: Boolean
         get() = prefs.getBoolean(KEY_MODEL_HARNESS_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_MODEL_HARNESS_ENABLED, value).apply()
@@ -120,6 +132,14 @@ class SettingsRepository(context: Context) {
         }
     }
 
+    fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
+
     companion object {
         private const val PREFS_NAME = "asistente_celular_settings"
         private const val KEY_WAKE_WORD_ACTIVE = "wake_word_active"
@@ -131,5 +151,8 @@ class SettingsRepository(context: Context) {
         private const val KEY_ACTIVE_LOCAL_MODEL_ID = "active_local_model_id"
         private const val KEY_PERSONALITY = "assistant_personality"
         private const val KEY_ZERO_CLOUD_MODE = "zero_cloud_mode"
+        private const val KEY_SHAKE_TO_WAKE = "shake_to_wake_enabled"
+        private const val KEY_POCKET_SILENCE = "pocket_silence_enabled"
+        private const val KEY_FLIP_TO_MUTE = "flip_to_mute_enabled"
     }
 }

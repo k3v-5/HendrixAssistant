@@ -61,12 +61,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.evaluator.InteractionEntry
+import com.asistente.celular.nlu.notes.NoteItem
+import com.asistente.celular.nlu.smarthome.SmartDevice
+import com.asistente.celular.nlu.tasks.TaskItem
+import com.asistente.celular.ui.dashboard.DailyBriefingHub
 import com.asistente.celular.viewmodel.AssistantUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistantScreen(
     state: AssistantUiState,
+    tasks: List<TaskItem> = emptyList(),
+    notes: List<NoteItem> = emptyList(),
+    smartDevices: List<SmartDevice> = emptyList(),
+    onToggleSmartDevice: (SmartDevice) -> Unit = {},
     onStartListening: () -> Unit,
     onStopListening: () -> Unit,
     onSendCommand: (String) -> Unit,
@@ -211,7 +219,15 @@ fun AssistantScreen(
                 .padding(padding)
         ) {
             if (state.interactions.isEmpty()) {
-                EmptyAssistantView(modifier = Modifier.weight(1f))
+                DailyBriefingHub(
+                    llmConfig = state.llmConfig,
+                    tasks = tasks,
+                    notes = notes,
+                    smartDevices = smartDevices,
+                    onSendCommand = onSendCommand,
+                    onToggleSmartDevice = onToggleSmartDevice,
+                    modifier = Modifier.weight(1f)
+                )
             } else {
                 LazyColumn(
                     state = listState,

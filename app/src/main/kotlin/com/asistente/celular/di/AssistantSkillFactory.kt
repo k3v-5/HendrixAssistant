@@ -42,6 +42,7 @@ import com.asistente.celular.skills.smarthome.SmartHomeSkill
 import com.asistente.celular.skills.tasks.TasksSkill
 import com.asistente.celular.skills.time.CurrentTimeSkill
 import com.asistente.celular.skills.timer.TimerSkill
+import com.asistente.celular.skills.deepapp.DeepAppSkill
 import com.asistente.celular.skills.math.MathSkill
 import com.asistente.celular.skills.system.DeviceControlSkill
 import com.asistente.celular.skills.smarthome.SmartSceneSkill
@@ -95,6 +96,7 @@ class AssistantSkillFactory(
             SystemSettingsSkill(),
             PhoneCallSkill(),
             WhatsAppSkill(),
+            DeepAppSkill(),
             TasksSkill(taskRepository, taskScheduler),
             NotesSkill(noteRepository)
         )

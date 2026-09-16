@@ -138,6 +138,10 @@ class MainActivity : ComponentActivity() {
                             Screen.Assistant -> {
                                 AssistantScreen(
                                     state = uiState,
+                                    tasks = tasks,
+                                    notes = notes,
+                                    smartDevices = smartDevices,
+                                    onToggleSmartDevice = { dev -> viewModel.toggleSmartDevice(dev) },
                                     onStartListening = { ensurePermissionsAndListen() },
                                     onStopListening = { viewModel.stopListening() },
                                     onSendCommand = { text -> viewModel.processCommand(text) },
@@ -168,6 +172,12 @@ class MainActivity : ComponentActivity() {
                                 SettingsScreen(
                                     currentConfig = uiState.llmConfig,
                                     isWakeWordActive = uiState.isWakeWordActive,
+                                    isShakeToWakeEnabled = uiState.isShakeToWakeEnabled,
+                                    isPocketSilenceEnabled = uiState.isPocketSilenceEnabled,
+                                    isFlipToMuteEnabled = uiState.isFlipToMuteEnabled,
+                                    onToggleShakeToWake = { enable -> viewModel.toggleShakeToWake(enable) },
+                                    onTogglePocketSilence = { enable -> viewModel.togglePocketSilence(enable) },
+                                    onToggleFlipToMute = { enable -> viewModel.toggleFlipToMute(enable) },
                                     localModelManager = viewModel.localModelManager,
                                     smartDevices = smartDevices,
                                     isScanningSmartDevices = isScanningSmartDevices,

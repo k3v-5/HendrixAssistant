@@ -65,6 +65,12 @@ import com.asistente.celular.ai.personality.AssistantPersonality
 fun SettingsScreen(
     currentConfig: LlmConfig,
     isWakeWordActive: Boolean,
+    isShakeToWakeEnabled: Boolean = false,
+    isPocketSilenceEnabled: Boolean = true,
+    isFlipToMuteEnabled: Boolean = true,
+    onToggleShakeToWake: (Boolean) -> Unit = {},
+    onTogglePocketSilence: (Boolean) -> Unit = {},
+    onToggleFlipToMute: (Boolean) -> Unit = {},
     localModelManager: com.asistente.celular.ai.local.LocalModelManager? = null,
     smartDevices: List<com.asistente.celular.nlu.smarthome.SmartDevice> = emptyList(),
     isScanningSmartDevices: Boolean = false,
@@ -208,6 +214,82 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sección: Gestos y Sensores de Hardware (Punto 3)
+            Text("Gestos y Sensores de Hardware", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Fusión de acelerómetro y proximidad para interacción física instantánea.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. Shake to wake
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Agitar para Activar (Shake to Wake)", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Agita firmemente el dispositivo dos veces para abrir la escucha sin tocar la pantalla",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Switch(
+                    checked = isShakeToWakeEnabled,
+                    onCheckedChange = onToggleShakeToWake
+                )
+            }
+
+            // 2. Pocket silence
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Silencio en Bolsillo (Pocket Silence)", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Pausa la escucha cuando el sensor de proximidad detecta que está en el bolsillo para ahorrar batería",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Switch(
+                    checked = isPocketSilenceEnabled,
+                    onCheckedChange = onTogglePocketSilence
+                )
+            }
+
+            // 3. Flip to mute
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Voltear para Silenciar (Flip to Mute)", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Coloca el teléfono boca abajo sobre la mesa para silenciar de inmediato la voz del asistente",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Switch(
+                    checked = isFlipToMuteEnabled,
+                    onCheckedChange = onToggleFlipToMute
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

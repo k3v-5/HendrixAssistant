@@ -44,6 +44,9 @@ data class AssistantUiState(
     val interactions: List<InteractionEntry> = emptyList(),
     val llmConfig: LlmConfig = LlmConfig(),
     val isWakeWordActive: Boolean = false,
+    val isShakeToWakeEnabled: Boolean = false,
+    val isPocketSilenceEnabled: Boolean = true,
+    val isFlipToMuteEnabled: Boolean = true,
     val isConnected: Boolean = true,
     val error: String? = null
 )
@@ -125,7 +128,10 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(
             isConnected = checkInternetConnection(),
             llmConfig = activeLlmConfig,
-            isWakeWordActive = isWakeActive
+            isWakeWordActive = isWakeActive,
+            isShakeToWakeEnabled = settingsRepo.isShakeToWakeEnabled,
+            isPocketSilenceEnabled = settingsRepo.isPocketSilenceEnabled,
+            isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled
         )
     }
 
@@ -226,6 +232,21 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun toggleWakeWord(enable: Boolean) {
         settingsRepo.isWakeWordActive = enable
         _uiState.value = _uiState.value.copy(isWakeWordActive = enable)
+    }
+
+    fun toggleShakeToWake(enable: Boolean) {
+        settingsRepo.isShakeToWakeEnabled = enable
+        _uiState.value = _uiState.value.copy(isShakeToWakeEnabled = enable)
+    }
+
+    fun togglePocketSilence(enable: Boolean) {
+        settingsRepo.isPocketSilenceEnabled = enable
+        _uiState.value = _uiState.value.copy(isPocketSilenceEnabled = enable)
+    }
+
+    fun toggleFlipToMute(enable: Boolean) {
+        settingsRepo.isFlipToMuteEnabled = enable
+        _uiState.value = _uiState.value.copy(isFlipToMuteEnabled = enable)
     }
 
     fun startModelDownload(modelId: String) {
