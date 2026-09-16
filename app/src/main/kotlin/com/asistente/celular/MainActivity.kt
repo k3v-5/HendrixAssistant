@@ -227,6 +227,9 @@ class MainActivity : ComponentActivity() {
         if (intent.getStringExtra("OPEN_TAB") == "TASKS") {
             currentScreenFlow.value = Screen.Tasks
         }
+        if (intent.action == "android.service.quicksettings.action.QS_TILE_PREFERENCES") {
+            currentScreenFlow.value = Screen.Settings
+        }
         if (intent.getBooleanExtra(AssistantVoiceService.EXTRA_TRIGGERED_BY_WAKE_WORD, false)) {
             ensurePermissionsAndListen()
         }

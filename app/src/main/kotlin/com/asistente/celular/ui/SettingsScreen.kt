@@ -292,6 +292,28 @@ fun SettingsScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚡", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text("Botón en Barra Superior (Ajustes Rápidos)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            "Puedes añadir el icono de 'Hendrix Asistente' a los accesos directos de la cortina de notificaciones de Android para invocar al asistente con 1 toque desde cualquier app o con la pantalla bloqueada.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Divider()
             Spacer(modifier = Modifier.height(16.dp))
