@@ -128,3 +128,6 @@ El proyecto está organizado en una arquitectura modular limpia en Kotlin:
 | 2026-09-13 | Confirmación Háptica (Vibración), Panel Flotante Bottom Sheet y Acción Rápida en Notificación | Completado |
 | 2026-09-13 | AndroidContinuousWakeWordEngine (Wake Word tolerante a fonemas) y MicCoordinator (exclusividad de micro) | Completado |
 | 2026-09-13 | Visibilidad `<queries>` Android 11+ para SpeechRecognizer, recuperación de dictado y diagnóstico visual | Completado |
+| 2026-09-21 | Formalización de Buenas Prácticas SOLID, Componentes Atómicos y Reutilizables vía `/learn` | Activo y Permanente |
+| 2026-09-21 | Formalización de Validación de Flujo y Pruebas Completas Obligatorias vía `/learn` | Activo y Permanente |
+

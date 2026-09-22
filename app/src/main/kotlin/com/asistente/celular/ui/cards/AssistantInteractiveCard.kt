@@ -115,7 +115,12 @@ import com.asistente.celular.nlu.ui.MultiModelOrchestratorUiPayload
 import com.asistente.celular.nlu.ui.DocumentChatUiPayload
 import com.asistente.celular.nlu.ui.SoundscapeUiPayload
 import com.asistente.celular.nlu.ui.VoiceCraftUiPayload
+import com.asistente.celular.nlu.ui.PcWorkspaceUiPayload
+import com.asistente.celular.nlu.ui.PcTaskApprovalUiPayload
+import com.asistente.celular.nlu.ui.AntigravityNavigatorUiPayload
+import com.asistente.celular.nlu.ui.DawControlUiPayload
 import kotlin.math.roundToInt
+
 
 /**
  * Dispatcher principal para renderizar tarjetas visuales interactivas en la ventana flotante
@@ -172,7 +177,12 @@ fun AssistantInteractiveCard(
             is DocumentChatUiPayload -> DocumentChatCard(payload, onExecuteCommand)
             is SoundscapeUiPayload -> SoundscapeCard(payload, onExecuteCommand)
             is VoiceCraftUiPayload -> VoiceCraftCard(payload, onExecuteCommand)
+            is PcWorkspaceUiPayload -> PcWorkspaceCard(payload, onExecuteCommand)
+            is PcTaskApprovalUiPayload -> PcTaskApprovalCard(payload, onExecuteCommand)
+            is AntigravityNavigatorUiPayload -> AntigravityNavigatorCard(payload, onExecuteCommand)
+            is DawControlUiPayload -> DawControlCard(payload, onExecuteCommand)
         }
+
     }
 }
 
@@ -2326,4 +2336,150 @@ fun VoiceCraftCard(
         }
     }
 }
+
+/**
+ * Tarjeta interactiva para la gestión y control rápido de la PC desde el flujo conversacional.
+ */
+@Composable
+fun PcWorkspaceCard(
+    payload: PcWorkspaceUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Fila 1: Cabecera con estado de conexión y host
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (payload.isConnected) Color(0xFF10B981) else Color(0xFFEF4444))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = payload.hostname,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = if (payload.isConnected) "En Línea" else "Desconectado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (payload.isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            // Ventana activa y telemetría
+            val telemetry = payload.telemetry
+            if (telemetry != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                if (telemetry.activeWindowTitle.isNotBlank()) {
+                    Text(
+                        text = "🪟 ${telemetry.activeWindowTitle}",
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "CPU: ${telemetry.cpuPercent.toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "RAM: ${telemetry.ramPercent.toInt()}% (${telemetry.ramUsedGb.toInt()}G)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF3B82F6),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Volumen: ${telemetry.masterVolumePercent}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botones de acción rápida
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { onExecuteCommand("silencia la pc") },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                ) {
+                    Text(text = "🔇 Mute", fontSize = 11.sp)
+                }
+                OutlinedButton(
+                    onClick = { onExecuteCommand("pausa la musica en la pc") },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                ) {
+                    Text(text = "⏸️ Media", fontSize = 11.sp)
+                }
+                OutlinedButton(
+                    onClick = { onExecuteCommand("bloquea la pc") },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                ) {
+                    Text(text = "🔒 Bloquear", fontSize = 11.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = { onExecuteCommand("muestrame la pantalla de la pc") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(text = "🖥️ Abrir Espacio de Trabajo (Workspace)", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Tarjeta interactiva para la aprobación y confirmación de planes autónomos (RPA).
+ */
+@Composable
+fun PcTaskApprovalCard(
+    payload: PcTaskApprovalUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    com.asistente.celular.ui.pc.PcTaskPlanApprovalCard(
+        plan = payload.plan,
+        onApproveAndExecute = { onExecuteCommand("aprobar plan de pc") },
+        onCancel = { onExecuteCommand("cancelar plan de pc") }
+    )
+}
+
 

@@ -38,6 +38,11 @@ interface SmartHomeRepository {
     suspend fun discoverDevices(): List<SmartDevice>
 
     /**
+     * Realiza un escaneo activo de red WiFi y subredes adicionales opcionales con timeout configurable.
+     */
+    suspend fun discoverDevices(timeoutMillis: Long, customSubnetPrefix: String?): List<SmartDevice> = discoverDevices()
+
+    /**
      * Ejecuta una acción sobre un dispositivo específico por nombre o sobre el dispositivo predeterminado.
      */
     suspend fun executeAction(targetName: String?, action: DeviceAction): DeviceActionResult

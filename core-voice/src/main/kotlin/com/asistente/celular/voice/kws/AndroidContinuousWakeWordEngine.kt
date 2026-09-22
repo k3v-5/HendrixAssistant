@@ -43,6 +43,9 @@ class AndroidContinuousWakeWordEngine(
     var isPaused: Boolean = false
         private set
 
+    @Volatile
+    var sensitivity: WakeWordSensitivity = WakeWordSensitivity.MEDIUM
+
     private val isVerifyingSpeech = AtomicBoolean(false)
     private var consecutiveVoiceFrames = 0
     private var lastVerificationTimestamp = 0L
@@ -86,15 +89,16 @@ class AndroidContinuousWakeWordEngine(
             }
             val rms = sqrt(sum / sampleCount).toFloat()
 
-            // Umbral de voz activa (> 0.040f es voz cercana; el silencio de habitación suele estar < 0.015f)
-            if (rms >= VOICE_RMS_THRESHOLD) {
+            // Umbral de voz activa según el perfil de sensibilidad acústica configurado
+            val currentSens = sensitivity
+            if (rms >= currentSens.voiceRmsThreshold) {
                 consecutiveVoiceFrames++
-                // Al menos 2 frames consecutivos (~200ms de energía vocal sostenida)
-                if (consecutiveVoiceFrames >= REQUIRED_VOICE_FRAMES) {
+                // Frames consecutivos requeridos de energía vocal sostenida
+                if (consecutiveVoiceFrames >= currentSens.requiredVoiceFrames) {
                     consecutiveVoiceFrames = 0
                     val now = System.currentTimeMillis()
-                    // Enfriamiento de 2.0 segundos entre verificaciones
-                    if (now - lastVerificationTimestamp > COOLDOWN_MILLIS) {
+                    // Enfriamiento entre verificaciones acústicas
+                    if (now - lastVerificationTimestamp > currentSens.cooldownMillis) {
                         lastVerificationTimestamp = now
                         mainHandler.post { triggerSpeechVerification() }
                     }

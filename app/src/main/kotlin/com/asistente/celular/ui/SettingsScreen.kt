@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,11 +41,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,18 +63,43 @@ import com.asistente.celular.ai.harness.ModelRegistry
 import com.asistente.celular.ai.model.AiProvider
 import com.asistente.celular.ai.model.LlmConfig
 import com.asistente.celular.ai.personality.AssistantPersonality
+import com.asistente.celular.hardware.ShakeSensitivity
+import com.asistente.celular.voice.stt.SttEngineType
+import com.asistente.celular.voice.stt.OfflineAsrModelManager
+import com.asistente.celular.voice.stt.AsrModelDownloadState
+import androidx.compose.runtime.collectAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     currentConfig: LlmConfig,
     isWakeWordActive: Boolean,
+    wakeWordSensitivity: com.asistente.celular.voice.kws.WakeWordSensitivity = com.asistente.celular.voice.kws.WakeWordSensitivity.MEDIUM,
+    onChangeWakeWordSensitivity: (com.asistente.celular.voice.kws.WakeWordSensitivity) -> Unit = {},
     isShakeToWakeEnabled: Boolean = false,
+    shakeSensitivity: ShakeSensitivity = ShakeSensitivity.NORMAL,
+    onChangeShakeSensitivity: (ShakeSensitivity) -> Unit = {},
     isPocketSilenceEnabled: Boolean = true,
     isFlipToMuteEnabled: Boolean = true,
     onToggleShakeToWake: (Boolean) -> Unit = {},
     onTogglePocketSilence: (Boolean) -> Unit = {},
     onToggleFlipToMute: (Boolean) -> Unit = {},
+    isOverlayEnabled: Boolean = true,
+    onToggleOverlay: (Boolean) -> Unit = {},
+    sttEngineType: SttEngineType = SttEngineType.ANDROID_SYSTEM,
+    onChangeSttEngine: (SttEngineType) -> Unit = {},
+    offlineAsrModelManager: OfflineAsrModelManager? = null,
+    onStartAsrDownload: (String) -> Unit = {},
+    onDeleteAsrModel: (String) -> Unit = {},
+    onExportVault: () -> Unit = {},
+    onRestoreVault: () -> Unit = {},
+    onSyncVaultPc: () -> Unit = {},
+    ttsPitch: Float = 1.08f,
+    ttsSpeechRate: Float = 1.02f,
+    onChangeTtsParameters: (pitch: Float, rate: Float) -> Unit = { _, _ -> },
+    onTestTtsVoice: () -> Unit = {},
+    smartHomeCustomSubnet: String? = null,
+    onChangeSmartHomeCustomSubnet: (String?) -> Unit = {},
     localModelManager: com.asistente.celular.ai.local.LocalModelManager? = null,
     smartDevices: List<com.asistente.celular.nlu.smarthome.SmartDevice> = emptyList(),
     isScanningSmartDevices: Boolean = false,
@@ -92,8 +121,16 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf(currentConfig.apiKey) }
     var modelName by remember { mutableStateOf(currentConfig.modelName) }
     var customEndpoint by remember { mutableStateOf(currentConfig.customEndpoint ?: "") }
+    var temperature by remember(currentConfig) { mutableFloatStateOf(currentConfig.temperature) }
+    var maxTokens by remember(currentConfig) { mutableIntStateOf(currentConfig.maxTokens) }
+    var systemPrompt by remember(currentConfig) { mutableStateOf(currentConfig.systemPrompt) }
     var isModelHarnessEnabled by remember { mutableStateOf(currentConfig.isModelHarnessEnabled) }
     var showApiKey by remember { mutableStateOf(false) }
+
+    var currentPitch by remember(ttsPitch) { mutableFloatStateOf(ttsPitch) }
+    var currentRate by remember(ttsSpeechRate) { mutableFloatStateOf(ttsSpeechRate) }
+
+    var subnetInput by remember(smartHomeCustomSubnet) { mutableStateOf(smartHomeCustomSubnet ?: "") }
 
     var isScanningDevices by remember { mutableStateOf(false) }
     var manualName by remember { mutableStateOf("") }
@@ -139,6 +176,36 @@ fun SettingsScreen(
             }
 
             if (isWakeWordActive) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Sensibilidad de detección acústica:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.asistente.celular.voice.kws.WakeWordSensitivity.entries.forEach { sens ->
+                        FilterChip(
+                            selected = wakeWordSensitivity == sens,
+                            onClick = { onChangeWakeWordSensitivity(sens) },
+                            label = {
+                                Text(
+                                    when (sens) {
+                                        com.asistente.celular.voice.kws.WakeWordSensitivity.LOW -> "Baja"
+                                        com.asistente.celular.voice.kws.WakeWordSensitivity.MEDIUM -> "Media"
+                                        com.asistente.celular.voice.kws.WakeWordSensitivity.HIGH -> "Alta"
+                                    },
+                                    fontSize = 12.sp
+                                )
+                            }
+                        )
+                    }
+                }
+
                 val context = LocalContext.current
                 val canDrawOverlays = Settings.canDrawOverlays(context)
                 val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -216,6 +283,121 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Parámetros de Síntesis de Voz (TTS)", fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Velocidad: ${"%.2f".format(currentRate)}x", fontSize = 12.sp, modifier = Modifier.width(115.dp))
+                Slider(
+                    value = currentRate,
+                    onValueChange = {
+                        currentRate = it
+                        onChangeTtsParameters(currentPitch, it)
+                    },
+                    valueRange = 0.5f..2.0f,
+                    steps = 14,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Tono: ${"%.2f".format(currentPitch)}x", fontSize = 12.sp, modifier = Modifier.width(115.dp))
+                Slider(
+                    value = currentPitch,
+                    onValueChange = {
+                        currentPitch = it
+                        onChangeTtsParameters(it, currentRate)
+                    },
+                    valueRange = 0.5f..2.0f,
+                    steps = 14,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = onTestTtsVoice,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("🔊 Probar Voz", fontSize = 12.sp)
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Motor de Reconocimiento de Voz (STT)", fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SttEngineType.entries.forEach { engType ->
+                    FilterChip(
+                        selected = sttEngineType == engType,
+                        onClick = { onChangeSttEngine(engType) },
+                        label = {
+                            Text(
+                                if (engType == SttEngineType.ANDROID_SYSTEM) "Sistema Android" else "Offline Sherpa-ONNX",
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
+                }
+            }
+
+            if (sttEngineType == SttEngineType.OFFLINE_SHERPA_ONNX && offlineAsrModelManager != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val downloadStates by offlineAsrModelManager.downloadStates.collectAsState()
+
+                offlineAsrModelManager.getAvailableModels().forEach { modelSpec ->
+                    val state = downloadStates[modelSpec.id] ?: AsrModelDownloadState.NotDownloaded
+                    val isDownloaded = state is AsrModelDownloadState.Downloaded
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(modelSpec.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${modelSpec.language} • ${modelSpec.sizeMb} MB", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                                if (isDownloaded) {
+                                    OutlinedButton(
+                                        onClick = { onDeleteAsrModel(modelSpec.id) },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Text("Eliminar", fontSize = 11.sp)
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { onStartAsrDownload(modelSpec.id) },
+                                        enabled = state !is AsrModelDownloadState.Downloading
+                                    ) {
+                                        Text(if (state is AsrModelDownloadState.Downloading) "Descargando..." else "Descargar", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Divider()
             Spacer(modifier = Modifier.height(16.dp))
@@ -248,6 +430,39 @@ fun SettingsScreen(
                     checked = isShakeToWakeEnabled,
                     onCheckedChange = onToggleShakeToWake
                 )
+            }
+
+            if (isShakeToWakeEnabled) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Sensibilidad de agitación:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ShakeSensitivity.entries.forEach { sens ->
+                        FilterChip(
+                            selected = shakeSensitivity == sens,
+                            onClick = { onChangeShakeSensitivity(sens) },
+                            label = {
+                                Text(
+                                    when (sens) {
+                                        ShakeSensitivity.GENTLE -> "Suave"
+                                        ShakeSensitivity.NORMAL -> "Normal"
+                                        ShakeSensitivity.VIGOROUS -> "Vigoroso"
+                                    },
+                                    fontSize = 12.sp
+                                )
+                            }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
             // 2. Pocket silence
@@ -289,6 +504,27 @@ fun SettingsScreen(
                 Switch(
                     checked = isFlipToMuteEnabled,
                     onCheckedChange = onToggleFlipToMute
+                )
+            }
+
+            // 4. Ventana Flotante / Mini HUD
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Ventana Flotante / Mini HUD (Overlay)", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Despliega una burbuja flotante interactiva sobre cualquier aplicación sin pausar lo que estás haciendo",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Switch(
+                    checked = isOverlayEnabled,
+                    onCheckedChange = onToggleOverlay
                 )
             }
 
@@ -430,6 +666,18 @@ fun SettingsScreen(
                 "💡 Tip: Asegúrate de tener activa la opción 'Control en LAN' (en app Yeelight o Xiaomi Home) para que el foco responda en tu red local.",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = subnetInput,
+                onValueChange = {
+                    subnetInput = it
+                    onChangeSmartHomeCustomSubnet(it.ifBlank { null })
+                },
+                label = { Text("Subred personalizada / VLAN IoT (opcional)") },
+                placeholder = { Text("ej: 192.168.2.") },
+                modifier = Modifier.fillMaxWidth()
             )
 
             if (showManualAddDialog) {
@@ -697,6 +945,104 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Parámetros de Inferencia LLM", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Temperatura: ${"%.2f".format(temperature)}", fontSize = 12.sp, modifier = Modifier.width(130.dp))
+                Slider(
+                    value = temperature,
+                    onValueChange = { temperature = it },
+                    valueRange = 0.0f..1.5f,
+                    steps = 14,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text("Controla la creatividad vs precisión (0.0 más determinista, 1.0+ más creativo)", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text("Límite de Tokens de Respuesta (Max Tokens):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(512, 1024, 2048, 4096).forEach { tokens ->
+                    FilterChip(
+                        selected = maxTokens == tokens,
+                        onClick = { maxTokens = tokens },
+                        label = { Text("$tokens", fontSize = 12.sp) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = systemPrompt,
+                onValueChange = { systemPrompt = it },
+                label = { Text("Prompt del Sistema (Instrucciones base)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                maxLines = 6
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 🔐 Hendrix Vault & Respaldo Unificado
+            Text("Bóveda y Respaldo Unificado (Hendrix Vault)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Crea copias de seguridad de todas tus rutinas, botones, tareas, notas y configuraciones. Puedes sincronizarlas con tu PC sin depender de la nube.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("📦 Gestión de Copias de Seguridad", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "Exporta tu bóveda en formato seguro JSON o sincronízala directamente con el servidor Hendrix PC por red local.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onExportVault,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("📤 Exportar", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            onClick = onRestoreVault,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("📥 Restaurar", fontSize = 12.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = onSyncVaultPc,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("💻 Sincronizar Bóveda con PC", fontSize = 13.sp)
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
@@ -708,7 +1054,10 @@ fun SettingsScreen(
                         customEndpoint = customEndpoint.takeIf { it.isNotBlank() },
                         isModelHarnessEnabled = isModelHarnessEnabled,
                         personality = selectedPersonality,
-                        zeroCloudMode = zeroCloudMode
+                        zeroCloudMode = zeroCloudMode,
+                        temperature = temperature,
+                        maxTokens = maxTokens,
+                        systemPrompt = systemPrompt
                     )
                     onSaveConfig(updated)
                     onBack()

@@ -196,6 +196,15 @@
                 android:value="true" />
         </service>
 
+        <!-- Receptor para botones de acción en Notificaciones Proactivas de la PC -->
+        <receiver
+            android:name=".pc.alert.PcNotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.asistente.celular.ACTION_PC_ALERT_BUTTON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

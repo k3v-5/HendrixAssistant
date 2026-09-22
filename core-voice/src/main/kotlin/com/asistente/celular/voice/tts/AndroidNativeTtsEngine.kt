@@ -61,6 +61,17 @@ class AndroidNativeTtsEngine(
         }
     }
 
+    /**
+     * Actualiza la afinación (pitch) y velocidad de habla (speechRate) en caliente.
+     */
+    fun updateVoiceParameters(newPitch: Float, newSpeechRate: Float) {
+        this.pitch = newPitch
+        this.speechRate = newSpeechRate
+        tts?.setPitch(newPitch)
+        tts?.setSpeechRate(newSpeechRate)
+        Log.d(TAG, "Parámetros de voz TTS actualizados: pitch=$newPitch, speechRate=$newSpeechRate")
+    }
+
     private fun configureBestFriendlyVoice() {
         try {
             val voices = tts?.voices ?: return

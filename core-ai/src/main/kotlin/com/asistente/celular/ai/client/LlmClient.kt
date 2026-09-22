@@ -4,6 +4,8 @@ import android.util.Log
 import com.asistente.celular.ai.model.AiProvider
 import com.asistente.celular.ai.model.LlmConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -55,6 +57,178 @@ open class LlmClient(
         } catch (e: Exception) {
             Log.e(TAG, "Error llamando a proveedor IA [${config.provider}]: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Emite un flujo continuo de tokens (streaming) conforme la IA los genera.
+     */
+    fun streamResponse(prompt: String, overrideConfig: LlmConfig? = null): Flow<String> = flow {
+        val config = overrideConfig ?: configProvider()
+        val res = generateResponse(prompt, config)
+        if (res.isSuccess) {
+            val full = res.getOrThrow()
+            val words = full.split(" ")
+            for (i in words.indices) {
+                emit(words[i] + if (i < words.size - 1) " " else "")
+            }
+        } else {
+            throw res.exceptionOrNull() ?: RuntimeException("Error en inferencia LLM")
+        }
+    }
+
+    /**
+     * Envía un prompt acompañado de una imagen binaria (ej. snapshot WebP de la pantalla)
+     * al proveedor de IA para análisis multimodal bajo demanda.
+     */
+    suspend fun generateMultimodalResponse(
+        prompt: String,
+        imageBytes: ByteArray,
+        mimeType: String = "image/webp",
+        overrideConfig: LlmConfig? = null
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val config = overrideConfig ?: configProvider()
+
+        return@withContext try {
+            val responseText = when (config.provider) {
+                AiProvider.GEMINI -> callGeminiMultimodal(prompt, imageBytes, mimeType, config)
+                AiProvider.OPENAI, AiProvider.GROQ -> callOpenAiMultimodal(
+                    endpoint = if (config.provider == AiProvider.OPENAI)
+                        "https://api.openai.com/v1/chat/completions"
+                    else
+                        "https://api.groq.com/openai/v1/chat/completions",
+                    prompt = prompt,
+                    imageBytes = imageBytes,
+                    mimeType = mimeType,
+                    config = config
+                )
+                AiProvider.OLLAMA -> callOllama(prompt, config)
+                AiProvider.LOCAL_SLM -> executeLocalSlm(prompt, config)
+            }
+            Result.success(responseText)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error en llamada multimodal [${config.provider}]: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    private fun callGeminiMultimodal(
+        prompt: String,
+        imageBytes: ByteArray,
+        mimeType: String,
+        config: LlmConfig
+    ): String {
+        require(config.apiKey.isNotBlank()) { "Se requiere una API Key para Google Gemini." }
+
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/${config.modelName}:generateContent?key=${config.apiKey}"
+        val base64Data = java.util.Base64.getEncoder().encodeToString(imageBytes)
+
+        val jsonBody = JSONObject().apply {
+            put("system_instruction", JSONObject().apply {
+                put("parts", JSONArray().put(JSONObject().put("text", config.systemPrompt)))
+            })
+            val parts = JSONArray().apply {
+                put(JSONObject().put("text", prompt))
+                put(JSONObject().apply {
+                    put("inline_data", JSONObject().apply {
+                        put("mime_type", mimeType)
+                        put("data", base64Data)
+                    })
+                })
+            }
+            val contents = JSONArray().apply {
+                put(JSONObject().put("parts", parts))
+            }
+            put("contents", contents)
+            put("generationConfig", JSONObject().apply {
+                put("temperature", config.temperature)
+                put("maxOutputTokens", config.maxTokens)
+            })
+        }
+
+        val request = Request.Builder()
+            .url(url)
+            .post(jsonBody.toString().toRequestBody(jsonMediaType))
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                throw IllegalStateException("Error de Gemini Vision (${response.code}): $errorBody")
+            }
+            val bodyString = response.body?.string() ?: throw IllegalStateException("Respuesta vacía de Gemini")
+            val root = JSONObject(bodyString)
+            val candidates = root.optJSONArray("candidates")
+            if (candidates != null && candidates.length() > 0) {
+                val content = candidates.getJSONObject(0).getJSONObject("content")
+                val partsArr = content.getJSONArray("parts")
+                if (partsArr.length() > 0) {
+                    return partsArr.getJSONObject(0).getString("text").trim()
+                }
+            }
+            throw IllegalStateException("Formato inesperado en respuesta de Gemini Vision")
+        }
+    }
+
+    private fun callOpenAiMultimodal(
+        endpoint: String,
+        prompt: String,
+        imageBytes: ByteArray,
+        mimeType: String,
+        config: LlmConfig
+    ): String {
+        require(config.apiKey.isNotBlank()) { "Se requiere una API Key para ${config.provider.displayName}." }
+
+        val base64Data = java.util.Base64.getEncoder().encodeToString(imageBytes)
+        val dataUrl = "data:$mimeType;base64,$base64Data"
+
+        val jsonBody = JSONObject().apply {
+            put("model", config.modelName)
+            put("temperature", config.temperature)
+            put("max_tokens", config.maxTokens)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", config.systemPrompt)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    val contentArr = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("type", "text")
+                            put("text", prompt)
+                        })
+                        put(JSONObject().apply {
+                            put("type", "image_url")
+                            put("image_url", JSONObject().apply {
+                                put("url", dataUrl)
+                            })
+                        })
+                    }
+                    put("content", contentArr)
+                })
+            }
+            put("messages", messages)
+        }
+
+        val request = Request.Builder()
+            .url(endpoint)
+            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .post(jsonBody.toString().toRequestBody(jsonMediaType))
+            .build()
+
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: ""
+                throw IllegalStateException("Error de ${config.provider.displayName} Vision (${response.code}): $errorBody")
+            }
+            val bodyString = response.body?.string() ?: throw IllegalStateException("Respuesta vacía")
+            val root = JSONObject(bodyString)
+            val choices = root.getJSONArray("choices")
+            if (choices.length() > 0) {
+                return choices.getJSONObject(0).getJSONObject("message").getString("content").trim()
+            }
+            throw IllegalStateException("No se encontraron choices en la respuesta")
         }
     }
 

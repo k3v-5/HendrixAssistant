@@ -1,0 +1,133 @@
+package com.asistente.celular.skills.pc
+
+import com.asistente.celular.nlu.construct.Construct
+import com.asistente.celular.nlu.construct.MatchContext
+import com.asistente.celular.nlu.construct.OptionalConstruct
+import com.asistente.celular.nlu.construct.SequenceConstruct
+import com.asistente.celular.nlu.construct.WordConstruct
+import com.asistente.celular.nlu.model.SkillScore
+import com.asistente.celular.nlu.model.Specificity
+import com.asistente.celular.nlu.pc.PcWorkspaceBridge
+import com.asistente.celular.nlu.skill.SkillContext
+import com.asistente.celular.nlu.skill.SkillInfo
+import com.asistente.celular.nlu.skill.SkillOutput
+import com.asistente.celular.nlu.skill.StandardRecognizerSkill
+
+/**
+ * Habilidad NLU para solicitar diagnóstico visual bajo demanda de la pantalla o ventana activa
+ * de la computadora utilizando visión multimodal por Inteligencia Artificial.
+ */
+class PcScreenCopilotSkill(
+    private val pcBridge: PcWorkspaceBridge? = null
+) : StandardRecognizerSkill(
+    info = SkillInfo(
+        id = "pc_screen_copilot_skill",
+        name = "AI Screen Copilot",
+        description = "Analiza visualmente la pantalla de la PC bajo demanda, diagnosticando errores, render o terminales mediante IA multimodal."
+    ),
+    specificity = Specificity.HIGH
+) {
+
+    override val patterns: List<Construct> = listOf(
+        SequenceConstruct(
+            WordConstruct("analiza", "analizar", "diagnostica", "diagnosticar", "revisa", "revisar", "que", "como"),
+            OptionalConstruct(WordConstruct("la", "el", "mi", "hay", "ves", "dice", "esta", "en")),
+            WordConstruct("pantalla", "monitor", "display", "copilot", "error", "terminal", "render"),
+            OptionalConstruct(WordConstruct("de", "en", "la")),
+            OptionalConstruct(WordConstruct("pc", "computadora", "ordenador", "pantalla", "monitor"))
+        )
+    )
+
+    override fun score(context: SkillContext, input: String): SkillScore {
+        val lower = MatchContext.normalize(input)
+
+        if (lower.contains("analiza la pantalla") ||
+            lower.contains("analizar pantalla") ||
+            lower.contains("analiza mi pantalla") ||
+            lower.contains("que hay en la pantalla") ||
+            lower.contains("que ves en la pantalla") ||
+            lower.contains("que ves en mi pantalla") ||
+            lower.contains("diagnostica la pantalla") ||
+            lower.contains("diagnostico visual") ||
+            lower.contains("copilot de pantalla") ||
+            lower.contains("screen copilot") ||
+            lower.contains("que error hay en la pantalla") ||
+            lower.contains("revisa la pantalla de la pc") ||
+            lower.contains("revisa mi pantalla") ||
+            lower.contains("que dice el error en la pc") ||
+            lower.contains("que dice la terminal de la pc") ||
+            lower.contains("analiza el monitor") ||
+            lower.contains("diagnostica el error en la pc")
+        ) {
+            return SkillScore(confidence = 1.0f, specificity = Specificity.HIGH)
+        }
+
+        return super.score(context, input)
+    }
+
+    override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
+        val bridge = pcBridge
+        if (bridge == null) {
+            return SkillOutput(
+                speech = "No hay conexión con la PC para capturar y analizar la pantalla.",
+                displayText = "PC Desconectada"
+            )
+        }
+
+        val prompt = extractCopilotPrompt(input)
+        val result = bridge.analyzeScreenWithAi(prompt = prompt, cropToActiveWindow = true)
+
+        if (!result.success) {
+            return SkillOutput(
+                speech = "Hubo un inconveniente al diagnosticar la pantalla: ${result.errorSummary ?: result.analysisMarkdown}",
+                displayText = "⚠️ Diagnóstico fallido: ${result.errorSummary ?: "Error desconocido"}"
+            )
+        }
+
+        val speechSummary = formatSpeechSummary(result.analysisMarkdown)
+        val windowInfo = result.detectedWindow?.let { " ($it)" } ?: ""
+
+        return SkillOutput(
+            speech = speechSummary,
+            displayText = "🤖 Diagnóstico Copilot$windowInfo:\n\n${result.analysisMarkdown}"
+        )
+    }
+
+    private fun extractCopilotPrompt(input: String): String {
+        val lower = input.lowercase().trim()
+        val isGeneric = lower == "analiza la pantalla" ||
+                lower == "analizar pantalla" ||
+                lower == "analiza mi pantalla" ||
+                lower == "que hay en la pantalla" ||
+                lower == "que ves en la pantalla" ||
+                lower == "que ves en mi pantalla" ||
+                lower == "diagnostica la pantalla" ||
+                lower == "screen copilot" ||
+                lower == "copilot de pantalla"
+
+        return if (isGeneric) {
+            "Diagnostica la pantalla actual, identifica errores, procesos o ventanas activas, advertencias y sugiere soluciones o pasos a seguir."
+        } else {
+            input
+        }
+    }
+
+    private fun formatSpeechSummary(markdown: String): String {
+        val clean = markdown
+            .replace(Regex("#+\\s*"), "")
+            .replace("**", "")
+            .replace("*", "")
+            .replace("`", "")
+            .trim()
+
+        val lines = clean.lines().filter { it.isNotBlank() }
+        if (lines.isEmpty()) return "Diagnóstico de pantalla completado."
+
+        val summary = lines.take(3).joinToString(" ")
+        return if (summary.length > 280) {
+            summary.take(277) + "..."
+        } else {
+            summary
+        }
+    }
+}

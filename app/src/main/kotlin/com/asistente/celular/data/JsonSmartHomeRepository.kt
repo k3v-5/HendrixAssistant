@@ -90,10 +90,17 @@ class JsonSmartHomeRepository(
     }
 
     override suspend fun discoverDevices(): List<SmartDevice> {
+        return discoverDevices(timeoutMillis = 2000L, customSubnetPrefix = null)
+    }
+
+    override suspend fun discoverDevices(timeoutMillis: Long, customSubnetPrefix: String?): List<SmartDevice> {
         val yeelightDriver = driverMap[SmartProtocol.YEELIGHT_LAN] as? YeelightLanDriver
             ?: YeelightLanDriver(context = context)
 
-        val discovered = yeelightDriver.discoverDevices(timeoutMillis = 2000)
+        val discovered = yeelightDriver.discoverDevices(
+            timeoutMillis = timeoutMillis,
+            customSubnetPrefix = customSubnetPrefix
+        )
 
         if (discovered.isNotEmpty()) {
             for (dev in discovered) {

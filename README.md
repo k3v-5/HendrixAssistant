@@ -138,3 +138,17 @@ private val localSkills = listOf(
 )
 ```
 ¡El motor sintáctico y el enrutador de IA harán el resto automáticamente!
+
+---
+
+## 🖥️ Control de PC Studio, Módulos y Dropzone Cloud
+
+Hendrix Assistant incluye un **Quick Command Deck** y suite de automatizaciones para controlar tu estación de trabajo remota con **cero consumo de video/ahorro de datos móvil**:
+* **DAWs & Audio:** Ableton Live, FL Studio (Transporte, atajos, exportar audio a Drive).
+* **3D & Videojuegos:** Blender 3D, Unreal Engine 5.
+* **Diseño & Video:** Adobe Premiere Pro, Photoshop.
+* **Navegadores Web:** Chrome, Brave, Opera, Edge con búsquedas por voz parametrizadas (Google, YouTube, Facebook, GitHub).
+* **Buzón Dropzone & Cloud Sync:** Sincronización automática de renders y entregables con Google Drive y OneDrive, y vigilante de archivos en segundo plano (`DropzoneWatcher`).
+
+👉 Para ver la guía completa de despliegue, arquitectura y comandos de voz, consulta la [Guía de Automatización de PC Studio](docs/PC_STUDIO_AUTOMATION_GUIDE.md).
+

@@ -22,6 +22,7 @@ import kotlin.math.sqrt
 class HardwareSensorCoordinator(
     private val context: Context,
     var isShakeToWakeEnabled: Boolean = false,
+    var shakeSensitivity: ShakeSensitivity = ShakeSensitivity.NORMAL,
     var isPocketSilenceEnabled: Boolean = true,
     var isFlipToMuteEnabled: Boolean = true,
     private val onShakeDetected: () -> Unit = {},
@@ -108,13 +109,13 @@ class HardwareSensorCoordinator(
                 val delta = abs(magnitude - lastAccelerationMagnitude)
                 accelerationDelta = accelerationDelta * 0.7f + delta
 
-                if (accelerationDelta > SHAKE_THRESHOLD) {
+                if (accelerationDelta > shakeSensitivity.threshold) {
                     if (now - lastShakeTimestamp < 500) {
                         shakeCount++
-                        if (shakeCount >= REQUIRED_SHAKES && now - lastShakeTriggerTime > SHAKE_DEBOUNCE_MILLIS) {
+                        if (shakeCount >= shakeSensitivity.requiredShakes && now - lastShakeTriggerTime > shakeSensitivity.debounceMillis) {
                             lastShakeTriggerTime = now
                             shakeCount = 0
-                            Log.i(TAG, "Gesto detectado: Sacudida (Shake to Wake)")
+                            Log.i(TAG, "Gesto detectado: Sacudida (Shake to Wake) [sens=${shakeSensitivity.name}]")
                             onShakeDetected()
                         }
                     } else {
@@ -142,8 +143,5 @@ class HardwareSensorCoordinator(
 
     companion object {
         private const val TAG = "HardwareSensorCoord"
-        private const val SHAKE_THRESHOLD = 11.0f
-        private const val REQUIRED_SHAKES = 2
-        private const val SHAKE_DEBOUNCE_MILLIS = 2000L
     }
 }

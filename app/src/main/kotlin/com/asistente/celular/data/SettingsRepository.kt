@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.asistente.celular.ai.model.AiProvider
 import com.asistente.celular.ai.model.LlmConfig
+import com.asistente.celular.hardware.ShakeSensitivity
+import com.asistente.celular.voice.kws.WakeWordSensitivity
 
 /**
  * Repositorio persistente de configuración para el Asistente.
@@ -18,9 +20,23 @@ class SettingsRepository(context: Context) {
         get() = prefs.getBoolean(KEY_WAKE_WORD_ACTIVE, false)
         set(value) = prefs.edit().putBoolean(KEY_WAKE_WORD_ACTIVE, value).apply()
 
+    var wakeWordSensitivity: WakeWordSensitivity
+        get() {
+            val name = prefs.getString(KEY_WAKE_WORD_SENSITIVITY, WakeWordSensitivity.MEDIUM.name)
+            return WakeWordSensitivity.fromName(name)
+        }
+        set(value) = prefs.edit().putString(KEY_WAKE_WORD_SENSITIVITY, value.name).apply()
+
     var isShakeToWakeEnabled: Boolean
         get() = prefs.getBoolean(KEY_SHAKE_TO_WAKE, false)
         set(value) = prefs.edit().putBoolean(KEY_SHAKE_TO_WAKE, value).apply()
+
+    var shakeSensitivity: ShakeSensitivity
+        get() {
+            val name = prefs.getString(KEY_SHAKE_SENSITIVITY, ShakeSensitivity.NORMAL.name)
+            return ShakeSensitivity.fromName(name)
+        }
+        set(value) = prefs.edit().putString(KEY_SHAKE_SENSITIVITY, value.name).apply()
 
     var isPocketSilenceEnabled: Boolean
         get() = prefs.getBoolean(KEY_POCKET_SILENCE, true)
@@ -29,6 +45,18 @@ class SettingsRepository(context: Context) {
     var isFlipToMuteEnabled: Boolean
         get() = prefs.getBoolean(KEY_FLIP_TO_MUTE, true)
         set(value) = prefs.edit().putBoolean(KEY_FLIP_TO_MUTE, value).apply()
+
+    var ttsPitch: Float
+        get() = prefs.getFloat(KEY_TTS_PITCH, 1.08f)
+        set(value) = prefs.edit().putFloat(KEY_TTS_PITCH, value).apply()
+
+    var ttsSpeechRate: Float
+        get() = prefs.getFloat(KEY_TTS_SPEECH_RATE, 1.02f)
+        set(value) = prefs.edit().putFloat(KEY_TTS_SPEECH_RATE, value).apply()
+
+    var smartHomeCustomSubnet: String?
+        get() = prefs.getString(KEY_SMART_HOME_CUSTOM_SUBNET, null)
+        set(value) = prefs.edit().putString(KEY_SMART_HOME_CUSTOM_SUBNET, value?.takeIf { it.isNotBlank() }).apply()
 
     var isModelHarnessEnabled: Boolean
         get() = prefs.getBoolean(KEY_MODEL_HARNESS_ENABLED, true)
@@ -99,11 +127,19 @@ class SettingsRepository(context: Context) {
             customModelName
         }
 
+        val temperature = prefs.getFloat(KEY_LLM_TEMPERATURE, 0.7f)
+        val maxTokens = prefs.getInt(KEY_LLM_MAX_TOKENS, 500)
+        val systemPrompt = prefs.getString(KEY_LLM_SYSTEM_PROMPT, LlmConfig.DEFAULT_SYSTEM_PROMPT)
+            ?: LlmConfig.DEFAULT_SYSTEM_PROMPT
+
         return LlmConfig(
             provider = provider,
             apiKey = apiKey,
             modelName = model,
             customEndpoint = customEndpoint,
+            temperature = temperature,
+            maxTokens = maxTokens,
+            systemPrompt = systemPrompt,
             isModelHarnessEnabled = isModelHarnessEnabled,
             personality = personality,
             zeroCloudMode = zeroCloudMode
@@ -125,6 +161,12 @@ class SettingsRepository(context: Context) {
         }
         customEndpoint = config.customEndpoint
 
+        prefs.edit()
+            .putFloat(KEY_LLM_TEMPERATURE, config.temperature)
+            .putInt(KEY_LLM_MAX_TOKENS, config.maxTokens)
+            .putString(KEY_LLM_SYSTEM_PROMPT, config.systemPrompt)
+            .apply()
+
         if (config.provider == AiProvider.GEMINI) {
             geminiApiKey = config.apiKey
         } else {
@@ -143,6 +185,7 @@ class SettingsRepository(context: Context) {
     companion object {
         private const val PREFS_NAME = "asistente_celular_settings"
         private const val KEY_WAKE_WORD_ACTIVE = "wake_word_active"
+        private const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
         private const val KEY_MODEL_HARNESS_ENABLED = "model_harness_enabled"
         private const val KEY_AI_PROVIDER = "ai_provider"
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
@@ -152,7 +195,29 @@ class SettingsRepository(context: Context) {
         private const val KEY_PERSONALITY = "assistant_personality"
         private const val KEY_ZERO_CLOUD_MODE = "zero_cloud_mode"
         private const val KEY_SHAKE_TO_WAKE = "shake_to_wake_enabled"
+        private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
         private const val KEY_POCKET_SILENCE = "pocket_silence_enabled"
         private const val KEY_FLIP_TO_MUTE = "flip_to_mute_enabled"
+        private const val KEY_TTS_PITCH = "tts_pitch"
+        private const val KEY_TTS_SPEECH_RATE = "tts_speech_rate"
+        private const val KEY_SMART_HOME_CUSTOM_SUBNET = "smarthome_custom_subnet"
+        private const val KEY_LLM_TEMPERATURE = "llm_temperature"
+        private const val KEY_LLM_MAX_TOKENS = "llm_max_tokens"
+        private const val KEY_LLM_SYSTEM_PROMPT = "llm_system_prompt"
+        private const val KEY_OVERLAY_ENABLED = "is_overlay_enabled"
+        private const val KEY_STT_ENGINE_TYPE = "stt_engine_type"
+        private const val KEY_OFFLINE_ASR_MODEL_ID = "offline_asr_model_id"
     }
+
+    var isOverlayEnabled: Boolean
+        get() = prefs.getBoolean(KEY_OVERLAY_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_OVERLAY_ENABLED, value).apply()
+
+    var sttEngineType: com.asistente.celular.voice.stt.SttEngineType
+        get() = com.asistente.celular.voice.stt.SttEngineType.fromName(prefs.getString(KEY_STT_ENGINE_TYPE, null))
+        set(value) = prefs.edit().putString(KEY_STT_ENGINE_TYPE, value.name).apply()
+
+    var offlineAsrModelId: String
+        get() = prefs.getString(KEY_OFFLINE_ASR_MODEL_ID, "sherpa_onnx_zipformer_es") ?: "sherpa_onnx_zipformer_es"
+        set(value) = prefs.edit().putString(KEY_OFFLINE_ASR_MODEL_ID, value).apply()
 }

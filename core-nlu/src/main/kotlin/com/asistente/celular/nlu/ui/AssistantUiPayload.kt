@@ -278,3 +278,46 @@ data class VoiceCraftUiPayload(
     val speechRate: Float,
     val formantFactor: Float
 ) : AssistantUiPayload
+
+data class PcWorkspaceUiPayload(
+    val hostname: String = "PC-Host",
+    val isConnected: Boolean = false,
+    val currentMode: com.asistente.celular.nlu.pc.PcOperationMode = com.asistente.celular.nlu.pc.PcOperationMode.INTERACTIVE_SNAPSHOT,
+    val telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry? = null,
+    val latestSnapshotPreview: ByteArray? = null,
+    val activeTransportType: com.asistente.celular.nlu.pc.TransportType = com.asistente.celular.nlu.pc.TransportType.LAN_DIRECT,
+    val remoteTunnelUrl: String? = null,
+    val statusMessage: String = "Listo para conectar"
+) : AssistantUiPayload
+
+
+data class PcTaskApprovalUiPayload(
+    val plan: com.asistente.celular.nlu.pc.AutonomousTaskPlan,
+    val hostname: String = "PC-Host"
+) : AssistantUiPayload
+
+data class AntigravityNavigatorUiPayload(
+    val projects: List<com.asistente.celular.nlu.pc.AntigravityProject> = emptyList(),
+    val selectedProject: com.asistente.celular.nlu.pc.AntigravityProject? = null,
+    val recentChats: List<com.asistente.celular.nlu.pc.AntigravityChat> = emptyList(),
+    val selectedChat: com.asistente.celular.nlu.pc.AntigravityChat? = null,
+    val statusMessage: String = "Listo",
+    val hostname: String = "PC-Host",
+    val lastPromptSent: String? = null
+) : AssistantUiPayload
+
+data class DawControlUiPayload(
+    val dawType: com.asistente.celular.nlu.pc.daw.DawType = com.asistente.celular.nlu.pc.daw.DawType.ABLETON_LIVE,
+    val isRunning: Boolean = false,
+    val activeProjectName: String = "",
+    val recentProjects: List<com.asistente.celular.nlu.pc.daw.DawProjectInfo> = emptyList(),
+    val statusMessage: String = "Listo",
+    val hostname: String = "PC-Host",
+    val isPlaying: Boolean = false,
+    val isRecording: Boolean = false,
+    val isWaitingSaveConfirmation: Boolean = false,
+    val confirmationDialogTitle: String? = null
+) : AssistantUiPayload
+
+
+

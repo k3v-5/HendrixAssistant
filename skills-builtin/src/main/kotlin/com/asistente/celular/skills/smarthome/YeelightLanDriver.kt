@@ -110,7 +110,10 @@ class YeelightLanDriver(
      * Descubre bombillas Xiaomi/Yeelight en la red local WiFi mediante SSDP Multicast UDP (puerto 1982)
      * con fallback automático a escaneo activo de subred en el puerto 55443.
      */
-    suspend fun discoverDevices(timeoutMillis: Long = 2000): List<SmartDevice> = withContext(Dispatchers.IO) {
+    suspend fun discoverDevices(
+        timeoutMillis: Long = 2000,
+        customSubnetPrefix: String? = null
+    ): List<SmartDevice> = withContext(Dispatchers.IO) {
         val discovered = mutableListOf<SmartDevice>()
         val seenIps = mutableSetOf<String>()
 
@@ -173,12 +176,20 @@ class YeelightLanDriver(
             } catch (_: Exception) {}
         }
 
+        // Si se especificó una subred personalizada (ej. VLAN IoT 192.168.20.0/24), sondearla
+        if (!customSubnetPrefix.isNullOrBlank()) {
+            val normalizedPrefix = if (customSubnetPrefix.endsWith(".")) customSubnetPrefix else "$customSubnetPrefix."
+            Log.i(TAG, "Sondeando subred personalizada IoT: ${normalizedPrefix}0/24...")
+            val probedCustom = probeSubnetForYeelight(normalizedPrefix, seenIps)
+            discovered.addAll(probedCustom)
+        }
+
         // Si el descubrimiento SSDP no arrojó resultados (frecuente en routers que bloquean multicast IGMP entre dispositivos WiFi),
         // realizamos un barrido TCP concurrente en el puerto 55443 sobre la subred local (/24).
         if (discovered.isEmpty()) {
             val subnetPrefix = getLocalSubnetPrefix()
             if (subnetPrefix != null) {
-                Log.i(TAG, "SSDP sin resultados. Iniciando escaneo TCP de subred: ${subnetPrefix}0/24 en puerto 55443...")
+                Log.i(TAG, "SSDP sin resultados. Iniciando escaneo TCP de subred local: ${subnetPrefix}0/24 en puerto 55443...")
                 val probedDevices = probeSubnetForYeelight(subnetPrefix, seenIps)
                 discovered.addAll(probedDevices)
             }

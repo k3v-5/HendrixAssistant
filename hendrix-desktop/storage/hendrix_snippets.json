@@ -1,0 +1,32 @@
+[
+  {
+    "id": "snip_git_status",
+    "title": "Git: Estado del Repo",
+    "category": "Git & Terminal",
+    "content": "git status -s"
+  },
+  {
+    "id": "snip_git_pull",
+    "title": "Git: Pull con Rebase",
+    "category": "Git & Terminal",
+    "content": "git pull --rebase"
+  },
+  {
+    "id": "snip_py_venv",
+    "title": "Python: Crear Entorno Virtual",
+    "category": "Python & Dev",
+    "content": "python -m venv .venv && .venv\\Scripts\\activate"
+  },
+  {
+    "id": "snip_adb_devices",
+    "title": "ADB: Listar Dispositivos",
+    "category": "Android & ADB",
+    "content": "adb devices -l"
+  },
+  {
+    "id": "snip_ai_prompt",
+    "title": "Prompt IA: Arquitectura Limpia",
+    "category": "Prompts IA",
+    "content": "Revisa este código aplicando principios SOLID, OCP y arquitectura por capas desacopladas:"
+  }
+]

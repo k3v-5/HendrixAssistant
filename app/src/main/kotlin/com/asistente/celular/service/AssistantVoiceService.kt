@@ -41,6 +41,7 @@ class AssistantVoiceService : Service() {
     private var wakeWordEngine: AndroidContinuousWakeWordEngine? = null
     private lateinit var hapticManager: HapticFeedbackManager
     private lateinit var settingsRepo: SettingsRepository
+    private lateinit var overlayCoordinator: com.asistente.celular.ui.overlay.AssistantOverlayCoordinator
     private var sensorCoordinator: com.asistente.celular.hardware.HardwareSensorCoordinator? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var ttsEngine: AndroidNativeTtsEngine? = null
@@ -54,6 +55,11 @@ class AssistantVoiceService : Service() {
                 sensorCoordinator?.isShakeToWakeEnabled = enabled
                 Log.i(TAG, "Sensor config actualizada dinámicamente: shake_to_wake_enabled=$enabled")
             }
+            "shake_sensitivity" -> {
+                val sens = settingsRepo.shakeSensitivity
+                sensorCoordinator?.shakeSensitivity = sens
+                Log.i(TAG, "Sensor config actualizada dinámicamente: shake_sensitivity=$sens")
+            }
             "pocket_silence_enabled" -> {
                 val enabled = settingsRepo.isPocketSilenceEnabled
                 sensorCoordinator?.isPocketSilenceEnabled = enabled
@@ -64,6 +70,15 @@ class AssistantVoiceService : Service() {
                 sensorCoordinator?.isFlipToMuteEnabled = enabled
                 Log.i(TAG, "Sensor config actualizada dinámicamente: flip_to_mute_enabled=$enabled")
             }
+            "wake_word_sensitivity" -> {
+                val sens = settingsRepo.wakeWordSensitivity
+                wakeWordEngine?.sensitivity = sens
+                Log.i(TAG, "Wake word sensitivity actualizada dinámicamente: $sens")
+            }
+            "tts_pitch", "tts_speech_rate" -> {
+                ttsEngine?.updateVoiceParameters(settingsRepo.ttsPitch, settingsRepo.ttsSpeechRate)
+                Log.i(TAG, "TTS voice params actualizados: pitch=${settingsRepo.ttsPitch}, rate=${settingsRepo.ttsSpeechRate}")
+            }
         }
     }
 
@@ -73,21 +88,37 @@ class AssistantVoiceService : Service() {
         hapticManager = HapticFeedbackManager(this)
         settingsRepo = SettingsRepository(this)
         settingsRepo.registerOnSharedPreferenceChangeListener(prefsListener)
-        wakeWordEngine = AndroidContinuousWakeWordEngine(this)
+        overlayCoordinator = com.asistente.celular.ui.overlay.AssistantOverlayCoordinator(this)
+        wakeWordEngine = AndroidContinuousWakeWordEngine(this).apply {
+            sensitivity = settingsRepo.wakeWordSensitivity
+        }
 
         // Inicializar coordinador de sensores de hardware
         sensorCoordinator = com.asistente.celular.hardware.HardwareSensorCoordinator(
             context = this,
             isShakeToWakeEnabled = settingsRepo.isShakeToWakeEnabled,
+            shakeSensitivity = settingsRepo.shakeSensitivity,
             isPocketSilenceEnabled = settingsRepo.isPocketSilenceEnabled,
             isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled,
             onShakeDetected = {
                 hapticManager.vibrateStartListening()
-                val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                if (settingsRepo.isOverlayEnabled && overlayCoordinator.canDrawOverlays()) {
+                    overlayCoordinator.showOverlay(
+                        onExpandToApp = {
+                            val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                            }
+                            startActivity(dialogIntent)
+                        }
+                    )
+                } else {
+                    val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                    }
+                    startActivity(dialogIntent)
                 }
-                startActivity(dialogIntent)
             },
             onFlipToMute = {
                 ttsEngine?.stop()
@@ -127,17 +158,31 @@ class AssistantVoiceService : Service() {
             // Feedback táctil inmediato: el usuario sabe que fue escuchado al instante
             hapticManager.vibrateStartListening()
 
-            val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
-                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(AssistantDialogActivity.EXTRA_INITIAL_COMMAND, event.command)
-                putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
-            }
+            if (settingsRepo.isOverlayEnabled && overlayCoordinator.canDrawOverlays()) {
+                overlayCoordinator.showOverlay(
+                    initialCommand = event.command,
+                    onExpandToApp = {
+                        val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
+                            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra(AssistantDialogActivity.EXTRA_INITIAL_COMMAND, event.command)
+                            putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                        }
+                        startActivity(dialogIntent)
+                    }
+                )
+            } else {
+                val dialogIntent = Intent(this, AssistantDialogActivity::class.java).apply {
+                    this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(AssistantDialogActivity.EXTRA_INITIAL_COMMAND, event.command)
+                    putExtra(EXTRA_TRIGGERED_BY_WAKE_WORD, true)
+                }
 
-            try {
-                startActivity(dialogIntent)
-            } catch (e: Exception) {
-                Log.w(TAG, "Fallo al iniciar AssistantDialogActivity directamente: ${e.message}")
-                handleBackgroundFallback(event, dialogIntent)
+                try {
+                    startActivity(dialogIntent)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Fallo al iniciar AssistantDialogActivity directamente: ${e.message}")
+                    handleBackgroundFallback(event, dialogIntent)
+                }
             }
         }
 
@@ -188,7 +233,11 @@ class AssistantVoiceService : Service() {
     private fun getOrCreateEvaluator(): SkillEvaluator {
         evaluator?.let { return it }
 
-        val tts = ttsEngine ?: AndroidNativeTtsEngine(this).also { ttsEngine = it }
+        val tts = ttsEngine ?: AndroidNativeTtsEngine(
+            context = this,
+            pitch = settingsRepo.ttsPitch,
+            speechRate = settingsRepo.ttsSpeechRate
+        ).also { ttsEngine = it }
         val factory = AssistantSkillFactory(this, serviceScope)
         val settingsRepo = SettingsRepository(this)
         val activeLlmConfig = settingsRepo.loadLlmConfig()
@@ -254,6 +303,7 @@ class AssistantVoiceService : Service() {
         ttsEngine?.release()
         ttsEngine = null
         evaluator = null
+        overlayCoordinator.dismiss()
         super.onDestroy()
     }
 

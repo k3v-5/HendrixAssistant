@@ -119,7 +119,10 @@ class AssistantSkillFactory(
     val taskRepository = JsonTaskRepository(context, taskScheduler, scope)
     val noteRepository = JsonNoteRepository(context, scope)
     val routineRepository = JsonRoutineRepository(context, scope)
+    val automatedRoutineRepository = com.asistente.celular.data.JsonAutomatedRoutineRepository(context, scope)
+    val macroDeckProfileRepository = com.asistente.celular.data.JsonMacroDeckProfileRepository(context, scope)
     val semanticMemoryRepository = JsonSemanticMemoryRepository(context, scope)
+    val personalRagCoordinator = com.asistente.celular.ai.memory.PersonalRagCoordinator(semanticMemoryRepository = semanticMemoryRepository)
     val calendarRepository = AndroidCalendarRepository(context)
     val smartHomeRepository: SmartHomeRepository = JsonSmartHomeRepository(context, scope)
     val flashlightController: FlashlightController = AndroidFlashlightController(context)
@@ -155,6 +158,8 @@ class AssistantSkillFactory(
     val documentKnowledgeCoordinator = LocalDocumentKnowledgeCoordinator(context, knowledgeGraphRepository)
     val soundscapeCoordinator = ProceduralSoundscapeCoordinator(context)
     val voiceCraftCoordinator = LocalVoiceCraftStudioCoordinator(context)
+    val pcRemoteCoordinator = com.asistente.celular.pc.PcRemoteCoordinator(context, scope)
+    var onEnterDeskStandby: (() -> Unit)? = null
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -217,9 +222,40 @@ class AssistantSkillFactory(
             MultiModelOrchestratorSkill(multiModelOrchestrator),
             DocumentChatSkill(documentKnowledgeCoordinator),
             SoundscapeSkill(soundscapeCoordinator),
-            VoiceCraftSkill(voiceCraftCoordinator)
+            VoiceCraftSkill(voiceCraftCoordinator),
+            com.asistente.celular.skills.pc.PcControlSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.AntigravitySkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.AbletonLiveSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcModuleControlSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.WebBrowserControlSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcDropzoneSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcWakeOnLanSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcUnlockSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcClipboardSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcAudioMixerSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcStudioSceneSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcProjectSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcHardwareWatchdogSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcScreenCopilotSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcCustomPluginSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcWirelessAudioSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcWorkspaceMemorySkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcAirSyncSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcAutomatedRoutineSkill(
+                routineRepository = automatedRoutineRepository,
+                pcBridge = pcRemoteCoordinator,
+                onEnterDeskStandby = { onEnterDeskStandby?.invoke() }
+            ),
+            com.asistente.celular.skills.pc.PcProcessSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcWindowManagerSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.PcHardwareHealthSkill(pcRemoteCoordinator),
+            com.asistente.celular.skills.pc.DeskStandbySkill(
+                onActivateStandby = { onEnterDeskStandby?.invoke() }
+            ),
+            com.asistente.celular.skills.memory.PersonalSearchSkill(personalRagCoordinator)
         )
     }
+
 
     fun createSkillEvaluator(
         skillContext: SkillContext,
@@ -234,6 +270,7 @@ class AssistantSkillFactory(
             localInferenceEngine = localInferenceEngine,
             configProvider = configProvider
         )
+        pcRemoteCoordinator.llmClientProvider = { llmClient }
         val modelHarness = ModelHarness()
         val aiFallbackSkill = com.asistente.celular.ai.router.AiRouterSkill(
             llmClient = llmClient,

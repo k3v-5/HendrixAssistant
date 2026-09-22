@@ -24,8 +24,10 @@ import com.asistente.celular.skills.help.HelpSkill
 import com.asistente.celular.skills.media.MediaControlSkill
 import com.asistente.celular.skills.time.CurrentTimeSkill
 import com.asistente.celular.skills.timer.TimerSkill
+import com.asistente.celular.hardware.ShakeSensitivity
 import com.asistente.celular.voice.SttEngine
 import com.asistente.celular.voice.kws.SherpaOnnxKwsEngine
+import com.asistente.celular.voice.kws.WakeWordSensitivity
 import com.asistente.celular.voice.stt.AndroidSpeechRecognizerEngine
 import com.asistente.celular.voice.tts.AndroidNativeTtsEngine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,9 +46,17 @@ data class AssistantUiState(
     val interactions: List<InteractionEntry> = emptyList(),
     val llmConfig: LlmConfig = LlmConfig(),
     val isWakeWordActive: Boolean = false,
+    val wakeWordSensitivity: WakeWordSensitivity = WakeWordSensitivity.MEDIUM,
     val isShakeToWakeEnabled: Boolean = false,
+    val shakeSensitivity: ShakeSensitivity = ShakeSensitivity.NORMAL,
     val isPocketSilenceEnabled: Boolean = true,
     val isFlipToMuteEnabled: Boolean = true,
+    val ttsPitch: Float = 1.08f,
+    val ttsSpeechRate: Float = 1.02f,
+    val smartHomeCustomSubnet: String? = null,
+    val isOverlayEnabled: Boolean = true,
+    val sttEngineType: com.asistente.celular.voice.stt.SttEngineType = com.asistente.celular.voice.stt.SttEngineType.ANDROID_SYSTEM,
+    val offlineAsrModelId: String = "sherpa_onnx_zipformer_es",
     val isConnected: Boolean = true,
     val error: String? = null
 )
@@ -87,14 +97,42 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val smartDevicesState = smartHomeRepository.devices
     val isScanningSmartDevices = MutableStateFlow(false)
 
+    // Coordinador de Espacio de Trabajo Remoto en PC y Gestor de Módulos
+    val pcRemoteCoordinator = factory.pcRemoteCoordinator
+    val pcModuleManager = com.asistente.celular.pc.module.PcModuleManager(application)
+    val automatedRoutineRepository = factory.automatedRoutineRepository
+    val macroDeckProfileRepository = factory.macroDeckProfileRepository
+    val personalRagCoordinator = factory.personalRagCoordinator
+
+    private val _isDeskStandbyActive = MutableStateFlow(false)
+    val isDeskStandbyActive: StateFlow<Boolean> = _isDeskStandbyActive.asStateFlow()
+
+    // Coordinador de Descubrimiento Zero-Config UDP / mDNS
+    val pcDiscoveryCoordinator = com.asistente.celular.pc.discovery.PcDiscoveryCoordinator(
+        context = application,
+        scope = viewModelScope,
+        settingsRepo = settingsRepo,
+        pcRemoteCoordinator = pcRemoteCoordinator
+    )
+
+    // Gestor de descarga y almacenamiento de modelos acústicos ASR offline
+    val offlineAsrModelManager: com.asistente.celular.voice.stt.OfflineAsrModelManager =
+        com.asistente.celular.voice.stt.DefaultOfflineAsrModelManager(application, viewModelScope)
+
+    // Repositorio de la Bóveda Hendrix (Backup & Restore)
+    val vaultRepository = com.asistente.celular.vault.HendrixVaultRepository(application)
+
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(
         context = application,
         pitch = 1.08f * activeLlmConfig.personality.speechPitchMultiplier,
         speechRate = 1.02f * activeLlmConfig.personality.speechRateMultiplier
     )
-    // Motor STT nativo funcional inmediato
-    private val sttEngine: SttEngine = AndroidSpeechRecognizerEngine(application)
+    // Motor STT desacoplado mediante factoría
+    private val sttEngine: SttEngine = com.asistente.celular.voice.stt.SttEngineFactory.createEngine(
+        context = application,
+        type = settingsRepo.sttEngineType
+    )
 
     // Contexto de ejecución para las habilidades
     private val skillContext = object : SkillContext {
@@ -125,14 +163,48 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val isWakeActive = settingsRepo.isWakeWordActive
+        val basePitch = settingsRepo.ttsPitch
+        val baseRate = settingsRepo.ttsSpeechRate
+        ttsEngine.updateVoiceParameters(
+            basePitch * activeLlmConfig.personality.speechPitchMultiplier,
+            baseRate * activeLlmConfig.personality.speechRateMultiplier
+        )
         _uiState.value = _uiState.value.copy(
             isConnected = checkInternetConnection(),
             llmConfig = activeLlmConfig,
             isWakeWordActive = isWakeActive,
+            wakeWordSensitivity = settingsRepo.wakeWordSensitivity,
             isShakeToWakeEnabled = settingsRepo.isShakeToWakeEnabled,
+            shakeSensitivity = settingsRepo.shakeSensitivity,
             isPocketSilenceEnabled = settingsRepo.isPocketSilenceEnabled,
-            isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled
+            isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled,
+            ttsPitch = basePitch,
+            ttsSpeechRate = baseRate,
+            smartHomeCustomSubnet = settingsRepo.smartHomeCustomSubnet,
+            isOverlayEnabled = settingsRepo.isOverlayEnabled,
+            sttEngineType = settingsRepo.sttEngineType,
+            offlineAsrModelId = settingsRepo.offlineAsrModelId
         )
+
+        // Registrar callback de activación de Desk Standby desde habilidades y rutinas
+        factory.onEnterDeskStandby = {
+            _isDeskStandbyActive.value = true
+        }
+
+        // Iniciar descubrimiento Zero-Config en la red local
+        pcDiscoveryCoordinator.startDiscovery()
+
+        // Sincronizar automáticamente Notas y Tareas con el motor RAG vectorial
+        viewModelScope.launch {
+            noteRepository.notes.collect { notes ->
+                personalRagCoordinator.indexNotes(notes)
+            }
+        }
+        viewModelScope.launch {
+            taskRepository.tasks.collect { tasks ->
+                personalRagCoordinator.indexTasks(tasks)
+            }
+        }
     }
 
     fun startListening() {
@@ -202,6 +274,9 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
             _uiState.value = _uiState.value.copy(isProcessing = true)
             try {
                 val output = evaluator.processInput(commandText)
+                if (output.payload == "ACTION_DESK_STANDBY") {
+                    _isDeskStandbyActive.value = true
+                }
                 if (output.success) {
                     hapticManager.vibrateSuccess()
                 } else {
@@ -221,11 +296,20 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun enterDeskStandby() {
+        _isDeskStandbyActive.value = true
+    }
+
+    fun exitDeskStandby() {
+        _isDeskStandbyActive.value = false
+    }
+
     fun updateLlmConfig(newConfig: LlmConfig) {
         activeLlmConfig = newConfig
         settingsRepo.saveLlmConfig(newConfig)
-        ttsEngine.pitch = 1.08f * newConfig.personality.speechPitchMultiplier
-        ttsEngine.speechRate = 1.02f * newConfig.personality.speechRateMultiplier
+        val pitch = settingsRepo.ttsPitch * newConfig.personality.speechPitchMultiplier
+        val rate = settingsRepo.ttsSpeechRate * newConfig.personality.speechRateMultiplier
+        ttsEngine.updateVoiceParameters(pitch, rate)
         _uiState.value = _uiState.value.copy(llmConfig = newConfig)
     }
 
@@ -234,9 +318,39 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.value = _uiState.value.copy(isWakeWordActive = enable)
     }
 
+    fun updateWakeWordSensitivity(sensitivity: WakeWordSensitivity) {
+        settingsRepo.wakeWordSensitivity = sensitivity
+        _uiState.value = _uiState.value.copy(wakeWordSensitivity = sensitivity)
+    }
+
     fun toggleShakeToWake(enable: Boolean) {
         settingsRepo.isShakeToWakeEnabled = enable
         _uiState.value = _uiState.value.copy(isShakeToWakeEnabled = enable)
+    }
+
+    fun updateShakeSensitivity(sensitivity: ShakeSensitivity) {
+        settingsRepo.shakeSensitivity = sensitivity
+        _uiState.value = _uiState.value.copy(shakeSensitivity = sensitivity)
+    }
+
+    fun updateTtsParameters(pitch: Float, rate: Float) {
+        settingsRepo.ttsPitch = pitch
+        settingsRepo.ttsSpeechRate = rate
+        val finalPitch = pitch * _uiState.value.llmConfig.personality.speechPitchMultiplier
+        val finalRate = rate * _uiState.value.llmConfig.personality.speechRateMultiplier
+        ttsEngine.updateVoiceParameters(finalPitch, finalRate)
+        _uiState.value = _uiState.value.copy(ttsPitch = pitch, ttsSpeechRate = rate)
+    }
+
+    fun testTtsVoice() {
+        viewModelScope.launch {
+            ttsEngine.speak("Hola, soy Hendrix. Así suena mi voz con la velocidad y tono configurados.")
+        }
+    }
+
+    fun updateSmartHomeCustomSubnet(subnet: String?) {
+        settingsRepo.smartHomeCustomSubnet = subnet
+        _uiState.value = _uiState.value.copy(smartHomeCustomSubnet = subnet)
     }
 
     fun togglePocketSilence(enable: Boolean) {
@@ -334,11 +448,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     // Operaciones de Domótica / Foco Xiaomi
-    fun discoverSmartDevices() {
+    fun discoverSmartDevices(customSubnet: String? = settingsRepo.smartHomeCustomSubnet) {
         viewModelScope.launch {
             isScanningSmartDevices.value = true
             try {
-                smartHomeRepository.discoverDevices()
+                smartHomeRepository.discoverDevices(timeoutMillis = 2500L, customSubnetPrefix = customSubnet)
             } finally {
                 isScanningSmartDevices.value = false
             }
@@ -374,6 +488,44 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun toggleOverlayEnabled(enabled: Boolean) {
+        settingsRepo.isOverlayEnabled = enabled
+        _uiState.value = _uiState.value.copy(isOverlayEnabled = enabled)
+    }
+
+    fun updateSttEngine(type: com.asistente.celular.voice.stt.SttEngineType) {
+        settingsRepo.sttEngineType = type
+        _uiState.value = _uiState.value.copy(sttEngineType = type)
+    }
+
+    fun startAsrModelDownload(modelId: String) {
+        offlineAsrModelManager.startDownload(modelId)
+    }
+
+    fun deleteAsrModel(modelId: String) {
+        offlineAsrModelManager.deleteModel(modelId)
+    }
+
+    fun backupVaultToPc(onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val json = vaultRepository.exportVaultJson()
+            val success = pcRemoteCoordinator.backupVault(json)
+            onResult(success)
+        }
+    }
+
+    fun restoreVaultFromPc(onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val json = pcRemoteCoordinator.restoreVault()
+            if (json != null) {
+                val ok = vaultRepository.restoreVaultJson(json)
+                onResult(ok)
+            } else {
+                onResult(false)
+            }
+        }
+    }
+
     private fun checkInternetConnection(): Boolean {
         val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return false
@@ -384,6 +536,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
 
     override fun onCleared() {
         super.onCleared()
+        pcDiscoveryCoordinator.stopDiscovery()
         com.asistente.celular.util.MicCoordinator.releaseMicLock("MainActivity")
         sttEngine.release()
         ttsEngine.release()

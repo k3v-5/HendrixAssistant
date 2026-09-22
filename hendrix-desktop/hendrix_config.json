@@ -1,0 +1,15 @@
+{
+  "port": 8899,
+  "airsync_port": 8900,
+  "pin": "123456",
+  "airsync_chunk_size": 262144,
+  "dropzone_path": null,
+  "quality": 75,
+  "allow_mouse_control": true,
+  "allow_keyboard_control": true,
+  "allow_screen_capture": true,
+  "allow_terminal_commands": true,
+  "paired_tokens": [],
+  "paired_devices": [],
+  "remote_tunnel_url": null
+}
