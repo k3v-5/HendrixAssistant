@@ -36,6 +36,7 @@ import com.asistente.celular.ui.automation.designer.VisualRoutineDesignerScreen
 
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -106,6 +107,12 @@ fun PcControlDeckScreen(
     var unlockPinInput by remember { mutableStateOf("") }
     var showMacroDeckScreen by remember { mutableStateOf(false) }
     var showRoutineDesignerScreen by remember { mutableStateOf(false) }
+    var showConnectDialog by remember { mutableStateOf(false) }
+    val coordinator = pcBridge as? com.asistente.celular.pc.PcRemoteCoordinator
+    val savedConfig by coordinator?.endpointConfig?.collectAsState() ?: remember { mutableStateOf(null) }
+    var manualIpInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
+    var manualPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
+    var manualPinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
 
     val context = LocalContext.current
     val effectiveRoutineRepo = remember(routineRepository) {
@@ -197,6 +204,13 @@ fun PcControlDeckScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showConnectDialog = true }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Configurar Conexión PC",
+                            tint = Color(0xFF38BDF8)
+                        )
+                    }
                     IconButton(onClick = {
                         scope.launch {
                             val ok = pcBridge.wakeOnLan()
@@ -284,22 +298,31 @@ fun PcControlDeckScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    val sent = pcBridge.wakeOnLan()
-                                    if (sent) {
-                                        snackbarHostState.showSnackbar("⚡ Paquete Wake-on-LAN emitido a la red local")
-                                    } else {
-                                        snackbarHostState.showSnackbar("⚠️ No hay dirección MAC guardada para esta PC")
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(
+                                onClick = { showConnectDialog = true },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text("🔗 Conectar", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val sent = pcBridge.wakeOnLan()
+                                        if (sent) {
+                                            snackbarHostState.showSnackbar("⚡ Paquete Wake-on-LAN emitido a la red local")
+                                        } else {
+                                            snackbarHostState.showSnackbar("⚠️ No hay dirección MAC guardada para esta PC")
+                                        }
                                     }
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("⚡ Despertar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text("⚡ Despertar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
                 }
@@ -667,6 +690,87 @@ fun PcControlDeckScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showUnlockDialog = false }) {
+                    Text("Cancelar", color = Color.LightGray)
+                }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
+    }
+
+    if (showConnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showConnectDialog = false },
+            title = {
+                Text(
+                    text = "🔗 Conectar con Hendrix PC",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Configura la IP y PIN de tu computadora para conectar directamente:",
+                        fontSize = 12.sp,
+                        color = Color.LightGray
+                    )
+                    OutlinedTextField(
+                        value = manualIpInput,
+                        onValueChange = { manualIpInput = it },
+                        label = { Text("IP de la PC (LAN)") },
+                        placeholder = { Text("192.168.100.159") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = manualPortInput,
+                            onValueChange = { manualPortInput = it },
+                            label = { Text("Puerto") },
+                            placeholder = { Text("8899") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = manualPinInput,
+                            onValueChange = { manualPinInput = it },
+                            label = { Text("PIN") },
+                            placeholder = { Text("123456") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val ip = manualIpInput.trim()
+                        val port = manualPortInput.toIntOrNull() ?: 8899
+                        val pin = manualPinInput.trim()
+                        showConnectDialog = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Conectando a ws://$ip:$port/ws...")
+                            coordinator?.updateEndpoint(ip, port)
+                            val ok = pcBridge.connect(ip, port, pin)
+                            if (ok) {
+                                snackbarHostState.showSnackbar("✅ Conectado con éxito a la PC")
+                            } else {
+                                snackbarHostState.showSnackbar("❌ No se pudo conectar. Verifica que el servidor de PC esté abierto y el firewall permitido.")
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) {
+                    Text("Conectar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConnectDialog = false }) {
                     Text("Cancelar", color = Color.LightGray)
                 }
             },

@@ -24,7 +24,7 @@ def main():
     server_thread.start()
 
     # Iniciar servidor de descubrimiento UDP Zero-Config
-    discovery_server = DiscoveryServer(ws_port=config.port)
+    discovery_server = DiscoveryServer(ws_port=config.port, airsync_port=config.airsync_port)
     discovery_server.start()
 
     def on_close():
