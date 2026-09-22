@@ -10,3 +10,20 @@ Captures/
 .cxx
 *.apk
 *.aab
+
+# Python / hendrix-desktop bytecode & virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+.env
+
+# Hendrix Desktop runtime caches
+hendrix-desktop/**/__pycache__/
+
