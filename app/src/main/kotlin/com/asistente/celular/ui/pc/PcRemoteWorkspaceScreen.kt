@@ -76,11 +76,11 @@ fun PcRemoteWorkspaceScreen(
     val savedConfig = coordinator?.endpointConfig?.collectAsState()?.value
 
     var showConfigDialog by remember { mutableStateOf(false) }
-    var hostInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp ?: "192.168.1.100") }
+    var hostInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
     var portInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
     var airSyncPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.airSyncPort ?: 8900).toString()) }
     var tunnelInput by remember(savedConfig) { mutableStateOf(savedConfig?.remoteTunnelUrl ?: "") }
-    var pinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin ?: "") }
+    var pinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
     var snapshotQualitySelected by remember(savedConfig) { mutableStateOf(savedConfig?.snapshotQuality ?: 75) }
     var telemetryIntervalSelected by remember(savedConfig) { mutableStateOf(savedConfig?.telemetryIntervalMs ?: 3000L) }
 

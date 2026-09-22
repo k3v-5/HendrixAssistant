@@ -482,7 +482,7 @@ fun PcControlDeckScreen(
                         showConnectDialog = false
                         scope.launch {
                             snackbarHostState.showSnackbar("Conectando a ws://$ip:$port/ws...")
-                            coordinator?.updateEndpoint(ip, port)
+                            coordinator?.updateEndpoint(ip, port, pin)
                             val ok = pcBridge.connect(ip, port, pin)
                             if (ok) {
                                 snackbarHostState.showSnackbar("✅ Conectado con éxito a la PC")

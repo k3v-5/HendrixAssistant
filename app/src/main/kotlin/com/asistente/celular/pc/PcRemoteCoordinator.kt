@@ -232,26 +232,27 @@ class PcRemoteCoordinator(
             .apply()
     }
 
-    fun updateEndpoint(ip: String, port: Int, mac: String? = null) {
+    fun updateEndpoint(ip: String, port: Int, pin: String? = null, mac: String? = null) {
         val current = _endpointConfig.value
         val updated = current.copy(
             localIp = ip,
             port = port,
+            pin = pin ?: current.pin,
             macAddress = mac ?: current.macAddress
         )
         saveConfig(updated)
     }
 
     /**
-     * Conecta de forma inteligente: primero prueba LAN directa (< 1.5s),
+     * Conecta de forma inteligente: primero prueba LAN directa (< 4s),
      * y si no está en la misma red y cuenta con túnel WAN, conmuta automáticamente.
      */
     suspend fun connectAuto(): Boolean = withContext(Dispatchers.IO) {
         val conf = _endpointConfig.value
         Log.i(TAG, "Iniciando conexión automática híbrida con ${conf.hostname}")
 
-        // 1. Intentar por LAN directa primero
-        val lanSuccess = withTimeoutOrNull(1500L) {
+        // 1. Intentar por LAN directa primero (4s de gracia para ARP y handshake)
+        val lanSuccess = withTimeoutOrNull(4000L) {
             connect(conf.localIp, conf.port, conf.pin.takeIf { it.isNotBlank() })
         } ?: false
 
@@ -279,12 +280,24 @@ class PcRemoteCoordinator(
         currentPort = port
         _connectionState.value = PcConnectionState.Connecting(host, port)
 
-        val isDirectUrl = host.startsWith("ws://", ignoreCase = true) || host.startsWith("wss://", ignoreCase = true)
-        val isWan = host.startsWith("wss://", ignoreCase = true) || host.contains("trycloudflare.com") || host.contains(".") && !host.startsWith("192.168.") && !host.startsWith("10.") && !host.startsWith("127.")
+        val cleanHost = host.trim()
+        val isDirectUrl = cleanHost.startsWith("ws://", ignoreCase = true) || cleanHost.startsWith("wss://", ignoreCase = true)
+
+        val wsUrl = if (isDirectUrl) {
+            cleanHost
+        } else {
+            val stripped = cleanHost.removePrefix("http://").removePrefix("https://").substringBefore("/")
+            val parsedHost = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringBefore(":") else stripped
+            val parsedPort = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringAfter(":").toIntOrNull() ?: port else port
+            "ws://$parsedHost:$parsedPort/ws"
+        }
+
+        val isWan = wsUrl.startsWith("wss://", ignoreCase = true) ||
+            wsUrl.contains("trycloudflare.com") ||
+            (!wsUrl.contains("192.168.") && !wsUrl.contains("10.") && !wsUrl.contains("127.0.0.1") && !wsUrl.contains("localhost"))
 
         _activeTransport.value = if (isWan) TransportType.GLOBAL_TUNNEL_WAN else TransportType.LAN_DIRECT
 
-        val wsUrl = if (isDirectUrl) host else "ws://$host:$port/ws"
         val request = Request.Builder().url(wsUrl).build()
 
         val connectSignal = CompletableDeferred<Boolean>()

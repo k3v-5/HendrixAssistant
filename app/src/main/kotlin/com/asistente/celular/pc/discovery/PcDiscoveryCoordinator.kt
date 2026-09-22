@@ -1,6 +1,7 @@
 package com.asistente.celular.pc.discovery
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.util.Log
 import com.asistente.celular.data.SettingsRepository
 import com.asistente.celular.pc.PcRemoteCoordinator
@@ -59,12 +60,24 @@ class PcDiscoveryCoordinator(
     private var listenerJob: Job? = null
     private var pingJob: Job? = null
     private var socket: DatagramSocket? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
     /**
      * Inicia la escucha pasiva de balizas y el sondeo activo en segundo plano.
      */
     fun startDiscovery() {
         if (listenerJob?.isActive == true) return
+
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        multicastLock = try {
+            wifiManager?.createMulticastLock("hendrix_discovery_lock")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo adquirir MulticastLock: ${e.message}")
+            null
+        }
 
         listenerJob = scope.launch(Dispatchers.IO) {
             try {
@@ -139,8 +152,8 @@ class PcDiscoveryCoordinator(
             val hostname = root.optString("hostname", "PC Hendrix")
             val reportedIp = root.optString("ip", senderIp)
             val targetIp = if (reportedIp.isNotBlank() && reportedIp != "127.0.0.1") reportedIp else senderIp
-            val wsPort = root.optInt("ws_port", 8765)
-            val airsyncPort = root.optInt("airsync_port", 8766)
+            val wsPort = root.optInt("ws_port", 8899)
+            val airsyncPort = root.optInt("airsync_port", 8900)
             val mac = root.optString("mac", "")
 
             val endpoint = DiscoveredPcEndpoint(
@@ -184,6 +197,12 @@ class PcDiscoveryCoordinator(
             socket?.close()
         } catch (_: Exception) {}
         socket = null
+        try {
+            multicastLock?.let {
+                if (it.isHeld) it.release()
+            }
+        } catch (_: Exception) {}
+        multicastLock = null
         Log.i(TAG, "Descubrimiento Zero-Config detenido.")
     }
 }
