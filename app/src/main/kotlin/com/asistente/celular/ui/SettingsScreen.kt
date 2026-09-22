@@ -5,9 +5,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +25,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -30,10 +36,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,10 +47,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,21 +61,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.asistente.celular.ai.harness.ModelRegistry
 import com.asistente.celular.ai.model.AiProvider
 import com.asistente.celular.ai.model.LlmConfig
 import com.asistente.celular.ai.personality.AssistantPersonality
 import com.asistente.celular.hardware.ShakeSensitivity
-import com.asistente.celular.voice.stt.SttEngineType
-import com.asistente.celular.voice.stt.OfflineAsrModelManager
 import com.asistente.celular.voice.stt.AsrModelDownloadState
-import androidx.compose.runtime.collectAsState
+import com.asistente.celular.voice.stt.OfflineAsrModelManager
+import com.asistente.celular.voice.stt.SttEngineType
 
+/**
+ * Pantalla de Configuración modular para Hendrix Assistant.
+ * Rediseñada con tarjetas de acordeón expandibles para eliminar el scroll vertical infinito
+ * y agrupar las opciones en 6 dominios cohesivos.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -132,15 +143,31 @@ fun SettingsScreen(
 
     var subnetInput by remember(smartHomeCustomSubnet) { mutableStateOf(smartHomeCustomSubnet ?: "") }
 
-    var isScanningDevices by remember { mutableStateOf(false) }
     var manualName by remember { mutableStateOf("") }
     var manualIp by remember { mutableStateOf("") }
     var showManualAddDialog by remember { mutableStateOf(false) }
 
+    // Control de acordeón expandible: el usuario puede abrir/cerrar cualquier sección
+    var expandedCategories by remember { mutableStateOf(setOf(0)) }
+
+    fun toggleCategory(index: Int) {
+        expandedCategories = if (expandedCategories.contains(index)) {
+            expandedCategories - index
+        } else {
+            expandedCategories + index
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Configuración del Asistente") },
+                title = {
+                    Text(
+                        text = "Ajustes del Asistente",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -153,243 +180,437 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Sección: Activación por Voz (Wake Word)
-            Text("Voz y Activación Offline", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Palabra de activación ('Oye Hendrix')", fontWeight = FontWeight.SemiBold)
-                    Text("Escucha en segundo plano persistente", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                }
-                Switch(
-                    checked = isWakeWordActive,
-                    onCheckedChange = onToggleWakeWord
-                )
-            }
+            Spacer(modifier = Modifier.height(4.dp))
 
-            if (isWakeWordActive) {
-                Spacer(modifier = Modifier.height(6.dp))
+            // ---------------------------------------------------------------
+            // 1. INTELIGENCIA ARTIFICIAL & MODELOS
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "🧠",
+                title = "Inteligencia Artificial & Modelos",
+                subtitle = "Enrutador LLM (${selectedProvider.displayName}), Harness y parámetros",
+                isExpanded = expandedCategories.contains(0),
+                onToggleExpand = { toggleCategory(0) }
+            ) {
                 Text(
-                    text = "Sensibilidad de detección acústica:",
+                    "Cuando la orden no sea una acción local del móvil, se derivará a este proveedor:",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.outline
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                AiProvider.entries.forEach { provider ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedProvider = provider
+                                modelName = provider.defaultModel
+                            }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        RadioButton(
+                            selected = selectedProvider == provider,
+                            onClick = {
+                                selectedProvider = provider
+                                modelName = provider.defaultModel
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(provider.displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Model Routing Harness para Gemini
+                if (selectedProvider == AiProvider.GEMINI) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Model Routing Harness", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(
+                                        "Enruta entre Flash, Pro y Thinking según dificultad de la orden.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = isModelHarnessEnabled,
+                                    onCheckedChange = { isModelHarnessEnabled = it }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (selectedProvider == AiProvider.LOCAL_SLM) {
+                    if (localModelManager != null) {
+                        LocalModelManagerSection(
+                            localModelManager = localModelManager,
+                            selectedModelId = modelName,
+                            onSelectModel = { selectedId ->
+                                modelName = selectedId
+                                onSelectLocalModel(selectedId)
+                            },
+                            onDownloadModel = onDownloadModel,
+                            onCancelDownload = onCancelDownload,
+                            onDeleteModel = onDeleteModel
+                        )
+                    } else {
+                        Text(
+                            "Gestor de modelos locales no disponible.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                } else {
+                    if (selectedProvider != AiProvider.OLLAMA) {
+                        OutlinedTextField(
+                            value = apiKey,
+                            onValueChange = { apiKey = it },
+                            label = { Text("API Key de ${selectedProvider.displayName}") },
+                            modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showApiKey = !showApiKey }) {
+                                    Icon(
+                                        if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "Mostrar clave"
+                                    )
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (!isModelHarnessEnabled || selectedProvider != AiProvider.GEMINI) {
+                        OutlinedTextField(
+                            value = modelName,
+                            onValueChange = { modelName = it },
+                            label = { Text("Nombre del Modelo Fijo") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (selectedProvider == AiProvider.OLLAMA) {
+                        OutlinedTextField(
+                            value = customEndpoint,
+                            onValueChange = { customEndpoint = it },
+                            label = { Text("Endpoint de Ollama (ej: http://192.168.1.50:11434)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Parámetros de Inferencia LLM", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Temp: ${"%.2f".format(temperature)}", fontSize = 12.sp, modifier = Modifier.width(90.dp))
+                    Slider(
+                        value = temperature,
+                        onValueChange = { temperature = it },
+                        valueRange = 0.0f..1.5f,
+                        steps = 14,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("Límite de Tokens (Max Tokens):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    com.asistente.celular.voice.kws.WakeWordSensitivity.entries.forEach { sens ->
+                    listOf(512, 1024, 2048, 4096).forEach { tokens ->
                         FilterChip(
-                            selected = wakeWordSensitivity == sens,
-                            onClick = { onChangeWakeWordSensitivity(sens) },
+                            selected = maxTokens == tokens,
+                            onClick = { maxTokens = tokens },
+                            label = { Text("$tokens", fontSize = 11.sp) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = systemPrompt,
+                    onValueChange = { systemPrompt = it },
+                    label = { Text("Prompt del Sistema") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 5
+                )
+            }
+
+            // ---------------------------------------------------------------
+            // 2. VOZ, ASR & SÍNTESIS (TTS)
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "🎙️",
+                title = "Voz, Reconocimiento & Síntesis",
+                subtitle = "Palabra de activación ('Oye Hendrix'), TTS y motor STT",
+                isExpanded = expandedCategories.contains(1),
+                onToggleExpand = { toggleCategory(1) }
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Palabra de activación ('Oye Hendrix')", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Escucha en segundo plano persistente", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                    }
+                    Switch(
+                        checked = isWakeWordActive,
+                        onCheckedChange = onToggleWakeWord
+                    )
+                }
+
+                if (isWakeWordActive) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Sensibilidad acústica:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        com.asistente.celular.voice.kws.WakeWordSensitivity.entries.forEach { sens ->
+                            FilterChip(
+                                selected = wakeWordSensitivity == sens,
+                                onClick = { onChangeWakeWordSensitivity(sens) },
+                                label = {
+                                    Text(
+                                        when (sens) {
+                                            com.asistente.celular.voice.kws.WakeWordSensitivity.LOW -> "Baja"
+                                            com.asistente.celular.voice.kws.WakeWordSensitivity.MEDIUM -> "Media"
+                                            com.asistente.celular.voice.kws.WakeWordSensitivity.HIGH -> "Alta"
+                                        },
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    val context = LocalContext.current
+                    val canDrawOverlays = Settings.canDrawOverlays(context)
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    val isIgnoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
+
+                    if (!canDrawOverlays) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    "⚠️ Permiso de Ventana Flotante necesario",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    "Concede 'Mostrar sobre otras apps' para que Hendrix responda mientras usas otra aplicación.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        context.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Conceder permiso", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    if (!isIgnoringBattery) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("🔋 Batería sin restricciones", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(
+                                    "Configura Hendrix como 'Sin restricciones' para evitar que el sistema duerma el micrófono.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent(
+                                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        }
+                                    }
+                                ) {
+                                    Text("Ajustar batería", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text("Parámetros de Voz (TTS)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Velocidad: ${"%.2f".format(currentRate)}x", fontSize = 12.sp, modifier = Modifier.width(105.dp))
+                    Slider(
+                        value = currentRate,
+                        onValueChange = {
+                            currentRate = it
+                            onChangeTtsParameters(currentPitch, it)
+                        },
+                        valueRange = 0.5f..2.0f,
+                        steps = 14,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Tono: ${"%.2f".format(currentPitch)}x", fontSize = 12.sp, modifier = Modifier.width(105.dp))
+                    Slider(
+                        value = currentPitch,
+                        onValueChange = {
+                            currentPitch = it
+                            onChangeTtsParameters(it, currentRate)
+                        },
+                        valueRange = 0.5f..2.0f,
+                        steps = 14,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onTestTtsVoice,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("🔊 Probar Voz", fontSize = 11.sp)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text("Motor de Reconocimiento de Voz (STT)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SttEngineType.entries.forEach { engType ->
+                        FilterChip(
+                            selected = sttEngineType == engType,
+                            onClick = { onChangeSttEngine(engType) },
                             label = {
                                 Text(
-                                    when (sens) {
-                                        com.asistente.celular.voice.kws.WakeWordSensitivity.LOW -> "Baja"
-                                        com.asistente.celular.voice.kws.WakeWordSensitivity.MEDIUM -> "Media"
-                                        com.asistente.celular.voice.kws.WakeWordSensitivity.HIGH -> "Alta"
-                                    },
-                                    fontSize = 12.sp
+                                    if (engType == SttEngineType.ANDROID_SYSTEM) "Sistema Android" else "Offline Sherpa-ONNX",
+                                    fontSize = 11.sp
                                 )
                             }
                         )
                     }
                 }
 
-                val context = LocalContext.current
-                val canDrawOverlays = Settings.canDrawOverlays(context)
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                val isIgnoringBattery = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
-
-                if (!canDrawOverlays) {
+                if (sttEngineType == SttEngineType.OFFLINE_SHERPA_ONNX && offlineAsrModelManager != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                "⚠️ Permiso de Ventana Flotante necesario",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                    val downloadStates by offlineAsrModelManager.downloadStates.collectAsState()
+
+                    offlineAsrModelManager.getAvailableModels().forEach { modelSpec ->
+                        val state = downloadStates[modelSpec.id] ?: AsrModelDownloadState.NotDownloaded
+                        val isDownloaded = state is AsrModelDownloadState.Downloaded
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Para que Hendrix pueda aparecer sobre la pantalla cuando digas 'Oye Hendrix' mientras usas otra app, debes conceder 'Mostrar sobre otras aplicaciones'.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    context.startActivity(intent)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("Conceder permiso de superposición", fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-
-                if (!isIgnoringBattery) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("🔋 Evitar que el sistema duerma el micrófono", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Android y MIUI/HyperOS pueden pausar el micrófono en segundo plano. Configura la batería de Hendrix como 'Sin restricciones'.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    try {
-                                        val intent = Intent(
-                                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                            Uri.parse("package:${context.packageName}")
-                                        )
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        context.startActivity(intent)
-                                    }
-                                }
-                            ) {
-                                Text("Ajustar ahorro de batería", fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("Parámetros de Síntesis de Voz (TTS)", fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Velocidad: ${"%.2f".format(currentRate)}x", fontSize = 12.sp, modifier = Modifier.width(115.dp))
-                Slider(
-                    value = currentRate,
-                    onValueChange = {
-                        currentRate = it
-                        onChangeTtsParameters(currentPitch, it)
-                    },
-                    valueRange = 0.5f..2.0f,
-                    steps = 14,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Tono: ${"%.2f".format(currentPitch)}x", fontSize = 12.sp, modifier = Modifier.width(115.dp))
-                Slider(
-                    value = currentPitch,
-                    onValueChange = {
-                        currentPitch = it
-                        onChangeTtsParameters(it, currentRate)
-                    },
-                    valueRange = 0.5f..2.0f,
-                    steps = 14,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = onTestTtsVoice,
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text("🔊 Probar Voz", fontSize = 12.sp)
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-            Text("Motor de Reconocimiento de Voz (STT)", fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SttEngineType.entries.forEach { engType ->
-                    FilterChip(
-                        selected = sttEngineType == engType,
-                        onClick = { onChangeSttEngine(engType) },
-                        label = {
-                            Text(
-                                if (engType == SttEngineType.ANDROID_SYSTEM) "Sistema Android" else "Offline Sherpa-ONNX",
-                                fontSize = 12.sp
-                            )
-                        }
-                    )
-                }
-            }
-
-            if (sttEngineType == SttEngineType.OFFLINE_SHERPA_ONNX && offlineAsrModelManager != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val downloadStates by offlineAsrModelManager.downloadStates.collectAsState()
-
-                offlineAsrModelManager.getAvailableModels().forEach { modelSpec ->
-                    val state = downloadStates[modelSpec.id] ?: AsrModelDownloadState.NotDownloaded
-                    val isDownloaded = state is AsrModelDownloadState.Downloaded
-
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(modelSpec.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("${modelSpec.language} • ${modelSpec.sizeMb} MB", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text(modelSpec.name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("${modelSpec.language} • ${modelSpec.sizeMb} MB", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                                 }
                                 if (isDownloaded) {
                                     OutlinedButton(
                                         onClick = { onDeleteAsrModel(modelSpec.id) },
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                                     ) {
-                                        Text("Eliminar", fontSize = 11.sp)
+                                        Text("Eliminar", fontSize = 10.sp)
                                     }
                                 } else {
                                     Button(
                                         onClick = { onStartAsrDownload(modelSpec.id) },
                                         enabled = state !is AsrModelDownloadState.Downloading
                                     ) {
-                                        Text(if (state is AsrModelDownloadState.Downloading) "Descargando..." else "Descargar", fontSize = 11.sp)
+                                        Text(if (state is AsrModelDownloadState.Downloading) "Descargando..." else "Descargar", fontSize = 10.sp)
                                     }
                                 }
                             }
@@ -398,653 +619,408 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sección: Gestos y Sensores de Hardware (Punto 3)
-            Text("Gestos y Sensores de Hardware", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Fusión de acelerómetro y proximidad para interacción física instantánea.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 1. Shake to wake
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
+            // ---------------------------------------------------------------
+            // 3. GESTOS FÍSICOS & SENSORES
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "📱",
+                title = "Gestos Físicos & Sensores",
+                subtitle = "Agitar para activar, silencio en bolsillo y mini HUD",
+                isExpanded = expandedCategories.contains(2),
+                onToggleExpand = { toggleCategory(2) }
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Agitar para Activar (Shake to Wake)", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Agita firmemente el dispositivo dos veces para abrir la escucha sin tocar la pantalla",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Switch(
-                    checked = isShakeToWakeEnabled,
-                    onCheckedChange = onToggleShakeToWake
-                )
-            }
-
-            if (isShakeToWakeEnabled) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Sensibilidad de agitación:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                // 1. Shake to wake
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 ) {
-                    ShakeSensitivity.entries.forEach { sens ->
-                        FilterChip(
-                            selected = shakeSensitivity == sens,
-                            onClick = { onChangeShakeSensitivity(sens) },
-                            label = {
-                                Text(
-                                    when (sens) {
-                                        ShakeSensitivity.GENTLE -> "Suave"
-                                        ShakeSensitivity.NORMAL -> "Normal"
-                                        ShakeSensitivity.VIGOROUS -> "Vigoroso"
-                                    },
-                                    fontSize = 12.sp
-                                )
-                            }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-            }
-
-            // 2. Pocket silence
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Silencio en Bolsillo (Pocket Silence)", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Pausa la escucha cuando el sensor de proximidad detecta que está en el bolsillo para ahorrar batería",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Switch(
-                    checked = isPocketSilenceEnabled,
-                    onCheckedChange = onTogglePocketSilence
-                )
-            }
-
-            // 3. Flip to mute
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Voltear para Silenciar (Flip to Mute)", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Coloca el teléfono boca abajo sobre la mesa para silenciar de inmediato la voz del asistente",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Switch(
-                    checked = isFlipToMuteEnabled,
-                    onCheckedChange = onToggleFlipToMute
-                )
-            }
-
-            // 4. Ventana Flotante / Mini HUD
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Ventana Flotante / Mini HUD (Overlay)", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Despliega una burbuja flotante interactiva sobre cualquier aplicación sin pausar lo que estás haciendo",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Switch(
-                    checked = isOverlayEnabled,
-                    onCheckedChange = onToggleOverlay
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("⚡", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text("Botón en Barra Superior (Ajustes Rápidos)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Agitar para Activar (Shake to Wake)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Text(
-                            "Puedes añadir el icono de 'Hendrix Asistente' a los accesos directos de la cortina de notificaciones de Android para invocar al asistente con 1 toque desde cualquier app o con la pantalla bloqueada.",
+                            "Agita firmemente dos veces para escuchar sin tocar la pantalla",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sección: Domótica y Focos Inteligentes Xiaomi
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Focos Xiaomi / Yeelight (WiFi Local)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Control local offline sin internet (puerto LAN 55443)",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
+                    Switch(
+                        checked = isShakeToWakeEnabled,
+                        onCheckedChange = onToggleShakeToWake
                     )
                 }
-                IconButton(onClick = { onDiscoverSmartDevices() }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Buscar focos")
+
+                if (isShakeToWakeEnabled) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Sensibilidad de agitación:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ShakeSensitivity.entries.forEach { sens ->
+                            FilterChip(
+                                selected = shakeSensitivity == sens,
+                                onClick = { onChangeShakeSensitivity(sens) },
+                                label = {
+                                    Text(
+                                        when (sens) {
+                                            ShakeSensitivity.GENTLE -> "Suave"
+                                            ShakeSensitivity.NORMAL -> "Normal"
+                                            ShakeSensitivity.VIGOROUS -> "Vigoroso"
+                                        },
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            )
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (smartDevices.isEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
+                // 2. Pocket silence
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Silencio en Bolsillo (Pocket Silence)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Text(
-                            "No hay focos vinculados aún.",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            "Asegúrate de activar 'Control en LAN' en la app Xiaomi Home o Yeelight y presiona buscar, o ingresa la IP del foco.",
-                            fontSize = 12.sp,
+                            "Pausa la escucha cuando el sensor de proximidad detecta bolsillo",
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
+                    Switch(
+                        checked = isPocketSilenceEnabled,
+                        onCheckedChange = onTogglePocketSilence
+                    )
                 }
-            } else {
-                smartDevices.forEach { device ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (device.isPoweredOn)
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant
+
+                // 3. Flip to mute
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Voltear para Silenciar (Flip to Mute)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(
+                            "Pon el móvil boca abajo sobre la mesa para silenciar la voz al instante",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                    Switch(
+                        checked = isFlipToMuteEnabled,
+                        onCheckedChange = onToggleFlipToMute
+                    )
+                }
+
+                // 4. Ventana Flotante / Mini HUD
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Ventana Flotante / Mini HUD (Overlay)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(
+                            "Despliega una burbuja flotante interactiva sobre cualquier app",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Switch(
+                        checked = isOverlayEnabled,
+                        onCheckedChange = onToggleOverlay
+                    )
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // 4. DOMÓTICA & FOCOS INTELIGENTES
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "💡",
+                title = "Domótica & Focos Inteligentes",
+                subtitle = "Xiaomi / Yeelight WiFi local (${smartDevices.size} vinculados)",
+                isExpanded = expandedCategories.contains(3),
+                onToggleExpand = { toggleCategory(3) }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Control local offline (puerto 55443)",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    IconButton(onClick = onDiscoverSmartDevices) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Buscar focos")
+                    }
+                }
+
+                if (smartDevices.isEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("No hay focos vinculados aún.", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Text(
+                                "Activa 'Control en LAN' en Xiaomi Home/Yeelight y presiona buscar.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                } else {
+                    smartDevices.forEach { device ->
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(if (device.isPoweredOn) "💡" else "🌑", fontSize = 24.sp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(device.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("${device.ipAddress}:${device.port} • ${if (device.isPoweredOn) "Encendido (${device.brightness}%)" else "Apagado"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                            }
-                            Switch(
-                                checked = device.isPoweredOn,
-                                onCheckedChange = { onToggleSmartDevice(device) }
+                                .padding(vertical = 3.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (device.isPoweredOn)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant
                             )
-                            IconButton(onClick = { onDeleteSmartDevice(device.id) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { onDiscoverSmartDevices() },
-                    enabled = !isScanningSmartDevices,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (isScanningSmartDevices) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Buscando...", fontSize = 12.sp)
-                    } else {
-                        Text("🔍 Buscar en WiFi")
-                    }
-                }
-                OutlinedButton(
-                    onClick = { showManualAddDialog = !showManualAddDialog },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (showManualAddDialog) "Ocultar IP" else "➕ Añadir IP")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "💡 Tip: Asegúrate de tener activa la opción 'Control en LAN' (en app Yeelight o Xiaomi Home) para que el foco responda en tu red local.",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = subnetInput,
-                onValueChange = {
-                    subnetInput = it
-                    onChangeSmartHomeCustomSubnet(it.ifBlank { null })
-                },
-                label = { Text("Subred personalizada / VLAN IoT (opcional)") },
-                placeholder = { Text("ej: 192.168.2.") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (showManualAddDialog) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Añadir foco por dirección IP", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedTextField(
-                            value = manualName,
-                            onValueChange = { manualName = it },
-                            label = { Text("Nombre (ej: Foco Sala)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedTextField(
-                            value = manualIp,
-                            onValueChange = { manualIp = it },
-                            label = { Text("Dirección IP (ej: 192.168.1.105)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                if (manualIp.isNotBlank()) {
-                                    onAddManualSmartDevice(manualName, manualIp)
-                                    manualIp = ""
-                                    manualName = ""
-                                    showManualAddDialog = false
-                                }
-                            },
-                            enabled = manualIp.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Guardar Foco")
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sección: Personalidad del Asistente (Punto 19)
-            Text("Personalidad del Asistente", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Modula el tono de respuesta, actitud y entonación de voz.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            AssistantPersonality.entries.forEach { pers ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedPersonality = pers }
-                        .padding(vertical = 4.dp)
-                ) {
-                    RadioButton(
-                        selected = selectedPersonality == pers,
-                        onClick = { selectedPersonality = pers }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(pers.displayName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text(pers.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Sección: Modo Copiloto Offline Seguro / Zero-Cloud (Punto 30)
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (zeroCloudMode)
-                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Text("🛡️", fontSize = 22.sp)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text("Copiloto Offline Seguro", fontWeight = FontWeight.Bold)
-                                Text("Zero-Cloud Privacy Mode", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                            }
-                        }
-                        Switch(
-                            checked = zeroCloudMode,
-                            onCheckedChange = { isEnabled ->
-                                zeroCloudMode = isEnabled
-                                if (isEnabled) {
-                                    selectedProvider = AiProvider.LOCAL_SLM
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(if (device.isPoweredOn) "💡" else "🌑", fontSize = 20.sp)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(device.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("${device.ipAddress} • ${if (device.isPoweredOn) "Encendido (${device.brightness}%)" else "Apagado"}", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                                Switch(
+                                    checked = device.isPoweredOn,
+                                    onCheckedChange = { onToggleSmartDevice(device) }
+                                )
+                                IconButton(onClick = { onDeleteSmartDevice(device.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
-                        )
+                        }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = if (zeroCloudMode)
-                            "🔒 Modo Zero-Cloud ACTIVO: Las consultas se procesan 100% en el dispositivo con modelos SLM locales. Se bloquea cualquier llamada HTTP saliente para absoluta privacidad."
-                        else
-                            "Cuando está activo, fuerza el procesamiento 100% local y desconecta servicios en la nube para garantizar cero fuga de datos.",
-                        fontSize = 12.sp,
-                        color = if (zeroCloudMode) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.outline
-                    )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // Sección: Enrutador de Inteligencia Artificial
-            Text("Motor de IA para Consultas Complejas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Cuando la orden no sea una acción local del móvil, se derivará a este proveedor.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            AiProvider.entries.forEach { provider ->
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            selectedProvider = provider
-                            modelName = provider.defaultModel
-                        }
-                        .padding(vertical = 4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    RadioButton(
-                        selected = selectedProvider == provider,
-                        onClick = {
-                            selectedProvider = provider
-                            modelName = provider.defaultModel
+                    Button(
+                        onClick = onDiscoverSmartDevices,
+                        enabled = !isScanningSmartDevices,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isScanningSmartDevices) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Buscando...", fontSize = 11.sp)
+                        } else {
+                            Text("🔍 Buscar WiFi", fontSize = 11.sp)
                         }
-                    )
-                    Text(provider.displayName, modifier = Modifier.padding(start = 8.dp))
+                    }
+                    OutlinedButton(
+                        onClick = { showManualAddDialog = !showManualAddDialog },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (showManualAddDialog) "Ocultar IP" else "➕ Añadir IP", fontSize = 11.sp)
+                    }
                 }
+
+                if (showManualAddDialog) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("Añadir foco manual", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = manualName,
+                                onValueChange = { manualName = it },
+                                label = { Text("Nombre (ej: Foco Sala)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = manualIp,
+                                onValueChange = { manualIp = it },
+                                label = { Text("IP (ej: 192.168.1.105)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Button(
+                                onClick = {
+                                    if (manualIp.isNotBlank()) {
+                                        onAddManualSmartDevice(manualName, manualIp)
+                                        manualIp = ""
+                                        manualName = ""
+                                        showManualAddDialog = false
+                                    }
+                                },
+                                enabled = manualIp.isNotBlank(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Guardar Foco", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = subnetInput,
+                    onValueChange = {
+                        subnetInput = it
+                        onChangeSmartHomeCustomSubnet(it.ifBlank { null })
+                    },
+                    label = { Text("Subred personalizada / VLAN IoT (opcional)") },
+                    placeholder = { Text("ej: 192.168.2.") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Configuración específica de Gemini y Harness
-            if (selectedProvider == AiProvider.GEMINI) {
+            // ---------------------------------------------------------------
+            // 5. PERSONALIDAD & PRIVACIDAD (ZERO-CLOUD)
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "🛡️",
+                title = "Personalidad & Privacidad (Zero-Cloud)",
+                subtitle = "Tono del asistente y modo 100% offline",
+                isExpanded = expandedCategories.contains(4),
+                onToggleExpand = { toggleCategory(4) }
+            ) {
+                // Modo Zero Cloud
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        containerColor = if (zeroCloudMode)
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     ),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Model Routing Harness", fontWeight = FontWeight.Bold)
+                                Text("Zero-Cloud Privacy Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(
-                                    "Enruta automáticamente entre Gemini Flash, Pro o Thinking según la dificultad de la consulta.",
-                                    fontSize = 12.sp,
+                                    if (zeroCloudMode) "🔒 100% Offline con SLM local" else "Permite consultas cloud cuando aplique",
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
                             Switch(
-                                checked = isModelHarnessEnabled,
-                                onCheckedChange = { isModelHarnessEnabled = it }
-                            )
-                        }
-
-                        if (isModelHarnessEnabled) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "Modelos en el pool del Harness:\n• Gemini Flash (Rápido y ágil)\n• Gemini 2.5 Flash (Balanceado)\n• Gemini Pro (Razonamiento profundo)",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                checked = zeroCloudMode,
+                                onCheckedChange = { isEnabled ->
+                                    zeroCloudMode = isEnabled
+                                    if (isEnabled) {
+                                        selectedProvider = AiProvider.LOCAL_SLM
+                                    }
+                                }
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
 
-            if (selectedProvider == AiProvider.LOCAL_SLM) {
-                if (localModelManager != null) {
-                    LocalModelManagerSection(
-                        localModelManager = localModelManager,
-                        selectedModelId = modelName,
-                        onSelectModel = { selectedId ->
-                            modelName = selectedId
-                            onSelectLocalModel(selectedId)
-                        },
-                        onDownloadModel = onDownloadModel,
-                        onCancelDownload = onCancelDownload,
-                        onDeleteModel = onDeleteModel
-                    )
-                } else {
-                    Text(
-                        "Gestor de modelos locales no disponible.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            } else {
-                if (selectedProvider != AiProvider.OLLAMA) {
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = { Text("API Key de ${selectedProvider.displayName}") },
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { showApiKey = !showApiKey }) {
-                                Icon(
-                                    if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Mostrar clave"
-                                )
-                            }
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Personalidad del Asistente", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(modifier = Modifier.height(4.dp))
 
-                if (!isModelHarnessEnabled || selectedProvider != AiProvider.GEMINI) {
-                    OutlinedTextField(
-                        value = modelName,
-                        onValueChange = { modelName = it },
-                        label = { Text("Nombre del Modelo Fijo") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                if (selectedProvider == AiProvider.OLLAMA) {
-                    OutlinedTextField(
-                        value = customEndpoint,
-                        onValueChange = { customEndpoint = it },
-                        label = { Text("Endpoint de Ollama (ej: http://192.168.1.50:11434)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Parámetros de Inferencia LLM", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Temperatura: ${"%.2f".format(temperature)}", fontSize = 12.sp, modifier = Modifier.width(130.dp))
-                Slider(
-                    value = temperature,
-                    onValueChange = { temperature = it },
-                    valueRange = 0.0f..1.5f,
-                    steps = 14,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text("Controla la creatividad vs precisión (0.0 más determinista, 1.0+ más creativo)", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text("Límite de Tokens de Respuesta (Max Tokens):", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(512, 1024, 2048, 4096).forEach { tokens ->
-                    FilterChip(
-                        selected = maxTokens == tokens,
-                        onClick = { maxTokens = tokens },
-                        label = { Text("$tokens", fontSize = 12.sp) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = systemPrompt,
-                onValueChange = { systemPrompt = it },
-                label = { Text("Prompt del Sistema (Instrucciones base)") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 6
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 🔐 Hendrix Vault & Respaldo Unificado
-            Text("Bóveda y Respaldo Unificado (Hendrix Vault)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                "Crea copias de seguridad de todas tus rutinas, botones, tareas, notas y configuraciones. Puedes sincronizarlas con tu PC sin depender de la nube.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text("📦 Gestión de Copias de Seguridad", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "Exporta tu bóveda en formato seguro JSON o sincronízala directamente con el servidor Hendrix PC por red local.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                AssistantPersonality.entries.forEach { pers ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedPersonality = pers }
+                            .padding(vertical = 4.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onExportVault,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("📤 Exportar", fontSize = 12.sp)
+                        RadioButton(
+                            selected = selectedPersonality == pers,
+                            onClick = { selectedPersonality = pers }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text(pers.displayName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(pers.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                         }
-                        OutlinedButton(
-                            onClick = onRestoreVault,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("📥 Restaurar", fontSize = 12.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = onSyncVaultPc,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) {
-                        Text("💻 Sincronizar Bóveda con PC", fontSize = 13.sp)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // ---------------------------------------------------------------
+            // 6. BÓVEDA & RESPALDO UNIFICADO (VAULT)
+            // ---------------------------------------------------------------
+            ExpandableSettingsCategoryCard(
+                icon = "📦",
+                title = "Bóveda & Respaldo (Hendrix Vault)",
+                subtitle = "Exportar, restaurar y sincronizar rutinas y notas con PC",
+                isExpanded = expandedCategories.contains(5),
+                onToggleExpand = { toggleCategory(5) }
+            ) {
+                Text(
+                    "Crea copias de seguridad de todas tus rutinas, botones, tareas, notas y configuraciones sin depender de servicios en la nube.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onExportVault,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("📤 Exportar", fontSize = 11.sp)
+                    }
+                    OutlinedButton(
+                        onClick = onRestoreVault,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("📥 Restaurar", fontSize = 11.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Button(
+                    onClick = onSyncVaultPc,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) {
+                    Text("💻 Sincronizar Bóveda con PC", fontSize = 12.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Botón Principal Guardar
             Button(
                 onClick = {
                     val updated = currentConfig.copy(
@@ -1062,9 +1038,88 @@ fun SettingsScreen(
                     onSaveConfig(updated)
                     onBack()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
             ) {
-                Text("Guardar Configuración")
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Guardar Configuración", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/**
+ * Tarjeta atómica expandible tipo Acordeón para organizar categorías de ajustes.
+ * Reduce drásticamente la altura de la pantalla y la fatiga visual.
+ */
+@Composable
+private fun ExpandableSettingsCategoryCard(
+    icon: String,
+    title: String,
+    subtitle: String,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isExpanded)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isExpanded) 2.dp else 1.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() }
+                    .padding(14.dp)
+            ) {
+                Text(text = icon, fontSize = 22.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1
+                    )
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Colapsar" else "Expandir",
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+                    content()
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,8 @@ import com.asistente.celular.nlu.evaluator.InteractionEntry
 import com.asistente.celular.nlu.notes.NoteItem
 import com.asistente.celular.nlu.smarthome.SmartDevice
 import com.asistente.celular.nlu.tasks.TaskItem
+import com.asistente.celular.nlu.ui.AssistantUiPayload
+import com.asistente.celular.ui.cards.AssistantInteractiveCard
 import com.asistente.celular.ui.dashboard.DailyBriefingHub
 import com.asistente.celular.viewmodel.AssistantUiState
 
@@ -238,7 +241,10 @@ fun AssistantScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(state.interactions, key = { it.id }) { interaction ->
-                        InteractionCard(interaction = interaction)
+                        InteractionCard(
+                            interaction = interaction,
+                            onSendCommand = onSendCommand
+                        )
                     }
                 }
             }
@@ -302,7 +308,10 @@ fun VoiceActionButton(
 }
 
 @Composable
-fun InteractionCard(interaction: InteractionEntry) {
+fun InteractionCard(
+    interaction: InteractionEntry,
+    onSendCommand: (String) -> Unit = {}
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // Burbuja de usuario
         Box(
@@ -409,6 +418,41 @@ fun InteractionCard(interaction: InteractionEntry) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Renderizado condicional y expandible de controles interactivos (evita scroll masivo)
+                val uiPayload = interaction.output.payload as? AssistantUiPayload
+                if (uiPayload != null) {
+                    var isExpanded by remember { mutableStateOf(false) }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        modifier = Modifier.clickable { isExpanded = !isExpanded }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = if (isExpanded) "🔼 Ocultar controles interactivos" else "🔽 Ver controles interactivos",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(visible = isExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            AssistantInteractiveCard(
+                                payload = uiPayload,
+                                onExecuteCommand = onSendCommand,
+                                onRequestBrightnessPermission = {}
+                            )
+                        }
+                    }
+                }
             }
         }
     }
