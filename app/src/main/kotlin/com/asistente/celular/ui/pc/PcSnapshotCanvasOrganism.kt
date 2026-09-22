@@ -1,24 +1,39 @@
 package com.asistente.celular.ui.pc
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -59,8 +74,27 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Organismo visual para interactuar con la pantalla de la PC mediante fotogramas Snapshot WebP.
- * Soporta zoom y paneo multitáctil, modo trackpad de precisión y Lupa de Aumento HD (3.5x Zoom Loupe).
+ * Modos de interacción táctil con la pantalla de la PC.
+ */
+enum class PcTouchMode(val title: String, val icon: String, val badge: String) {
+    DIRECT_TOUCH("Táctil", "🖐️", "Toque Directo"),
+    TRACKPAD("Trackpad", "🖱️", "Cursor Relativo"),
+    NAVIGATE("Navegar", "🧭", "Zoom y Paneo Seguro")
+}
+
+/**
+ * Organismo visual de alto rendimiento para interactuar con la pantalla de la PC mediante fotogramas Snapshot WebP.
+ *
+ * Características avanzadas de interacción:
+ * - Preservación estricta de la relación de aspecto de la PC (ContentScale.Fit con centrado automático).
+ * - Zoom por pinza multitáctil basado en centroide (1.0x a 6.0x) sin saltos de coordenadas.
+ * - Límites de paneo estrictos para evitar perder la imagen fuera de la pantalla.
+ * - Soporte para 3 modos de interacción:
+ *     1) Direct Touch: toque directo estilo pantalla táctil de Windows.
+ *     2) Trackpad: control relativo de precisión con puntero virtual.
+ *     3) Navigate: paneo y zoom libres sin enviar clics accidentales a la PC.
+ * - HUD táctil de zoom flotante (+, -, presets de zoom 100% / 200% / 350%, reset fit).
+ * - Lupa de Precisión HD 3.8x inteligente con auto-inversión vertical para no ser tapada por el pulgar.
  */
 @Composable
 fun PcSnapshotCanvasOrganism(
@@ -78,19 +112,22 @@ fun PcSnapshotCanvasOrganism(
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
 
+    // Modo de interacción táctil activo
+    var touchMode by remember { mutableStateOf(PcTouchMode.DIRECT_TOUCH) }
+
     // Estados de transformación (Zoom y Paneo)
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
-    // Coordenadas relativas del cursor virtual (0.0f a 1.0f)
+    // Coordenadas relativas del cursor virtual sobre la pantalla de la PC (0.0f a 1.0f)
     var cursorRatioX by remember { mutableFloatStateOf(0.5f) }
     var cursorRatioY by remember { mutableFloatStateOf(0.5f) }
 
     // Estado de la Lupa de Precisión (Zoom Loupe)
-    var isLoupeActive by remember { mutableStateOf(false) }
+    var isManualLoupeActive by remember { mutableStateOf(false) }
     var loupeTouchOffset by remember { mutableStateOf(Offset.Zero) }
 
-    // Decodificación en segundo plano del snapshot WebP
+    // Decodificación asíncrona del snapshot WebP
     LaunchedEffect(snapshotBytes) {
         if (snapshotBytes != null && snapshotBytes.isNotEmpty()) {
             withContext(Dispatchers.Default) {
@@ -105,111 +142,258 @@ fun PcSnapshotCanvasOrganism(
         }
     }
 
+    // Cálculos de ajuste de relación de aspecto (Fit Center)
+    val bmp = imageBitmap
+    val bmpW = bmp?.width?.toFloat() ?: 1920f
+    val bmpH = bmp?.height?.toFloat() ?: 1080f
+    val bmpAspect = bmpW / bmpH
+
+    val cW = containerSize.width.toFloat().coerceAtLeast(1f)
+    val cH = containerSize.height.toFloat().coerceAtLeast(1f)
+    val containerAspect = cW / cH
+
+    val (fitW, fitH) = if (containerAspect > bmpAspect) {
+        Pair(cH * bmpAspect, cH)
+    } else {
+        Pair(cW, cW / bmpAspect)
+    }
+
+    // Dimensiones escaladas
+    val scaledW = fitW * scale
+    val scaledH = fitH * scale
+
+    // Límites de paneo (clamping para que la imagen nunca se escape del lienzo)
+    val maxPanX = if (scaledW > cW) (scaledW - cW) / 2f else 0f
+    val maxPanY = if (scaledH > cH) (scaledH - cH) / 2f else 0f
+
+    // Función auxiliar para limitar offset
+    fun clampOffset(raw: Offset, s: Float): Offset {
+        val sW = fitW * s
+        val sH = fitH * s
+        val mX = if (sW > cW) (sW - cW) / 2f else 0f
+        val mY = if (sH > cH) (sH - cH) / 2f else 0f
+        return Offset(
+            x = raw.x.coerceIn(-mX, mX),
+            y = raw.y.coerceIn(-mY, mY)
+        )
+    }
+
+    // Posición superior izquierda del fotograma de la PC en pantalla
+    val imageScreenLeft = (cW / 2f + offset.x) - (scaledW / 2f)
+    val imageScreenTop = (cH / 2f + offset.y) - (scaledH / 2f)
+
+    // Convierte un punto táctil de la pantalla a ratios de la PC [0f..1f]
+    fun screenToPcRatio(touchPos: Offset): Pair<Float, Float> {
+        val normX = ((touchPos.x - imageScreenLeft) / scaledW).coerceIn(0f, 1f)
+        val normY = ((touchPos.y - imageScreenTop) / scaledH).coerceIn(0f, 1f)
+        return Pair(normX, normY)
+    }
+
+    // Restablece el zoom a 100% centrado
+    fun resetZoom() {
+        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        scale = 1f
+        offset = Offset.Zero
+    }
+
+    // Ajusta el zoom de forma incremental
+    fun adjustZoom(delta: Float) {
+        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        val newScale = (scale + delta).coerceIn(1f, 6f)
+        scale = newScale
+        offset = clampOffset(offset, newScale)
+    }
+
+    // Cicla entre presets de zoom (100% -> 200% -> 350% -> 100%)
+    fun cycleZoomPreset() {
+        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        val newScale = when {
+            scale < 1.7f -> 2.0f
+            scale < 3.0f -> 3.5f
+            else -> 1.0f
+        }
+        scale = newScale
+        offset = clampOffset(offset, newScale)
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
-            .background(Color(0xFF0F172A))
+            .background(Color(0xFF0B1120))
             .onSizeChanged { containerSize = it }
+            // Manejador de PINZA MULTITÁCTIL (Pinch-to-Zoom y Paneo por centroide)
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    val maxOffsetX = (containerSize.width * (scale - 1f)) / 2f
-                    val maxOffsetY = (containerSize.height * (scale - 1f)) / 2f
-                    offset = Offset(
-                        x = (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
-                        y = (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
-                    )
+                detectTransformGestures(panZoomLock = false) { centroid, pan, zoom, _ ->
+                    val oldScale = scale
+                    val newScale = (scale * zoom).coerceIn(1f, 6f)
+
+                    if (newScale != oldScale || pan != Offset.Zero) {
+                        val factor = newScale / oldScale
+                        val curCenterX = (cW / 2f) + offset.x
+                        val curCenterY = (cH / 2f) + offset.y
+
+                        val newCenterX = centroid.x + (curCenterX - centroid.x) * factor + pan.x
+                        val newCenterY = centroid.y + (curCenterY - centroid.y) * factor + pan.y
+
+                        val rawOffset = Offset(
+                            x = newCenterX - (cW / 2f),
+                            y = newCenterY - (cH / 2f)
+                        )
+                        scale = newScale
+                        offset = clampOffset(rawOffset, newScale)
+                    }
                 }
             }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { tapPos ->
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        // Calcular coordenada normalizada considerando escala y paneo
-                        val normX = ((tapPos.x - offset.x) / (containerSize.width * scale)).coerceIn(0f, 1f)
-                        val normY = ((tapPos.y - offset.y) / (containerSize.height * scale)).coerceIn(0f, 1f)
-                        cursorRatioX = normX
-                        cursorRatioY = normY
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.CLICK,
-                                xRatio = normX,
-                                yRatio = normY
-                            )
-                        )
-                    },
-                    onDoubleTap = { tapPos ->
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        val normX = ((tapPos.x - offset.x) / (containerSize.width * scale)).coerceIn(0f, 1f)
-                        val normY = ((tapPos.y - offset.y) / (containerSize.height * scale)).coerceIn(0f, 1f)
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.DOUBLE_CLICK,
-                                xRatio = normX,
-                                yRatio = normY
-                            )
-                        )
-                    },
-                    onLongPress = { tapPos ->
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                        val normX = ((tapPos.x - offset.x) / (containerSize.width * scale)).coerceIn(0f, 1f)
-                        val normY = ((tapPos.y - offset.y) / (containerSize.height * scale)).coerceIn(0f, 1f)
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.RIGHT_CLICK,
-                                xRatio = normX,
-                                yRatio = normY
-                            )
+            // Manejador de TOQUES SIMPLES SEGÚN EL MODO ACTIVO
+            .pointerInput(touchMode) {
+                when (touchMode) {
+                    PcTouchMode.DIRECT_TOUCH -> {
+                        detectTapGestures(
+                            onTap = { tapPos ->
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                val (normX, normY) = screenToPcRatio(tapPos)
+                                cursorRatioX = normX
+                                cursorRatioY = normY
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.CLICK,
+                                        xRatio = normX,
+                                        yRatio = normY
+                                    )
+                                )
+                            },
+                            onDoubleTap = { tapPos ->
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                val (normX, normY) = screenToPcRatio(tapPos)
+                                cursorRatioX = normX
+                                cursorRatioY = normY
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.DOUBLE_CLICK,
+                                        xRatio = normX,
+                                        yRatio = normY
+                                    )
+                                )
+                            },
+                            onLongPress = { tapPos ->
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                val (normX, normY) = screenToPcRatio(tapPos)
+                                cursorRatioX = normX
+                                cursorRatioY = normY
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.RIGHT_CLICK,
+                                        xRatio = normX,
+                                        yRatio = normY
+                                    )
+                                )
+                            }
                         )
                     }
-                )
+                    PcTouchMode.TRACKPAD -> {
+                        detectTapGestures(
+                            onTap = {
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.CLICK,
+                                        xRatio = cursorRatioX,
+                                        yRatio = cursorRatioY
+                                    )
+                                )
+                            },
+                            onDoubleTap = {
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.DOUBLE_CLICK,
+                                        xRatio = cursorRatioX,
+                                        yRatio = cursorRatioY
+                                    )
+                                )
+                            },
+                            onLongPress = {
+                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                onSendAction(
+                                    PcInteractionAction(
+                                        type = PcActionType.RIGHT_CLICK,
+                                        xRatio = cursorRatioX,
+                                        yRatio = cursorRatioY
+                                    )
+                                )
+                            }
+                        )
+                    }
+                    PcTouchMode.NAVIGATE -> {
+                        detectTapGestures(
+                            onDoubleTap = { tapPos ->
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                if (scale > 1.2f) {
+                                    scale = 1f
+                                    offset = Offset.Zero
+                                } else {
+                                    val targetScale = 2.5f
+                                    val (normX, normY) = screenToPcRatio(tapPos)
+                                    val targetCenterX = cW * 0.5f - (normX - 0.5f) * fitW * targetScale
+                                    val targetCenterY = cH * 0.5f - (normY - 0.5f) * fitH * targetScale
+                                    scale = targetScale
+                                    offset = clampOffset(Offset(targetCenterX - cW * 0.5f, targetCenterY - cH * 0.5f), targetScale)
+                                }
+                            }
+                        )
+                    }
+                }
             }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { startPos ->
-                        isLoupeActive = true
-                        loupeTouchOffset = startPos
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        loupeTouchOffset += dragAmount
-                        val normX = ((loupeTouchOffset.x - offset.x) / (containerSize.width * scale)).coerceIn(0f, 1f)
-                        val normY = ((loupeTouchOffset.y - offset.y) / (containerSize.height * scale)).coerceIn(0f, 1f)
-                        cursorRatioX = normX
-                        cursorRatioY = normY
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.MOUSE_MOVE,
-                                xRatio = normX,
-                                yRatio = normY
+            // Manejador de ARRASTRES CONTINUOS (Drag en Trackpad o Paneo en Navegación)
+            .pointerInput(touchMode) {
+                if (touchMode == PcTouchMode.TRACKPAD) {
+                    detectDragGestures(
+                        onDragStart = { startPos ->
+                            if (isLoupeEnabled) {
+                                isManualLoupeActive = true
+                                loupeTouchOffset = startPos
+                            }
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            loupeTouchOffset += dragAmount
+
+                            // Aceleración de cursor balístico suave
+                            val sensitivity = 1.35f
+                            val deltaX = (dragAmount.x * sensitivity) / scaledW
+                            val deltaY = (dragAmount.y * sensitivity) / scaledH
+
+                            cursorRatioX = (cursorRatioX + deltaX).coerceIn(0f, 1f)
+                            cursorRatioY = (cursorRatioY + deltaY).coerceIn(0f, 1f)
+
+                            onSendAction(
+                                PcInteractionAction(
+                                    type = PcActionType.MOUSE_MOVE,
+                                    xRatio = cursorRatioX,
+                                    yRatio = cursorRatioY
+                                )
                             )
-                        )
-                    },
-                    onDragEnd = {
-                        isLoupeActive = false
-                    },
-                    onDragCancel = {
-                        isLoupeActive = false
+                        },
+                        onDragEnd = { isManualLoupeActive = false },
+                        onDragCancel = { isManualLoupeActive = false }
+                    )
+                } else if (touchMode == PcTouchMode.NAVIGATE) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        offset = clampOffset(offset + dragAmount, scale)
                     }
-                )
+                }
             }
     ) {
-        val bmp = imageBitmap
         if (bmp != null) {
-            Canvas(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // Dibujar el fotograma escalado y centrado
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                // Dibujar el fotograma escalado y centrado respetando la relación de aspecto real
                 drawImage(
                     image = bmp,
-                    dstOffset = IntOffset(offset.x.toInt(), offset.y.toInt()),
-                    dstSize = IntSize((size.width * scale).toInt(), (size.height * scale).toInt())
+                    dstOffset = IntOffset(imageScreenLeft.toInt(), imageScreenTop.toInt()),
+                    dstSize = IntSize(scaledW.toInt(), scaledH.toInt())
                 )
-
-                // Dibujar cursor virtual
-                val cursorScreenX = (cursorRatioX * size.width * scale) + offset.x
-                val cursorScreenY = (cursorRatioY * size.height * scale) + offset.y
 
                 // Resaltado de Ventana Activa si el enfoque está habilitado
                 if (isWindowFocusActive && activeWindowBounds != null) {
@@ -218,41 +402,48 @@ fun PcSnapshotCanvasOrganism(
                     val normW = (activeWindowBounds.width.toFloat() / 1920f).coerceIn(0.05f, 1f)
                     val normH = (activeWindowBounds.height.toFloat() / 1080f).coerceIn(0.05f, 1f)
 
-                    val boxX = (normLeft * size.width * scale) + offset.x
-                    val boxY = (normTop * size.height * scale) + offset.y
-                    val boxW = normW * size.width * scale
-                    val boxH = normH * size.height * scale
+                    val boxX = imageScreenLeft + (normLeft * scaledW)
+                    val boxY = imageScreenTop + (normTop * scaledH)
+                    val boxW = normW * scaledW
+                    val boxH = normH * scaledH
 
                     drawRect(
                         color = Color(0xFF38BDF8),
                         topLeft = Offset(boxX, boxY),
                         size = Size(boxW, boxH),
-                        style = Stroke(width = 3.dp.toPx())
+                        style = Stroke(width = 2.5.dp.toPx())
                     )
                 }
 
+                // Dibujar cursor virtual sobre la posición normalizada
+                val cursorScreenX = imageScreenLeft + (cursorRatioX * scaledW)
+                val cursorScreenY = imageScreenTop + (cursorRatioY * scaledH)
+
+                drawCircle(
+                    color = Color(0xFF38BDF8).copy(alpha = 0.5f),
+                    radius = 12.dp.toPx(),
+                    center = Offset(cursorScreenX, cursorScreenY)
+                )
                 drawCircle(
                     color = Color(0xFF38BDF8),
-                    radius = 8.dp.toPx(),
+                    radius = 6.dp.toPx(),
                     center = Offset(cursorScreenX, cursorScreenY)
                 )
                 drawCircle(
                     color = Color.White,
-                    radius = 4.dp.toPx(),
+                    radius = 3.dp.toPx(),
                     center = Offset(cursorScreenX, cursorScreenY)
                 )
             }
         } else {
-            // Estado de espera o sin fotograma
+            // Estado de espera o reconexión
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.foundation.layout.Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Conectando con la pantalla del PC...",
                         color = Color.White.copy(alpha = 0.8f),
@@ -262,16 +453,173 @@ fun PcSnapshotCanvasOrganism(
             }
         }
 
-        // Lupa de Precisión HD (3.5x Zoom Loupe)
-        val showLoupe = (isLoupeActive || isLoupeEnabled) && bmp != null
+        // ==========================================
+        // BARRA SUPERIOR: SELECTOR DE MODO Y ACCIONES
+        // ==========================================
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .align(Alignment.TopCenter),
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF0F172A).copy(alpha = 0.88f),
+            border = BorderStroke(1.dp, Color(0xFF334155))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Selector de modo táctil
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PcTouchMode.entries.forEach { mode ->
+                        val isSelected = touchMode == mode
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color(0xFF0284C7) else Color.Transparent,
+                            modifier = Modifier.clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                touchMode = mode
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(mode.icon, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = mode.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Botón de refresco manual
+                IconButton(
+                    onClick = onRequestRefresh,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Refrescar pantalla",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // HUD FLOTANTE DE ZOOM (CONTROLES ERGONÓMICOS)
+        // ==========================================
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp, bottom = 12.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF0F172A).copy(alpha = 0.92f),
+            border = BorderStroke(1.dp, Color(0xFF334155)),
+            tonalElevation = 6.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // Zoom Out (-)
+                IconButton(
+                    onClick = { adjustZoom(-0.5f) },
+                    enabled = scale > 1.0f,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = "Reducir zoom",
+                        tint = if (scale > 1.0f) Color.White else Color(0xFF475569),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Porcentaje actual / Ciclo rápido
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF1E293B),
+                    modifier = Modifier
+                        .clickable { cycleZoomPreset() }
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Text(
+                        text = "${(scale * 100).toInt()}%",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+
+                // Zoom In (+)
+                IconButton(
+                    onClick = { adjustZoom(+0.5f) },
+                    enabled = scale < 6.0f,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Aumentar zoom",
+                        tint = if (scale < 6.0f) Color.White else Color(0xFF475569),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Restablecer a 1x (Ajustar a pantalla)
+                IconButton(
+                    onClick = { resetZoom() },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CropFree,
+                        contentDescription = "Ajustar a pantalla completa",
+                        tint = if (scale > 1.05f) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // ==========================================
+        // LUPA DE PRECISIÓN HD (ZOOM LOUPE 3.8X)
+        // ==========================================
+        val showLoupe = (isManualLoupeActive || isLoupeEnabled) && bmp != null
         if (showLoupe) {
-            val loupeSizeDp = 130.dp
+            val loupeSizeDp = 138.dp
             val loupePx = with(density) { loupeSizeDp.toPx() }
-            val touchX = if (isLoupeActive) loupeTouchOffset.x else ((cursorRatioX * containerSize.width * scale) + offset.x)
-            val touchY = if (isLoupeActive) loupeTouchOffset.y else ((cursorRatioY * containerSize.height * scale) + offset.y)
+
+            val cursorScreenX = imageScreenLeft + (cursorRatioX * scaledW)
+            val cursorScreenY = imageScreenTop + (cursorRatioY * scaledH)
+
+            val anchorX = if (isManualLoupeActive) loupeTouchOffset.x else cursorScreenX
+            val anchorY = if (isManualLoupeActive) loupeTouchOffset.y else cursorScreenY
+
+            // Auto-inversión: si el toque está en la parte superior, colocar la lupa abajo para no salirse
+            val targetY = if (anchorY < cH * 0.45f) {
+                anchorY + 24.dp.value
+            } else {
+                anchorY - loupePx - 24.dp.value
+            }
+
             val loupeOffset = IntOffset(
-                x = (touchX - (loupePx / 2f)).coerceIn(0f, (containerSize.width - loupePx)).toInt(),
-                y = (touchY - loupePx - 24.dp.value).coerceIn(0f, (containerSize.height - loupePx)).toInt()
+                x = (anchorX - (loupePx / 2f)).coerceIn(8f, (cW - loupePx - 8f)).toInt(),
+                y = targetY.coerceIn(8f, (cH - loupePx - 8f)).toInt()
             )
 
             Box(
@@ -283,11 +631,11 @@ fun PcSnapshotCanvasOrganism(
                     .border(3.5.dp, Color(0xFF38BDF8), CircleShape)
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val mag = 3.5f
+                    val mag = 3.8f
                     val sampleX = cursorRatioX * bmp.width
                     val sampleY = cursorRatioY * bmp.height
-                    val cropW = (bmp.width / (scale * mag)).toInt().coerceAtLeast(10)
-                    val cropH = (bmp.height / (scale * mag)).toInt().coerceAtLeast(10)
+                    val cropW = (bmp.width / (scale * mag)).toInt().coerceAtLeast(12)
+                    val cropH = (bmp.height / (scale * mag)).toInt().coerceAtLeast(12)
 
                     drawImage(
                         image = bmp,
@@ -300,27 +648,27 @@ fun PcSnapshotCanvasOrganism(
                         dstSize = IntSize(size.width.toInt(), size.height.toInt())
                     )
 
-                    // Retícula de precisión HD
+                    // Retícula de mira telescópica HD
                     drawCircle(
                         color = Color(0xFF38BDF8).copy(alpha = 0.4f),
-                        radius = 16.dp.toPx(),
+                        radius = 18.dp.toPx(),
                         style = Stroke(width = 1.5.dp.toPx())
                     )
                     drawLine(
                         color = Color(0xFF38BDF8),
-                        start = Offset(size.width / 2f - 14f, size.height / 2f),
-                        end = Offset(size.width / 2f + 14f, size.height / 2f),
+                        start = Offset(size.width / 2f - 16f, size.height / 2f),
+                        end = Offset(size.width / 2f + 16f, size.height / 2f),
                         strokeWidth = 2.5f
                     )
                     drawLine(
                         color = Color(0xFF38BDF8),
-                        start = Offset(size.width / 2f, size.height / 2f - 14f),
-                        end = Offset(size.width / 2f, size.height / 2f + 14f),
+                        start = Offset(size.width / 2f, size.height / 2f - 16f),
+                        end = Offset(size.width / 2f, size.height / 2f + 16f),
                         strokeWidth = 2.5f
                     )
                     drawCircle(
-                        color = Color.Red,
-                        radius = 2.5.dp.toPx()
+                        color = Color(0xFFEF4444),
+                        radius = 3.dp.toPx()
                     )
                 }
 
@@ -330,7 +678,7 @@ fun PcSnapshotCanvasOrganism(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 6.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.75f))
+                        .background(Color.Black.copy(alpha = 0.8f))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -340,26 +688,6 @@ fun PcSnapshotCanvasOrganism(
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
-        }
-
-        // Botón flotante para refrescar captura manualmente
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp),
-            shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.6f)
-        ) {
-            IconButton(
-                onClick = onRequestRefresh,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Refrescar pantalla",
-                    tint = Color.White
-                )
             }
         }
     }
