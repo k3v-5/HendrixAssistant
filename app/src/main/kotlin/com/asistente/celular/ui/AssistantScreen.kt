@@ -9,6 +9,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,6 +76,9 @@ import com.asistente.celular.viewmodel.AssistantUiState
 @Composable
 fun AssistantScreen(
     state: AssistantUiState,
+    isPcConnected: Boolean = false,
+    pcHostname: String? = null,
+    onOpenPcModules: () -> Unit = {},
     tasks: List<TaskItem> = emptyList(),
     notes: List<NoteItem> = emptyList(),
     smartDevices: List<SmartDevice> = emptyList(),
@@ -106,15 +111,40 @@ fun AssistantScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Asistente Offline-First", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Asistente Offline-First", fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         Text(
                             text = if (state.isConnected) "Enrutador IA Activo (${state.llmConfig.provider.displayName})" else "100% Offline (Motor Local)",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             color = if (state.isConnected) MaterialTheme.colorScheme.primary else Color(0xFF4CAF50)
                         )
                     }
                 },
                 actions = {
+                    // Píldora visible de estado de PC (Tocar para ir a Módulos PC)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isPcConnected) Color(0xFF10B981).copy(alpha = 0.18f) else Color(0xFFEF4444).copy(alpha = 0.18f),
+                        modifier = Modifier.clickable { onOpenPcModules() }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(if (isPcConnected) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPcConnected) (pcHostname?.take(14) ?: "PC Conectada") else "PC Desconectada",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPcConnected) Color(0xFF10B981) else Color(0xFFEF4444)
+                            )
+                        }
+                    }
+
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Ajustes")
                     }
@@ -222,13 +252,8 @@ fun AssistantScreen(
                 .padding(padding)
         ) {
             if (state.interactions.isEmpty()) {
-                DailyBriefingHub(
-                    llmConfig = state.llmConfig,
-                    tasks = tasks,
-                    notes = notes,
-                    smartDevices = smartDevices,
-                    onSendCommand = onSendCommand,
-                    onToggleSmartDevice = onToggleSmartDevice,
+                EmptyAssistantView(
+                    onPromptClick = onSendCommand,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -459,30 +484,81 @@ fun InteractionCard(
 }
 
 @Composable
-fun EmptyAssistantView(modifier: Modifier = Modifier) {
+fun EmptyAssistantView(
+    onPromptClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            Icons.Default.Bolt,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(64.dp)
-        )
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            modifier = Modifier.size(68.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(38.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "Asistente Hendrix",
+            "Hendrix Assistant",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
-            "Di \"Oye Hendrix\" o pulsa el micrófono para hablar.\n\nPrueba comandos locales como:\n• \"Enciende la linterna\"\n• \"Temporizador de 5 minutos\"\n• \"Alarma a las 7 de la mañana\"\n• \"Abre WhatsApp\"\n• \"Qué hora es\"\n\nO preguntas abiertas a la IA:\n• \"Explícame cómo funciona un satélite\"",
+            "Tu asistente inteligente de voz y control de PC.\nEscribe o pulsa el micrófono para hablar.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.outline,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Chips discretos de sugerencias rápidas
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clickable { onPromptClick("Estado de la computadora") }
+            ) {
+                Text("🖥️ Estado PC", fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clickable { onPromptClick("Enciende la linterna") }
+            ) {
+                Text("🔦 Linterna", fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clickable { onPromptClick("Pon un temporizador de 25 minutos") }
+            ) {
+                Text("⏱️ Pomodoro 25m", fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clickable { onPromptClick("Anota comprar café") }
+            ) {
+                Text("📝 Tomar Nota", fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+            }
+        }
     }
 }
 

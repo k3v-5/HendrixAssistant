@@ -82,6 +82,8 @@ class MainActivity : ComponentActivity() {
                 val notes by viewModel.notesState.collectAsState()
                 val smartDevices by viewModel.smartDevicesState.collectAsState()
                 val isScanningSmartDevices by viewModel.isScanningSmartDevices.collectAsState()
+                val isPcConnected by viewModel.pcRemoteCoordinator.isConnected.collectAsState()
+                val pcTelemetry by viewModel.pcRemoteCoordinator.telemetry.collectAsState()
 
                 val inStandby = isDeskStandby || currentScreen == Screen.DeskStandby
 
@@ -181,6 +183,9 @@ class MainActivity : ComponentActivity() {
                             Screen.Assistant -> {
                                 AssistantScreen(
                                     state = uiState,
+                                    isPcConnected = isPcConnected,
+                                    pcHostname = pcTelemetry?.hostname,
+                                    onOpenPcModules = { currentScreenFlow.value = Screen.PcModules },
                                     tasks = tasks,
                                     notes = notes,
                                     smartDevices = smartDevices,

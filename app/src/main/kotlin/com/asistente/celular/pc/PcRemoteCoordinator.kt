@@ -94,7 +94,7 @@ class PcRemoteCoordinator(
     private var activeWebSocket: WebSocket? = null
     private var telemetryPollingJob: Job? = null
 
-    private var currentHost: String = "192.168.1.100"
+    private var currentHost: String = "192.168.100.159"
     private var currentPort: Int = DEFAULT_PORT
     private var authToken: String = ""
 
@@ -184,11 +184,11 @@ class PcRemoteCoordinator(
     }
 
     private fun loadSavedConfig(): PcEndpointConfig {
-        val host = prefs.getString("pc_host", "192.168.1.100") ?: "192.168.1.100"
+        val host = prefs.getString("pc_host", "192.168.100.159") ?: "192.168.100.159"
         val port = prefs.getInt("pc_port", DEFAULT_PORT)
         val tunnelUrl = prefs.getString("pc_tunnel_url", null)
         val token = prefs.getString("pc_token", "") ?: ""
-        val pin = prefs.getString("pc_pin", "") ?: ""
+        val pin = prefs.getString("pc_pin", "123456") ?: "123456"
         val hostname = prefs.getString("pc_hostname", "PC-Workstation") ?: "PC-Workstation"
         val isPaired = prefs.getBoolean("pc_is_paired", false)
         val mac = prefs.getString("pc_mac_address", null)

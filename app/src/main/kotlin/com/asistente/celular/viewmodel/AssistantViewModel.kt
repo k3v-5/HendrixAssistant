@@ -191,8 +191,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
             _isDeskStandbyActive.value = true
         }
 
-        // Iniciar descubrimiento Zero-Config en la red local
+        // Iniciar descubrimiento Zero-Config en la red local y auto-conexión a PC
         pcDiscoveryCoordinator.startDiscovery()
+        viewModelScope.launch {
+            pcRemoteCoordinator.connectAuto()
+        }
 
         // Sincronizar automáticamente Notas y Tareas con el motor RAG vectorial
         viewModelScope.launch {

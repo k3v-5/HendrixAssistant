@@ -168,7 +168,8 @@ class PcDiscoveryCoordinator(
             if (pcRemoteCoordinator?.isConnected?.value == false) {
                 Log.i(TAG, "Auto-reconectando con PC descubierta...")
                 scope.launch {
-                    pcRemoteCoordinator.connect(targetIp, wsPort)
+                    val pin = pcRemoteCoordinator.endpointConfig.value.pin.takeIf { it.isNotBlank() } ?: "123456"
+                    pcRemoteCoordinator.connect(targetIp, wsPort, pin)
                 }
             }
         } catch (e: Exception) {
