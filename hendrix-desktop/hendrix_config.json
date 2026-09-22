@@ -9,7 +9,57 @@
   "allow_keyboard_control": true,
   "allow_screen_capture": true,
   "allow_terminal_commands": true,
-  "paired_tokens": [],
-  "paired_devices": [],
+  "paired_tokens": [
+    "cb39938a-50eb-40dc-9f65-5540db9367d8",
+    "9cd9178c-f497-4fb2-9cf5-80af7219f64f",
+    "76166874-731d-420a-8a71-a650006dc6be",
+    "a36ea82b-ce1b-470b-9ce9-bf473bbef1db",
+    "7d805060-d2d6-4f09-a1c1-01a93525d870",
+    "c3467636-e829-4b0a-89a4-915e437402dd"
+  ],
+  "paired_devices": [
+    {
+      "token": "cb39938a-50eb-40dc-9f65-5540db9367d8",
+      "name": "TestClient",
+      "ip": "192.168.100.159",
+      "paired_at": 1790052935,
+      "last_seen": 1790052935
+    },
+    {
+      "token": "9cd9178c-f497-4fb2-9cf5-80af7219f64f",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790053991,
+      "last_seen": 1790053991
+    },
+    {
+      "token": "76166874-731d-420a-8a71-a650006dc6be",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790053991,
+      "last_seen": 1790053991
+    },
+    {
+      "token": "a36ea82b-ce1b-470b-9ce9-bf473bbef1db",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790053991,
+      "last_seen": 1790053991
+    },
+    {
+      "token": "7d805060-d2d6-4f09-a1c1-01a93525d870",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790053991,
+      "last_seen": 1790053991
+    },
+    {
+      "token": "c3467636-e829-4b0a-89a4-915e437402dd",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790053991,
+      "last_seen": 1790077707
+    }
+  ],
   "remote_tunnel_url": null
 }

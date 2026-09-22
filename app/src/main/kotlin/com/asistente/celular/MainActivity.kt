@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
@@ -153,11 +154,11 @@ class MainActivity : ComponentActivity() {
                                 onClick = { currentScreenFlow.value = Screen.PcModules },
                                 icon = {
                                     Icon(
-                                        imageVector = if (currentScreen == Screen.PcModules) Icons.Filled.Extension else Icons.Outlined.Extension,
-                                        contentDescription = "Módulos PC"
+                                        imageVector = Icons.Filled.Computer,
+                                        contentDescription = "Mi PC"
                                     )
                                 },
-                                label = { Text("Módulos PC") }
+                                label = { Text("Mi PC") }
                             )
 
                             NavigationBarItem(

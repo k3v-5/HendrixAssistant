@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -72,14 +73,22 @@ import com.asistente.celular.nlu.pc.module.PcModuleId
 import com.asistente.celular.pc.module.PcModuleManager
 import kotlinx.coroutines.launch
 
+import com.asistente.celular.ui.pc.PcSnapshotCanvasOrganism
+import com.asistente.celular.ui.pc.PcFloatingActionDock
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.graphics.StrokeCap
+
 /**
  * Pestañas principales para navegación segmentada de la workstation de PC.
- * Elimina el desplazamiento vertical infinito agrupando las herramientas por contexto de uso.
+ * Prioriza la visualización de la pantalla en vivo y atajos esenciales sin scroll infinito.
  */
 enum class PcDeckTab(val title: String, val icon: String) {
-    DECK("Deck & Macros", "🎛️"),
-    STUDIO("Estudio", "🎵"),
-    AIRSYNC("AirSync", "📁"),
+    SCREEN("Pantalla", "🖥️"),
+    DECK("Atajos", "🎛️"),
+    AIRSYNC("Archivos", "📁"),
     TELEMETRY("Sistema", "📊")
 }
 
@@ -108,7 +117,7 @@ fun PcControlDeckScreen(
     val allModules by moduleManager.modules.collectAsState()
     val enabledModules by moduleManager.enabledModules.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(PcDeckTab.DECK) }
+    var selectedTab by remember { mutableStateOf(PcDeckTab.SCREEN) }
     var showSelectorDialog by remember { mutableStateOf(false) }
     var showUnlockDialog by remember { mutableStateOf(false) }
     var unlockPinInput by remember { mutableStateOf("") }
@@ -293,15 +302,12 @@ fun PcControlDeckScreen(
 
             // Contenido según Pestaña Activa
             when (selectedTab) {
-                PcDeckTab.DECK -> {
-                    DeckMacrosTabContent(
+                PcDeckTab.SCREEN -> {
+                    ScreenLiveTabContent(
                         isConnected = isConnected,
-                        isSessionLocked = telemetry?.isSessionLocked == true,
-                        activeDeliverable = activeDeliverable,
-                        isModuleEnabled = isModuleEnabled,
-                        enabledModules = enabledModules,
                         pcBridge = pcBridge,
-                        routineRepository = effectiveRoutineRepo,
+                        telemetry = telemetry,
+                        isSessionLocked = telemetry?.isSessionLocked == true,
                         onConnectClick = { showConnectDialog = true },
                         onWakeClick = {
                             scope.launch {
@@ -313,18 +319,20 @@ fun PcControlDeckScreen(
                             }
                         },
                         onUnlockClick = { showUnlockDialog = true },
-                        onDismissDeliverable = { activeDeliverable = null },
-                        onOpenMacroDeck = { showMacroDeckScreen = true },
-                        onOpenDesigner = { showRoutineDesignerScreen = true },
                         onShowSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
                     )
                 }
-                PcDeckTab.STUDIO -> {
-                    StudioTabContent(
-                        isModuleEnabled = isModuleEnabled,
-                        enabledModules = enabledModules,
+                PcDeckTab.DECK -> {
+                    DeckMacrosTabContent(
+                        isConnected = isConnected,
+                        isSessionLocked = telemetry?.isSessionLocked == true,
+                        activeDeliverable = activeDeliverable,
                         pcBridge = pcBridge,
+                        telemetry = telemetry,
+                        onOpenMacroDeck = { showMacroDeckScreen = true },
+                        onOpenDesigner = { showRoutineDesignerScreen = true },
                         onManageModules = { showSelectorDialog = true },
+                        onEnterDeskStandby = onEnterDeskStandby,
                         onShowSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
                     )
                 }
@@ -340,6 +348,7 @@ fun PcControlDeckScreen(
                 }
                 PcDeckTab.TELEMETRY -> {
                     TelemetryTabContent(
+                        telemetry = telemetry,
                         isModuleEnabled = isModuleEnabled,
                         enabledModules = enabledModules,
                         pcBridge = pcBridge,
@@ -511,20 +520,218 @@ fun PcControlDeckScreen(
 // ---------------------------------------------------------------------------
 
 @Composable
+private fun ScreenLiveTabContent(
+    isConnected: Boolean,
+    pcBridge: PcWorkspaceBridge,
+    telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
+    isSessionLocked: Boolean,
+    onConnectClick: () -> Unit,
+    onWakeClick: () -> Unit,
+    onUnlockClick: () -> Unit,
+    onShowSnackbar: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val snapshotBytes by pcBridge.latestSnapshot.collectAsState()
+
+    var isFocusWindowActive by remember { mutableStateOf(false) }
+    var isLoupeActive by remember { mutableStateOf(false) }
+    var showDictationDialog by remember { mutableStateOf(false) }
+
+    // Auto-refresco continuo mientras la pestaña de pantalla esté activa y conectada
+    LaunchedEffect(isConnected, isFocusWindowActive) {
+        if (isConnected) {
+            pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+            while (isActive) {
+                delay(1500L)
+                pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+            }
+        }
+    }
+
+    if (!isConnected) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(Color(0xFF0284C7).copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🖥️", fontSize = 36.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Pantalla de PC Remota",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Visualiza el escritorio de tu computadora en tiempo real y contrólalo con toques, gestos táctiles y teclado.",
+                        fontSize = 13.sp,
+                        color = Color.LightGray,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = onConnectClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("🔗 Conectar a la PC", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = onWakeClick,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("⚡ Despertar PC (Wake-on-LAN)", fontSize = 13.sp, color = Color(0xFFFBBF24))
+                    }
+                }
+            }
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (isSessionLocked) {
+                Surface(
+                    color = Color(0xFFF59E0B).copy(alpha = 0.18f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🔒", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Pantalla de Windows bloqueada",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFFBBF24),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = onUnlockClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text("Desbloquear", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                PcSnapshotCanvasOrganism(
+                    snapshotBytes = snapshotBytes,
+                    onSendAction = { action ->
+                        scope.launch { pcBridge.sendInteraction(action) }
+                    },
+                    onRequestRefresh = {
+                        scope.launch { pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive) }
+                    },
+                    isLoupeEnabled = isLoupeActive,
+                    isWindowFocusActive = isFocusWindowActive,
+                    activeWindowBounds = telemetry?.activeWindowBounds
+                )
+            }
+
+            PcFloatingActionDock(
+                isFocusWindowActive = isFocusWindowActive,
+                onToggleFocusWindow = {
+                    isFocusWindowActive = !isFocusWindowActive
+                    scope.launch { pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive) }
+                },
+                isLoupeActive = isLoupeActive,
+                onToggleLoupe = { isLoupeActive = !isLoupeActive },
+                onSendAction = { action ->
+                    scope.launch { pcBridge.sendInteraction(action) }
+                },
+                onTypeText = { text ->
+                    scope.launch { pcBridge.typeTextDirectly(text) }
+                },
+                onStartVoiceDictation = { showDictationDialog = true }
+            )
+        }
+    }
+
+    if (showDictationDialog) {
+        var dictationInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showDictationDialog = false },
+            title = { Text("🎙️ Escribir en la PC", fontWeight = FontWeight.Bold, color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = dictationInput,
+                    onValueChange = { dictationInput = it },
+                    label = { Text("Texto a escribir") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val toSend = dictationInput
+                    showDictationDialog = false
+                    scope.launch {
+                        pcBridge.typeTextDirectly(toSend)
+                        onShowSnackbar("⌨️ Texto enviado a la PC")
+                    }
+                }) {
+                    Text("Enviar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDictationDialog = false }) {
+                    Text("Cancelar", color = Color.LightGray)
+                }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
+    }
+}
+
+@Composable
 private fun DeckMacrosTabContent(
     isConnected: Boolean,
     isSessionLocked: Boolean,
     activeDeliverable: PcDropzoneFile?,
-    isModuleEnabled: (PcModuleId) -> Boolean,
-    enabledModules: List<com.asistente.celular.nlu.pc.module.PcModuleDefinition>,
     pcBridge: PcWorkspaceBridge,
-    routineRepository: com.asistente.celular.data.JsonAutomatedRoutineRepository,
-    onConnectClick: () -> Unit,
-    onWakeClick: () -> Unit,
-    onUnlockClick: () -> Unit,
-    onDismissDeliverable: () -> Unit,
+    telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
     onOpenMacroDeck: () -> Unit,
     onOpenDesigner: () -> Unit,
+    onManageModules: () -> Unit,
+    onEnterDeskStandby: (() -> Unit)?,
     onShowSnackbar: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -534,140 +741,245 @@ private fun DeckMacrosTabContent(
             .fillMaxSize()
             .padding(horizontal = 14.dp),
         contentPadding = PaddingValues(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Banner Wake-on-LAN si está desconectado
-        if (!isConnected) {
+        // Notificación de archivo entregable si existe
+        activeDeliverable?.let { file ->
             item {
-                Surface(
-                    color = Color(0xFFEF4444).copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "🔌", fontSize = 20.sp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "PC Desconectado / Apagado",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFF87171)
-                            )
-                            Text(
-                                text = "Enciende o reactiva tu equipo de trabajo remotamente.",
-                                fontSize = 11.sp,
-                                color = Color.LightGray
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedButton(
-                                onClick = onConnectClick,
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text("🔗 Conectar", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = onWakeClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text("⚡ Despertar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-                    }
-                }
+                PcDropzoneDeliverableCard(
+                    file = file,
+                    modifier = Modifier.fillMaxWidth(),
+                    onDismiss = {}
+                )
             }
         }
 
-        // Banner Desbloqueo si la sesión está bloqueada
-        if (isConnected && isSessionLocked) {
-            item {
-                Surface(
-                    color = Color(0xFFF59E0B).copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "🔒", fontSize = 20.sp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Sesión de Windows Bloqueada",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFBBF24)
-                            )
-                            Text(
-                                text = "Tu PC está en la pantalla de bloqueo (Winlogon).",
-                                fontSize = 11.sp,
-                                color = Color.LightGray
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = onUnlockClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text("🔓 Desbloquear", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Tarjeta de Lanzamiento Rápido de Macro Deck & Rutinas
+        // 1. Acciones Rápidas del Sistema
         item {
             Surface(
                 color = Color(0xFF1E293B),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.dp, Color(0xFF334155)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("⚡", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Acciones del Sistema",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QuickActionButton(
+                            icon = "🔒",
+                            label = "Bloquear",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("lock")
+                                    onShowSnackbar("🔒 PC Bloqueada")
+                                }
+                            }
+                        )
+                        QuickActionButton(
+                            icon = "🪟",
+                            label = "Escritorio",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeWindowCommand("minimize_all")
+                                    onShowSnackbar("🪟 Mostrando Escritorio")
+                                }
+                            }
+                        )
+                        QuickActionButton(
+                            icon = "❌",
+                            label = "Cerrar App",
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeWindowCommand("close")
+                                    onShowSnackbar("❌ Ventana cerrada")
+                                }
+                            }
+                        )
+                        if (onEnterDeskStandby != null) {
+                            QuickActionButton(
+                                icon = "📺",
+                                label = "Standby",
+                                modifier = Modifier.weight(1f),
+                                onClick = onEnterDeskStandby
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Control de Volumen & Multimedia
+        item {
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🎛️", fontSize = 20.sp)
+                            Text("🔊", fontSize = 16.sp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Centro de Macros Táctiles",
+                                text = "Multimedia & Audio",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.15f)
+                        Text(
+                            text = "${telemetry?.masterVolumePercent ?: 50}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF38BDF8)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("volume_down")
+                                    onShowSnackbar("🔉 Volumen -")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text(
-                                text = "0 MB Streaming",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            Text("🔉 Bajar", fontSize = 12.sp, color = Color.White)
+                        }
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("volume_mute")
+                                    onShowSnackbar("🔇 Silenciar")
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            Text("🔇 Mute", fontSize = 12.sp, color = Color.White)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("volume_up")
+                                    onShowSnackbar("🔊 Volumen +")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            Text("🔊 Subir", fontSize = 12.sp, color = Color.White)
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Controles de Reproducción
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("media_prev")
+                                    onShowSnackbar("⏮️ Anterior")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("⏮️", fontSize = 14.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("media_play_pause")
+                                    onShowSnackbar("⏯️ Play/Pausa")
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.5f)
+                        ) {
+                            Text("⏯️ Play/Pausa", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("media_next")
+                                    onShowSnackbar("⏭️ Siguiente")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("⏭️", fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Macros & Automatización
+        item {
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🎛️", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Macros y Herramientas",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -680,9 +992,7 @@ private fun DeckMacrosTabContent(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
-                            Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Macro Deck", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("🎛️ Macro Deck", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         OutlinedButton(
@@ -691,67 +1001,53 @@ private fun DeckMacrosTabContent(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
-                            Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF10B981))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Diseñar Rutina", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                            Text("🎨 Diseñar Rutina", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = onManageModules,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Text("🧩 Gestionar Módulos (Blender, DAW, Adobe)", fontSize = 12.sp, color = Color(0xFF8B5CF6))
                     }
                 }
             }
         }
+    }
+}
 
-        // Entregable reciente si existe
-        activeDeliverable?.let { file ->
-            item {
-                PcDropzoneDeliverableCard(
-                    file = file,
-                    modifier = Modifier.fillMaxWidth(),
-                    onDismiss = onDismissDeliverable
-                )
-            }
-        }
-
-        // Módulos específicos del Deck
-        if (isModuleEnabled(PcModuleId.STUDIO_SCENES)) {
-            item {
-                PcStudioScenesCard(
-                    pcBridge = pcBridge,
-                    modifier = Modifier.fillMaxWidth(),
-                    onShowSnackbar = onShowSnackbar
-                )
-            }
-        }
-
-        if (isModuleEnabled(PcModuleId.AUTOMATED_ROUTINES)) {
-            item {
-                PcAutomatedRoutinesCard(
-                    pcBridge = pcBridge,
-                    routineRepository = routineRepository,
-                    modifier = Modifier.fillMaxWidth(),
-                    onOpenDesigner = onOpenDesigner,
-                    onShowSnackbar = onShowSnackbar
-                )
-            }
-        }
-
-        // Otros módulos genéricos del deck si aplican
-        val genericDeckModules = enabledModules.filter {
-            it.id in listOf(PcModuleId.ADOBE_CREATIVE, PcModuleId.BLENDER, PcModuleId.UNREAL_ENGINE)
-        }
-        genericDeckModules.forEach { module ->
-            item(key = module.id.name) {
-                PcModuleCardMolecule(
-                    module = module,
-                    onExecuteMacro = { moduleId, actionId ->
-                        scope.launch {
-                            val res = pcBridge.executeModuleAction(
-                                PcModuleActionRequest(moduleId = moduleId, actionId = actionId)
-                            )
-                            onShowSnackbar(if (res.success) "⚡ ${res.message}" else "❌ Error: ${res.message}")
-                        }
-                    }
-                )
-            }
+@Composable
+private fun QuickActionButton(
+    icon: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF0F172A),
+        border = BorderStroke(1.dp, Color(0xFF334155)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(icon, fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = Color.LightGray,
+                maxLines = 1,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -900,6 +1196,7 @@ private fun AirSyncTabContent(
 
 @Composable
 private fun TelemetryTabContent(
+    telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
     isModuleEnabled: (PcModuleId) -> Boolean,
     enabledModules: List<com.asistente.celular.nlu.pc.module.PcModuleDefinition>,
     pcBridge: PcWorkspaceBridge,
@@ -914,10 +1211,10 @@ private fun TelemetryTabContent(
             isModuleEnabled(PcModuleId.CUSTOM_PLUGINS) ||
             isModuleEnabled(PcModuleId.WEB_BROWSERS)
 
-    if (!telemetryActive) {
+    if (telemetry == null && !telemetryActive) {
         EmptyTabPlaceholder(
             icon = "📊",
-            title = "No hay módulos de Telemetría activos",
+            title = "No hay telemetría ni módulos activos",
             onAction = onManageModules
         )
         return
@@ -930,6 +1227,146 @@ private fun TelemetryTabContent(
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Tarjeta principal de Recursos y Estado en Tiempo Real
+        item {
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("💻", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = telemetry?.hostname ?: "PC Remota",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF0F172A),
+                            border = BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Text(
+                                text = "${telemetry?.roundTripLatencyMs ?: 0} ms • ${telemetry?.activeTransportType?.name ?: "LAN"}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // CPU
+                    val cpuVal = (telemetry?.cpuPercent ?: 0f).coerceIn(0f, 100f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("CPU", fontSize = 12.sp, color = Color.LightGray)
+                        Text(
+                            "${cpuVal.toInt()}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (cpuVal > 80f) Color(0xFFEF4444) else Color(0xFF38BDF8)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { cpuVal / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = if (cpuVal > 80f) Color(0xFFEF4444) else Color(0xFF38BDF8),
+                        trackColor = Color(0xFF0F172A)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // RAM
+                    val ramVal = (telemetry?.ramPercent ?: 0f).coerceIn(0f, 100f)
+                    val ramUsed = telemetry?.ramUsedGb ?: 0f
+                    val ramTotal = telemetry?.ramTotalGb ?: 0f
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("RAM", fontSize = 12.sp, color = Color.LightGray)
+                        Text(
+                            text = if (ramTotal > 0f) "${ramVal.toInt()}% (${String.format(java.util.Locale.US, "%.1f", ramUsed)} / ${String.format(java.util.Locale.US, "%.1f", ramTotal)} GB)" else "${ramVal.toInt()}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (ramVal > 85f) Color(0xFFEF4444) else Color(0xFF10B981)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { ramVal / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = if (ramVal > 85f) Color(0xFFEF4444) else Color(0xFF10B981),
+                        trackColor = Color(0xFF0F172A)
+                    )
+
+                    if (telemetry != null && (!telemetry.activeWindowTitle.isNullOrBlank() || telemetry.isBatteryPresent)) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (!telemetry.activeWindowTitle.isNullOrBlank()) {
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF0F172A),
+                                    border = BorderStroke(1.dp, Color(0xFF334155))
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("VENTANA ACTIVA", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = telemetry.activeWindowTitle,
+                                            fontSize = 11.sp,
+                                            color = Color.White,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            if (telemetry.isBatteryPresent) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF0F172A),
+                                    border = BorderStroke(1.dp, Color(0xFF334155))
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("BATERÍA", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "${telemetry.batteryPercent ?: 0}% ${if (telemetry.isBatteryCharging) "⚡" else "🔋"}",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFFBBF24),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if (isModuleEnabled(PcModuleId.HARDWARE_WATCHDOG)) {
             item {
                 PcHardwareWatchdogCard(
