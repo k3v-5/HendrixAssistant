@@ -98,6 +98,17 @@ def broadcast_terminal_error(payload: dict):
 foreground_observer.register_callback(broadcast_foreground_change)
 terminal_watchdog.register_callback(broadcast_terminal_error)
 
+def broadcast_app_update(payload: dict):
+    if not active_websockets:
+        return
+    msg = json.dumps({"type": "APP_UPDATE_BROADCAST", "updateInfo": payload})
+    for ws in list(active_websockets):
+        try:
+            if main_event_loop and main_event_loop.is_running():
+                asyncio.run_coroutine_threadsafe(ws.send(msg), main_event_loop)
+        except Exception:
+            pass
+
 def broadcast_dropzone_file_ready(payload: dict):
     if not active_websockets:
         return
@@ -845,11 +856,56 @@ async def handle_client(websocket):
                     await websocket.send(json.dumps(resp))
                     log_activity(f"📦 Respaldo de Bóveda enviado al móvil: {result.get('filename')}")
 
+                # 43. Consulta de Actualizaciones OTA de la App Móvil
+                elif msg_type == "APP_UPDATE_CHECK":
+                    req_id = data.get("requestId", "")
+                    info = system_ops.get_app_apk_info()
+                    port = getattr(config, "ota_port", 8901)
+                    info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+                    if info.get("available") and info.get("path"):
+                        airsync_server.register_file("hendrix_latest_apk", info["path"])
+                    resp = {
+                        "type": "APP_UPDATE_INFO",
+                        "requestId": req_id,
+                        "updateInfo": info
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🚀 Consulta OTA de APK atendida ({'Disponible' if info.get('available') else 'No disponible'})")
+
     except websockets.exceptions.ConnectionClosed:
         log_activity(f"Dispositivo desconectado ({client_ip})")
     finally:
         active_websockets.discard(websocket)
         session_manager.unregister_connection(websocket)
+
+async def _apk_watchdog_loop():
+    last_mtime = None
+    apk_path = system_ops.get_app_apk_path()
+    if os.path.exists(apk_path):
+        try:
+            last_mtime = os.path.getmtime(apk_path)
+            airsync_server.register_file("hendrix_latest_apk", apk_path)
+        except Exception:
+            pass
+
+    while True:
+        await asyncio.sleep(5)
+        if os.path.exists(apk_path):
+            try:
+                current_mtime = os.path.getmtime(apk_path)
+                if last_mtime is not None and current_mtime > last_mtime:
+                    last_mtime = current_mtime
+                    airsync_server.register_file("hendrix_latest_apk", apk_path)
+                    info = system_ops.get_app_apk_info()
+                    port = getattr(config, "ota_port", 8901)
+                    info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+                    broadcast_app_update(info)
+                    log_activity(f"🚀 Nuevo APK detectado en PC. Notificación OTA enviada al móvil.")
+                elif last_mtime is None:
+                    last_mtime = current_mtime
+                    airsync_server.register_file("hendrix_latest_apk", apk_path)
+            except Exception:
+                pass
 
 async def run_server(port: int = config.port):
     global main_event_loop
@@ -869,6 +925,14 @@ async def run_server(port: int = config.port):
 
     airsync_server.on_file_received = on_airsync_received
     airsync_server.start()
+
+    # Pre-registrar APK si ya existe
+    initial_apk_path = system_ops.get_app_apk_path()
+    if os.path.exists(initial_apk_path):
+        airsync_server.register_file("hendrix_latest_apk", initial_apk_path)
+
+    asyncio.create_task(_apk_watchdog_loop())
+
     log_activity(f"Iniciando Hendrix PC Bridge en ws://0.0.0.0:{port}/ws")
     async with websockets.serve(handle_client, "0.0.0.0", port):
         await asyncio.Future() # Mantener corriendo indefinidamente

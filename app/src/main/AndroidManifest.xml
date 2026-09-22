@@ -34,6 +34,7 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Declaración de visibilidad obligatoria en Android 11+ (API 30+) para SpeechRecognizer, TTS, WhatsApp y Música -->
     <queries>
@@ -206,6 +207,17 @@
                 <action android:name="com.asistente.celular.ACTION_PC_ALERT_BUTTON" />
             </intent-filter>
         </receiver>
+
+        <!-- Proveedor de archivos para instalación directa de APKs vía OTA -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

@@ -30,6 +30,7 @@ data class PcEndpointConfig(
     val lastConnectedEpoch: Long = 0,
     val macAddress: String? = null,
     val airSyncPort: Int = 8900,
+    val otaPort: Int = 8901,
     val snapshotQuality: Int = 75,
     val telemetryIntervalMs: Long = 3000L,
     val autoPasteDefault: Boolean = true

@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import hashlib
 import logging
 import psutil
 import pyautogui
@@ -208,5 +209,53 @@ class SystemOps:
         except Exception as e:
             logger.error(f"Error al leer respaldo de bóveda: {e}")
             return {"success": False, "message": f"Error al leer respaldo: {e}"}
+
+    @staticmethod
+    def get_app_apk_path() -> str:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.abspath(os.path.join(base_dir, "..", "app", "build", "outputs", "apk", "debug", "app-debug.apk"))
+
+    @staticmethod
+    def get_app_apk_info() -> Dict[str, Any]:
+        """
+        Inspecciona el estado del APK compilado de la app móvil en la PC
+        para entrega OTA instantánea.
+        """
+        apk_path = SystemOps.get_app_apk_path()
+        if not os.path.exists(apk_path):
+            return {
+                "available": False,
+                "message": "APK no compilado aún en la PC.",
+                "path": apk_path
+            }
+
+        try:
+            stat = os.stat(apk_path)
+            size_bytes = stat.st_size
+            mtime_ms = int(stat.st_mtime * 1000)
+
+            # Cálculo de hash SHA-256 para validación de integridad OTA
+            h = hashlib.sha256()
+            with open(apk_path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+            sha256_hash = h.hexdigest()
+
+            return {
+                "available": True,
+                "fileName": "app-debug.apk",
+                "apkSizeBytes": size_bytes,
+                "lastModifiedEpoch": mtime_ms,
+                "sha256": sha256_hash,
+                "path": apk_path,
+                "airsyncFileId": "hendrix_latest_apk"
+            }
+        except Exception as e:
+            logger.error(f"Error al inspeccionar APK para OTA: {e}")
+            return {
+                "available": False,
+                "message": f"Error al inspeccionar APK: {e}",
+                "path": apk_path
+            }
 
 system_ops = SystemOps()

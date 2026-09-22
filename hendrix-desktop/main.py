@@ -5,6 +5,7 @@ from config import config
 from core import ws_server
 from core.session_manager import session_manager
 from core.discovery_server import DiscoveryServer
+from core.ota_server import ota_server
 from ui.app_window import AppWindow
 
 server_loop = None
@@ -27,8 +28,12 @@ def main():
     discovery_server = DiscoveryServer(ws_port=config.port, airsync_port=config.airsync_port)
     discovery_server.start()
 
+    # Iniciar servidor HTTP OTA en segundo plano
+    ota_server.start()
+
     def on_close():
         discovery_server.stop()
+        ota_server.stop()
         if server_loop and server_loop.is_running():
             server_loop.call_soon_threadsafe(server_loop.stop)
         sys.exit(0)

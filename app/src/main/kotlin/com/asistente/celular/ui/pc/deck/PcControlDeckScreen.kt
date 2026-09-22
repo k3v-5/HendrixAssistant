@@ -131,6 +131,16 @@ fun PcControlDeckScreen(
     var manualPinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
 
     val context = LocalContext.current
+    val otaCoordinator = remember(pcBridge, context) {
+        com.asistente.celular.pc.ota.PcOtaUpdateCoordinator(
+            context = context.applicationContext,
+            pcBridge = pcBridge,
+            scope = scope
+        )
+    }
+    val otaUpdateInfo by otaCoordinator.updateInfo.collectAsState()
+    val otaDownloadState by otaCoordinator.downloadState.collectAsState()
+
     val effectiveRoutineRepo = remember(routineRepository) {
         routineRepository ?: com.asistente.celular.data.JsonAutomatedRoutineRepository(context, scope)
     }
@@ -300,6 +310,76 @@ fun PcControlDeckScreen(
                 }
             }
 
+            // Banner proactivo si hay una nueva compilación OTA disponible en la PC
+            if (otaUpdateInfo?.available == true) {
+                Surface(
+                    color = Color(0xFF0284C7).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF0284C7)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🚀", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Nueva compilación disponible en PC",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            val mbSize = (otaUpdateInfo?.apkSizeBytes ?: 0L).toFloat() / (1024f * 1024f)
+                            Text(
+                                text = "${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Lista para instalar",
+                                fontSize = 11.sp,
+                                color = Color.LightGray
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        when (val state = otaDownloadState) {
+                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
+                                Text(
+                                    text = "${(state.progress * 100).toInt()}%",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
+                                Button(
+                                    onClick = { otaCoordinator.triggerInstall(state.apkFile) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Instalar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            else -> {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Descargando actualización desde la PC...")
+                                            otaCoordinator.downloadAndInstall(otaUpdateInfo!!)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Actualizar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Contenido según Pestaña Activa
             when (selectedTab) {
                 PcDeckTab.SCREEN -> {
@@ -349,6 +429,9 @@ fun PcControlDeckScreen(
                 PcDeckTab.TELEMETRY -> {
                     TelemetryTabContent(
                         telemetry = telemetry,
+                        otaCoordinator = otaCoordinator,
+                        otaUpdateInfo = otaUpdateInfo,
+                        otaDownloadState = otaDownloadState,
                         isModuleEnabled = isModuleEnabled,
                         enabledModules = enabledModules,
                         pcBridge = pcBridge,
@@ -1197,6 +1280,9 @@ private fun AirSyncTabContent(
 @Composable
 private fun TelemetryTabContent(
     telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
+    otaCoordinator: com.asistente.celular.pc.ota.PcOtaUpdateCoordinator? = null,
+    otaUpdateInfo: com.asistente.celular.nlu.pc.ota.PcAppUpdateInfo? = null,
+    otaDownloadState: com.asistente.celular.nlu.pc.ota.OtaDownloadState = com.asistente.celular.nlu.pc.ota.OtaDownloadState.Idle,
     isModuleEnabled: (PcModuleId) -> Boolean,
     enabledModules: List<com.asistente.celular.nlu.pc.module.PcModuleDefinition>,
     pcBridge: PcWorkspaceBridge,
@@ -1362,6 +1448,170 @@ private fun TelemetryTabContent(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Tarjeta de Actualizaciones de App (OTA Local)
+        item {
+            val otaInfo = otaUpdateInfo
+            val otaState = otaDownloadState
+
+            Surface(
+                color = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🚀", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Actualizaciones de App (OTA Local)",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    onShowSnackbar("Buscando nueva versión en la PC...")
+                                    val res = otaCoordinator?.checkForUpdates()
+                                    if (res != null && res.available) {
+                                        onShowSnackbar("¡Nueva compilación encontrada en la PC!")
+                                    } else {
+                                        onShowSnackbar("Tu app ya está al día con la PC.")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Text("🔄", fontSize = 14.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (otaInfo != null && otaInfo.available) {
+                        val mbSize = otaInfo.apkSizeBytes.toFloat() / (1024f * 1024f)
+                        Text(
+                            text = "¡Hay una nueva compilación de desarrollo lista en tu PC!",
+                            fontSize = 12.sp,
+                            color = Color(0xFF38BDF8),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Tamaño: ${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Archivo: ${otaInfo.fileName}",
+                            fontSize = 11.sp,
+                            color = Color.LightGray
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        when (val state = otaState) {
+                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Descargando desde la PC...", fontSize = 11.sp, color = Color.LightGray)
+                                        Text("${(state.progress * 100).toInt()}%", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    LinearProgressIndicator(
+                                        progress = { state.progress },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                                        color = Color(0xFF38BDF8),
+                                        trackColor = Color(0xFF0F172A)
+                                    )
+                                }
+                            }
+                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
+                                Button(
+                                    onClick = { otaCoordinator?.triggerInstall(state.apkFile) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("✅ Instalar Actualización Ahora", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Error -> {
+                                Text(
+                                    text = "Error: ${state.message}",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFEF4444)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            otaCoordinator?.downloadAndInstall(otaInfo)
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Reintentar Descarga")
+                                }
+                            }
+                            else -> {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            onShowSnackbar("Iniciando descarga OTA de ${otaInfo.fileName}...")
+                                            otaCoordinator?.downloadAndInstall(otaInfo)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("⚡ Descargar e Instalar de Inmediato", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "💡 Si Play Protect muestra una advertencia, pulsa en 'Más detalles' e 'Instalar de todas formas'.",
+                            fontSize = 10.sp,
+                            color = Color(0xFFFBBF24)
+                        )
+                    } else {
+                        Text(
+                            text = "Tu aplicación móvil está sincronizada con la última versión de desarrollo de tu PC.",
+                            fontSize = 12.sp,
+                            color = Color.LightGray
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    onShowSnackbar("Comprobando compilaciones en PC...")
+                                    val res = otaCoordinator?.checkForUpdates()
+                                    if (res != null && res.available) {
+                                        onShowSnackbar("¡Nueva compilación encontrada en la PC!")
+                                    } else {
+                                        onShowSnackbar("No hay nuevas compilaciones. Ya tienes la última versión.")
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("🔍 Buscar Actualizaciones en la PC", fontSize = 12.sp)
                         }
                     }
                 }
