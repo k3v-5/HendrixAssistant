@@ -106,14 +106,26 @@ class BuiltinSkillsTest {
     fun testCurrentTimeSkillMatches() {
         val skill = CurrentTimeSkill()
         val score1 = skill.score(dummyContext, "que hora es")
-        assertTrue(score1.isMatch)
+        assertTrue("que hora es debe coincidir", score1.isMatch)
 
         val score2 = skill.score(dummyContext, "qué día es hoy")
-        assertTrue(score2.isMatch)
+        assertTrue("qué día es hoy debe coincidir", score2.isMatch)
+
+        val score3 = skill.score(dummyContext, "cuál es la fecha de hoy")
+        assertTrue("cuál es la fecha de hoy debe coincidir", score3.isMatch)
+
+        val score4 = skill.score(dummyContext, "en qué día estamos")
+        assertTrue("en qué día estamos debe coincidir", score4.isMatch)
+
+        val score5 = skill.score(dummyContext, "dime la hora")
+        assertTrue("dime la hora debe coincidir", score5.isMatch)
 
         kotlinx.coroutines.runBlocking {
-            val output = skill.execute(dummyContext, "Qué día es hoy", score2)
-            assertTrue(output.displayText.startsWith("Hoy es"))
+            val outputDate = skill.execute(dummyContext, "Qué día es hoy", score2)
+            assertTrue(outputDate.displayText.contains("Hoy es"))
+
+            val outputTime = skill.execute(dummyContext, "Dime la hora", score5)
+            assertTrue(outputTime.displayText.contains("Son las"))
         }
     }
 
@@ -123,8 +135,30 @@ class BuiltinSkillsTest {
         val score1 = skill.score(dummyContext, "pausa la musica")
         assertTrue(score1.isMatch)
 
+        val scorePause = skill.score(dummyContext, "pausa")
+        assertTrue(scorePause.isMatch)
+
+        val scoreParaMusica = skill.score(dummyContext, "para la musica")
+        assertTrue(scoreParaMusica.isMatch)
+
+        val scoreParaCancion = skill.score(dummyContext, "para la cancion")
+        assertTrue(scoreParaCancion.isMatch)
+
+        val scoreDeten = skill.score(dummyContext, "deten la reproduccion")
+        assertTrue(scoreDeten.isMatch)
+
         val score2 = skill.score(dummyContext, "siguiente cancion")
         assertTrue(score2.isMatch)
+
+        // Verificaciones de no colisión: frases o preguntas que usan la preposición "para" NO deben ser capturadas como comando de medios
+        val scoreMaterializacion = skill.score(dummyContext, "para el que era la materializacion")
+        assertFalse("Pregunta que empieza con 'para el que...' no debe coincidir con MediaControlSkill", scoreMaterializacion.isMatch)
+
+        val scoreParaTi = skill.score(dummyContext, "que es para ti la vida")
+        assertFalse("Frase con 'para ti' no debe coincidir con MediaControlSkill", scoreParaTi.isMatch)
+
+        val scoreParaQue = skill.score(dummyContext, "para que sirve la fotosintesis")
+        assertFalse("Pregunta 'para que sirve' no debe coincidir con MediaControlSkill", scoreParaQue.isMatch)
     }
 
     @Test

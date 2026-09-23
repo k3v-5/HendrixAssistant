@@ -51,8 +51,8 @@ data class AssistantUiState(
     val shakeSensitivity: ShakeSensitivity = ShakeSensitivity.NORMAL,
     val isPocketSilenceEnabled: Boolean = true,
     val isFlipToMuteEnabled: Boolean = true,
-    val ttsPitch: Float = 1.08f,
-    val ttsSpeechRate: Float = 1.02f,
+    val ttsPitch: Float = 1.0f,
+    val ttsSpeechRate: Float = 1.0f,
     val smartHomeCustomSubnet: String? = null,
     val isOverlayEnabled: Boolean = true,
     val sttEngineType: com.asistente.celular.voice.stt.SttEngineType = com.asistente.celular.voice.stt.SttEngineType.ANDROID_SYSTEM,
@@ -125,8 +125,8 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(
         context = application,
-        pitch = 1.08f * activeLlmConfig.personality.speechPitchMultiplier,
-        speechRate = 1.02f * activeLlmConfig.personality.speechRateMultiplier
+        pitch = settingsRepo.ttsPitch * activeLlmConfig.personality.speechPitchMultiplier,
+        speechRate = settingsRepo.ttsSpeechRate * activeLlmConfig.personality.speechRateMultiplier
     )
     // Motor STT desacoplado mediante factoría
     private val sttEngine: SttEngine = com.asistente.celular.voice.stt.SttEngineFactory.createEngine(
@@ -527,6 +527,10 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
                 onResult(false)
             }
         }
+    }
+
+    fun clearChat() {
+        _uiState.value = _uiState.value.copy(interactions = emptyList())
     }
 
     private fun checkInternetConnection(): Boolean {

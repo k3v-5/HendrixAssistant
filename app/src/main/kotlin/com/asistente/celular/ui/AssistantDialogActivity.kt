@@ -32,8 +32,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -104,9 +106,13 @@ class AssistantDialogActivity : ComponentActivity() {
         }
 
         hapticManager = HapticFeedbackManager(this)
-        ttsEngine = AndroidNativeTtsEngine(this)
-        sttEngine = AndroidSpeechRecognizerEngine(this)
         settingsRepo = SettingsRepository(this)
+        ttsEngine = AndroidNativeTtsEngine(
+            context = this,
+            pitch = settingsRepo.ttsPitch,
+            speechRate = settingsRepo.ttsSpeechRate
+        )
+        sttEngine = AndroidSpeechRecognizerEngine(this)
 
         // Pausar el motor de segundo plano para ceder el micrófono
         com.asistente.celular.util.MicCoordinator.acquireMicLock("AssistantDialogActivity")
@@ -396,15 +402,25 @@ fun FloatingAssistantBottomSheet(
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     val harnessData = output.payload as? HarnessResult
-                                    val badgeText = harnessData?.let { "✨ ${it.usedModel.displayName}" }
-                                        ?: if (output.handledByAi) "✨ Inteligencia Artificial" else "⚡ Motor Local"
+                                    val isAi = harnessData != null || output.handledByAi
+                                    val badgeLabel = harnessData?.usedModel?.displayName
+                                        ?: if (output.handledByAi) "Inteligencia Artificial" else "Motor Local"
 
-                                    Text(
-                                        text = badgeText,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = if (isAi) Icons.Default.Psychology else Icons.Default.Bolt,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = badgeLabel,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = output.displayText,

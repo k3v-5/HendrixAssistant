@@ -16,7 +16,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -83,7 +88,12 @@ fun PcHardwareWatchdogCard(
                             .background(Color(0xFFEF4444).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "⚡", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -222,7 +232,12 @@ fun PcHardwareWatchdogCard(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🔥", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "Proceso intensivo detectado: $heavyProc",
@@ -285,9 +300,9 @@ fun PcHardwareWatchdogCard(
                                     )
                                     isWatchdogActive = ok
                                     if (ok) {
-                                        onShowSnackbar("🛡️ Centinela activado para $selectedProcess")
+                                        onShowSnackbar("Centinela activado para $selectedProcess")
                                     } else {
-                                        onShowSnackbar("⚠️ Error al activar centinela")
+                                        onShowSnackbar("Error al activar centinela")
                                     }
                                 } catch (e: Exception) {
                                     onShowSnackbar("Error: ${e.message}")
@@ -307,12 +322,21 @@ fun PcHardwareWatchdogCard(
                         if (isStartingWatchdog) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
                         } else {
-                            Text(
-                                text = if (isWatchdogActive) "🛡️ Vigilante de Render Activo" else "⚡ Activar Centinela de Render",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isWatchdogActive) Icons.Default.Shield else Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isWatchdogActive) "Vigilante de Render Activo" else "Activar Centinela de Render",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -329,7 +353,12 @@ fun PcHardwareWatchdogCard(
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🔔", fontSize = 16.sp)
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "¡Render Finalizado con Éxito!",
@@ -347,11 +376,23 @@ fun PcHardwareWatchdogCard(
                         if (event.durationSeconds > 0) {
                             val mins = event.durationSeconds / 60
                             val secs = event.durationSeconds % 60
-                            Text(
-                                text = "⏱️ Tiempo de render: ${mins}m ${secs}s | Pico GPU: ${event.peakGpuTemp}°C",
-                                fontSize = 10.sp,
-                                color = Color.Gray
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Timer,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Tiempo de render: ${mins}m ${secs}s | Pico GPU: ${event.peakGpuTemp}°C",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
                         }
                     }
                 }

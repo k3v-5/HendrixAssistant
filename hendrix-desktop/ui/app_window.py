@@ -6,8 +6,19 @@ from ui.clipboard_snippets_view import ClipboardSnippetsView
 from ui.dropzone_files_view import DropzoneFilesView
 from ui.system_logs_view import SystemLogsView
 from ui.tray_icon import DesktopTrayIcon
-
 from ui.plugins_manager_view import PluginsManagerView
+from ui.theme import (
+    COLOR_VOID_BLACK,
+    COLOR_VOID_SURFACE,
+    COLOR_VOID_BORDER,
+    COLOR_NEON_LILAC,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    FONT_HEADER,
+    FONT_SUBTITLE,
+    setup_theme,
+    create_secondary_button,
+)
 
 class AppWindow(tk.Tk):
     def __init__(self, on_close_callback=None):
@@ -16,7 +27,7 @@ class AppWindow(tk.Tk):
         self.title("Hendrix Desktop Companion")
         self.geometry("680x820")
         self.minsize(640, 700)
-        self.configure(background="#0B0F19")
+        self.configure(background=COLOR_VOID_BLACK)
 
         self._setup_theme()
         self._build_ui()
@@ -28,78 +39,47 @@ class AppWindow(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
 
     def _setup_theme(self):
-        style = ttk.Style(self)
-        style.theme_use("clam")
-
-        style.configure(".", background="#0B0F19", foreground="#E2E8F0")
-        style.configure("Card.TFrame", background="#1E293B", relief="flat")
-        style.configure(
-            "TProgressbar",
-            troughcolor="#0F172A",
-            background="#38BDF8",
-            lightcolor="#38BDF8",
-            darkcolor="#0284C7",
-            bordercolor="#1E293B"
-        )
-        style.configure("TCheckbutton", background="#1E293B", foreground="#E2E8F0", font=("Segoe UI", 9))
-
-        # Estilo del Notebook de Pestañas
-        style.configure("TNotebook", background="#0B0F19", borderwidth=0)
-        style.configure(
-            "TNotebook.Tab",
-            background="#1E293B",
-            foreground="#94A3B8",
-            padding=[14, 8],
-            font=("Segoe UI", 9, "bold"),
-            borderwidth=0
-        )
-        style.map(
-            "TNotebook.Tab",
-            background=[("selected", "#0284C7")],
-            foreground=[("selected", "#FFFFFF")]
-        )
+        setup_theme(self)
 
     def _build_ui(self):
-        # Header principal
-        header = tk.Frame(self, background="#0F172A", height=60)
+        # Header principal con estética OLED Void
+        header = tk.Frame(self, background=COLOR_VOID_SURFACE, height=64)
         header.pack(fill="x", padx=0, pady=0)
 
-        title_box = tk.Frame(header, background="#0F172A")
+        title_box = tk.Frame(header, background=COLOR_VOID_SURFACE)
         title_box.pack(side="left", padx=20, pady=12)
 
         logo_lbl = tk.Label(
             title_box,
-            text="🎸 Hendrix Desktop",
-            font=("Segoe UI", 16, "bold"),
-            foreground="#38BDF8",
-            background="#0F172A"
+            text="HENDRIX DESKTOP",
+            font=FONT_HEADER,
+            foreground=COLOR_NEON_LILAC,
+            background=COLOR_VOID_SURFACE
         )
         logo_lbl.pack(anchor="w")
 
         sub_lbl = tk.Label(
             title_box,
             text=f"Servicio activo en puerto {config.port} | LAN & WAN Hub",
-            font=("Segoe UI", 9),
-            foreground="#94A3B8",
-            background="#0F172A"
+            font=FONT_SUBTITLE,
+            foreground=COLOR_TEXT_SECONDARY,
+            background=COLOR_VOID_SURFACE
         )
         sub_lbl.pack(anchor="w")
 
-        # Botón minimizar a bandeja
-        min_btn = tk.Button(
+        # Botón minimizar a bandeja (diseño sobrio de perfil secundario)
+        min_btn = create_secondary_button(
             header,
             text="Minimizar a Bandeja",
-            font=("Segoe UI", 9, "bold"),
-            bg="#0284C7",
-            fg="white",
-            activebackground="#0369A1",
-            activeforeground="white",
-            relief="flat",
             command=self.minimize_to_tray,
             padx=12,
             pady=6
         )
         min_btn.pack(side="right", padx=20, pady=16)
+
+        # Línea divisoria sutil Morado Neón
+        divider = tk.Frame(self, background=COLOR_VOID_BORDER, height=1)
+        divider.pack(fill="x")
 
         # Contenedor de Pestañas (Notebook)
         self.notebook = ttk.Notebook(self)
@@ -107,23 +87,23 @@ class AppWindow(tk.Tk):
 
         # Tab 1: Conexión, Dispositivos & Firewall
         self.devices_network_view = DevicesNetworkView(self.notebook)
-        self.notebook.add(self.devices_network_view, text="📱 Conexión & Red")
+        self.notebook.add(self.devices_network_view, text="Conexión & Red")
 
         # Tab 2: Portapapeles & Snippets
         self.clipboard_snippets_view = ClipboardSnippetsView(self.notebook)
-        self.notebook.add(self.clipboard_snippets_view, text="📋 Portapapeles & Snippets")
+        self.notebook.add(self.clipboard_snippets_view, text="Portapapeles & Snippets")
 
         # Tab 3: Buzón Dropzone & Compartir Archivos
         self.dropzone_files_view = DropzoneFilesView(self.notebook)
-        self.notebook.add(self.dropzone_files_view, text="📁 Buzón Dropzone")
+        self.notebook.add(self.dropzone_files_view, text="Buzón Dropzone")
 
         # Tab 4: Sistema, Permisos & Logs
         self.system_logs_view = SystemLogsView(self.notebook)
-        self.notebook.add(self.system_logs_view, text="🛡️ Sistema & Logs")
+        self.notebook.add(self.system_logs_view, text="Sistema & Logs")
 
         # Tab 5: Plugins & Scripts de Usuario
         self.plugins_manager_view = PluginsManagerView(self.notebook)
-        self.notebook.add(self.plugins_manager_view, text="🧩 Plugins & Scripts")
+        self.notebook.add(self.plugins_manager_view, text="Plugins & Scripts")
 
         # Alias para compatibilidad hacia main.py
         self.pairing_card = self.devices_network_view.pairing_card

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.TouchApp
@@ -239,9 +240,17 @@ fun PcDynamicMacroDeckScreen(
                 FilterChip(
                     selected = false,
                     onClick = { showStudioScreen = true },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     label = {
                         Text(
-                            text = "⚙️ Editar / Nuevo",
+                            text = "Editar / Nuevo",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )

@@ -17,6 +17,7 @@ import com.asistente.celular.nlu.pc.PcEndpointConfig
 import com.asistente.celular.nlu.pc.PcInteractionAction
 import com.asistente.celular.nlu.pc.PcOperationMode
 import com.asistente.celular.nlu.pc.PcSystemTelemetry
+import com.asistente.celular.nlu.pc.PcWindowInfo
 import com.asistente.celular.nlu.pc.PcWorkspaceBridge
 import com.asistente.celular.nlu.pc.TaskStepStatus
 import com.asistente.celular.nlu.pc.TransportType
@@ -55,6 +56,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -86,13 +89,18 @@ class PcRemoteCoordinator(
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(3, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS) // WebSocket no debe expirar por inactividad
-        .pingInterval(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .pingInterval(15, TimeUnit.SECONDS)
         .build()
 
     private var activeWebSocket: WebSocket? = null
     private var telemetryPollingJob: Job? = null
+    private var isUserExplicitDisconnect = false
+    private var reconnectJob: Job? = null
+    private val snapshotMutex = kotlinx.coroutines.sync.Mutex()
+    private var inFlightSnapshotDeferred: CompletableDeferred<ByteArray?>? = null
 
     private var currentHost: String = "192.168.100.159"
     private var currentPort: Int = DEFAULT_PORT
@@ -161,6 +169,9 @@ class PcRemoteCoordinator(
 
     private val _airSyncSharedFiles = MutableStateFlow<List<AirSyncSharedFile>>(emptyList())
     override val airSyncSharedFiles: StateFlow<List<AirSyncSharedFile>> = _airSyncSharedFiles.asStateFlow()
+
+    private val _openWindows = MutableStateFlow<List<PcWindowInfo>>(emptyList())
+    val openWindows: StateFlow<List<PcWindowInfo>> = _openWindows.asStateFlow()
 
     private val airSyncClient = AirSyncClient()
     private var airSyncPort: Int = 8900
@@ -278,6 +289,9 @@ class PcRemoteCoordinator(
     override suspend fun connect(host: String, port: Int, pin: String?): Boolean = withContext(Dispatchers.IO) {
         currentHost = host
         currentPort = port
+        isUserExplicitDisconnect = false
+        reconnectJob?.cancel()
+        reconnectJob = null
         _connectionState.value = PcConnectionState.Connecting(host, port)
 
         val cleanHost = host.trim()
@@ -305,6 +319,8 @@ class PcRemoteCoordinator(
         activeWebSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket conectado con éxito vía ${_activeTransport.value} a $wsUrl")
+                reconnectJob?.cancel()
+                reconnectJob = null
                 _isConnected.value = true
                 _connectionState.value = PcConnectionState.Connected(
                     host = host,
@@ -345,11 +361,15 @@ class PcRemoteCoordinator(
                     _latestSnapshot.value = byteArray
                     pendingSnapshotDeferred?.complete(byteArray)
                     pendingSnapshotDeferred = null
+                    inFlightSnapshotDeferred?.complete(byteArray)
+                    inFlightSnapshotDeferred = null
                 } else if (byteArray.isNotEmpty() && byteArray[0] == 0x01.toByte()) {
                     val payload = byteArray.copyOfRange(1, byteArray.size)
                     _latestSnapshot.value = payload
                     pendingSnapshotDeferred?.complete(payload)
                     pendingSnapshotDeferred = null
+                    inFlightSnapshotDeferred?.complete(payload)
+                    inFlightSnapshotDeferred = null
                 }
             }
 
@@ -358,14 +378,14 @@ class PcRemoteCoordinator(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.i(TAG, "WebSocket cerrado")
-                handleDisconnect()
+                Log.i(TAG, "WebSocket cerrado ($code: $reason)")
+                handleDisconnect(unexpected = true)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "Error en conexión WebSocket: ${t.message}")
                 _connectionState.value = PcConnectionState.Error(t.localizedMessage ?: "Error de conexión con la PC.")
-                handleDisconnect()
+                handleDisconnect(unexpected = true)
                 if (!connectSignal.isCompleted) {
                     connectSignal.complete(false)
                 }
@@ -380,18 +400,53 @@ class PcRemoteCoordinator(
     }
 
     override suspend fun disconnect() {
+        isUserExplicitDisconnect = true
+        reconnectJob?.cancel()
+        reconnectJob = null
         telemetryPollingJob?.cancel()
         activeWebSocket?.close(1000, "Desconectado por el usuario")
         activeWebSocket = null
-        handleDisconnect()
+        handleDisconnect(unexpected = false)
     }
 
-    private fun handleDisconnect() {
+    private fun handleDisconnect(unexpected: Boolean = false) {
         _isConnected.value = false
-        _connectionState.value = PcConnectionState.Disconnected
         telemetryPollingJob?.cancel()
         audioStreamPlayer.stop()
         _audioStreamState.value = com.asistente.celular.nlu.pc.audio.PcAudioStreamState(isStreaming = false)
+
+        if (unexpected && !isUserExplicitDisconnect) {
+            scheduleAutoReconnect()
+        } else {
+            _connectionState.value = PcConnectionState.Disconnected
+        }
+    }
+
+    private fun scheduleAutoReconnect() {
+        if (isUserExplicitDisconnect) return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch(Dispatchers.IO) {
+            val host = currentHost
+            val port = currentPort
+            var delayMs = 1500L
+            var attempt = 1
+
+            while (!isUserExplicitDisconnect && !_isConnected.value && attempt <= 5) {
+                Log.i(TAG, "Reconexión automática ($attempt/5) a $host:$port en ${delayMs}ms...")
+                _connectionState.value = PcConnectionState.Reconnecting(attempt, host, port)
+                delay(delayMs)
+                if (isUserExplicitDisconnect || _isConnected.value) break
+
+                val reconnected = connect(host, port)
+                if (reconnected) {
+                    Log.i(TAG, "Reconexión automática exitosa con $host:$port")
+                    requestSnapshot()
+                    break
+                }
+                attempt++
+                delayMs = (delayMs * 1.5).toLong().coerceAtMost(5000L)
+            }
+        }
     }
 
     private fun handleTextMessage(text: String) {
@@ -459,6 +514,23 @@ class PcRemoteCoordinator(
                             checksumSha256 = sha
                         )
                     }
+                }
+                "OPEN_WINDOWS_LIST" -> {
+                    val wArr = json.optJSONArray("windows") ?: JSONArray()
+                    val list = mutableListOf<PcWindowInfo>()
+                    for (i in 0 until wArr.length()) {
+                        val obj = wArr.optJSONObject(i) ?: continue
+                        list.add(
+                            PcWindowInfo(
+                                hwnd = obj.optLong("hwnd", 0L),
+                                title = obj.optString("title", ""),
+                                process = obj.optString("process", ""),
+                                pid = obj.optInt("pid", 0),
+                                isForeground = obj.optBoolean("isForeground", false)
+                            )
+                        )
+                    }
+                    _openWindows.value = list
                 }
                 "AUDIO_MIXER_SESSIONS" -> {
                     val mObj = json.optJSONObject("mixer")
@@ -569,6 +641,22 @@ class PcRemoteCoordinator(
                     }
                 }
                 "HELLO_ACK" -> {
+                    val status = json.optString("status", "AUTHORIZED")
+                    if (status.equals("UNAUTHORIZED", ignoreCase = true)) {
+                        val msg = json.optString("message", "PIN incorrecto o dispositivo no autorizado")
+                        Log.w(TAG, "Conexión rechazada por el servidor de PC: $msg")
+                        authToken = ""
+                        val resetConfig = _endpointConfig.value.copy(
+                            deviceToken = "",
+                            isPaired = false
+                        )
+                        saveConfig(resetConfig)
+                        _isConnected.value = false
+                        _connectionState.value = PcConnectionState.Error(msg, canRetry = true)
+                        activeWebSocket?.close(1008, msg)
+                        return
+                    }
+
                     authToken = json.optString("token", "")
                     val hostName = json.optString("hostname", "PC-Host")
                     val remoteTunnel = json.optString("remoteTunnelUrl", _endpointConfig.value.remoteTunnelUrl ?: "")
@@ -584,6 +672,7 @@ class PcRemoteCoordinator(
                         macAddress = reportedMac
                     )
                     saveConfig(updatedConfig)
+                    _isConnected.value = true
                     _connectionState.value = PcConnectionState.Connected(
                         host = currentHost,
                         port = currentPort,
@@ -669,25 +758,41 @@ class PcRemoteCoordinator(
     }
 
     override suspend fun requestSnapshot(cropToActiveWindow: Boolean): ByteArray? = withContext(Dispatchers.IO) {
-        val ws = activeWebSocket
-        if (ws == null) {
-            // Si no está conectado, retorna el último snapshot disponible
-            return@withContext _latestSnapshot.value
+        val ws = activeWebSocket ?: return@withContext _latestSnapshot.value
+
+        var shouldSend = false
+        val deferred = snapshotMutex.withLock {
+            val existing = inFlightSnapshotDeferred
+            if (existing != null && !existing.isCompleted) {
+                existing
+            } else {
+                val newDeferred = CompletableDeferred<ByteArray?>()
+                inFlightSnapshotDeferred = newDeferred
+                pendingSnapshotDeferred = newDeferred
+                shouldSend = true
+                newDeferred
+            }
         }
 
-        val deferred = CompletableDeferred<ByteArray?>()
-        pendingSnapshotDeferred = deferred
-
-        val req = JSONObject().apply {
-            put("type", "SNAPSHOT_REQUEST")
-            put("cropToActiveWindow", cropToActiveWindow)
-            put("quality", _endpointConfig.value.snapshotQuality)
+        if (shouldSend) {
+            val req = JSONObject().apply {
+                put("type", "SNAPSHOT_REQUEST")
+                put("cropToActiveWindow", cropToActiveWindow)
+                put("quality", _endpointConfig.value.snapshotQuality)
+            }
+            ws.send(req.toString())
         }
-        ws.send(req.toString())
 
-        withTimeoutOrNull(DEFAULT_TIMEOUT_MS) {
+        val result = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) {
             deferred.await()
         } ?: _latestSnapshot.value
+
+        snapshotMutex.withLock {
+            if (inFlightSnapshotDeferred == deferred) {
+                inFlightSnapshotDeferred = null
+            }
+        }
+        result
     }
 
     override suspend fun sendInteraction(action: PcInteractionAction): Boolean = withContext(Dispatchers.IO) {
@@ -713,8 +818,9 @@ class PcRemoteCoordinator(
 
         val sent = ws.send(req.toString())
 
-        // En modo Snapshot Interactivo, un toque o clic solicita inmediatamente refresco
-        if (_currentMode.value == PcOperationMode.INTERACTIVE_SNAPSHOT) {
+        // En modo Snapshot Interactivo, SOLO acciones que alteran el contenido de la pantalla (clics, teclas, scroll)
+        // solicitan refresco visual. MOUSE_MOVE nunca solicita un snapshot para no saturar la red ni crear lag.
+        if (_currentMode.value == PcOperationMode.INTERACTIVE_SNAPSHOT && action.type != PcActionType.MOUSE_MOVE) {
             scope.launch(Dispatchers.IO) {
                 delay(120) // Breve pausa para permitir que la UI de la PC reaccione
                 requestSnapshot()
@@ -2214,6 +2320,61 @@ class PcRemoteCoordinator(
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val vObj = resp?.opt("vault")
         vObj?.toString()
+    }
+
+    override suspend fun getOpenWindows(): List<PcWindowInfo> = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext emptyList()
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "GET_OPEN_WINDOWS")
+            put("requestId", reqId)
+        }
+        ws.send(req.toString())
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        val wArr = resp?.optJSONArray("windows") ?: org.json.JSONArray()
+        val list = mutableListOf<PcWindowInfo>()
+        for (i in 0 until wArr.length()) {
+            val obj = wArr.optJSONObject(i) ?: continue
+            list.add(
+                PcWindowInfo(
+                    hwnd = obj.optLong("hwnd", 0L),
+                    title = obj.optString("title", ""),
+                    process = obj.optString("process", ""),
+                    pid = obj.optInt("pid", 0),
+                    isForeground = obj.optBoolean("isForeground", false)
+                )
+            )
+        }
+        if (list.isNotEmpty()) {
+            _openWindows.value = list
+        }
+        list
+    }
+
+    override suspend fun focusWindow(hwnd: Long): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "FOCUS_WINDOW")
+            put("requestId", reqId)
+            put("hwnd", hwnd)
+        }
+        ws.send(req.toString())
+        val resp = withTimeoutOrNull(2500L) { deferred.await() }
+        val success = resp?.optBoolean("success", true) ?: true
+
+        // Disparar refresco visual automático de la pantalla de Windows
+        scope.launch(Dispatchers.IO) {
+            delay(150)
+            requestSnapshot()
+        }
+        success
     }
 }
 

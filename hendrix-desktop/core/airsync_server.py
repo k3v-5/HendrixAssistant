@@ -25,7 +25,7 @@ class AirSyncServer:
     MAGIC = "HASY"
 
     def __init__(self, port: Optional[int] = None):
-        self.port = port or getattr(config, "airsync_port", 8900)
+        self.port = port if port is not None else getattr(config, "airsync_port", 8900)
         self.default_chunk_size = getattr(config, "airsync_chunk_size", DEFAULT_CHUNK_SIZE)
         self._server_socket: Optional[socket.socket] = None
         self._running = False

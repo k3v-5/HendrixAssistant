@@ -18,31 +18,67 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeMute
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -300,12 +336,12 @@ fun SmartBulbCard(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                QuickPresetChip(label = "🕯️ Vela", onClick = { onExecuteCommand("modo vela") })
-                QuickPresetChip(label = "🎉 Fiesta", onClick = { onExecuteCommand("modo fiesta") })
-                QuickPresetChip(label = "🌙 Noche", onClick = { onExecuteCommand("luz de noche") })
-                QuickPresetChip(label = "☀️ Cálido", onClick = { onExecuteCommand("luz calida") })
-                QuickPresetChip(label = "❄️ Frío", onClick = { onExecuteCommand("luz fria") })
-                QuickPresetChip(label = "⏹️ Detener", onClick = { onExecuteCommand("detener efecto") })
+                QuickPresetChip(label = "Vela", icon = Icons.Default.Whatshot, onClick = { onExecuteCommand("modo vela") })
+                QuickPresetChip(label = "Fiesta", icon = Icons.Default.Celebration, onClick = { onExecuteCommand("modo fiesta") })
+                QuickPresetChip(label = "Noche", icon = Icons.Default.NightsStay, onClick = { onExecuteCommand("luz de noche") })
+                QuickPresetChip(label = "Cálido", icon = Icons.Default.WbSunny, onClick = { onExecuteCommand("luz calida") })
+                QuickPresetChip(label = "Frío", icon = Icons.Default.AcUnit, onClick = { onExecuteCommand("luz fria") })
+                QuickPresetChip(label = "Detener", icon = Icons.Default.Stop, onClick = { onExecuteCommand("detener efecto") })
             }
         }
     }
@@ -314,11 +350,21 @@ fun SmartBulbCard(
 @Composable
 private fun QuickPresetChip(
     label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onClick: () -> Unit
 ) {
     FilterChip(
         selected = false,
         onClick = onClick,
+        leadingIcon = icon?.let {
+            {
+                Icon(
+                    imageVector = it,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        },
         label = { Text(text = label, fontSize = 12.sp) },
         shape = RoundedCornerShape(12.dp),
         colors = FilterChipDefaults.filterChipColors(
@@ -411,12 +457,21 @@ fun BatteryCard(payload: BatteryUiPayload) {
 
             if (payload.isPowerSaveMode) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "⚡ Modo ahorro de energía activado",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFFFF9800),
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Modo ahorro de energía activado",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFFF9800),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
@@ -962,7 +1017,12 @@ fun WhatsAppReplyCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("💬", fontSize = 20.sp)
+                Icon(
+                    imageVector = Icons.Default.Chat,
+                    contentDescription = null,
+                    tint = Color(0xFF1B5E20),
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "WhatsApp • ${payload.senderName}",
@@ -1034,7 +1094,12 @@ fun PomodoroCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🍅", fontSize = 24.sp)
+                    Icon(
+                        imageVector = Icons.Default.Timer,
+                        contentDescription = null,
+                        tint = Color(0xFFB71C1C),
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
@@ -1114,11 +1179,20 @@ fun TallyCounterCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "🔢 ${payload.title}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Pin,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = payload.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 Text(
                     text = "$count",
@@ -1191,11 +1265,20 @@ fun ScreenVisionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "📱 Visión de Pantalla",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Smartphone,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Visión de Pantalla",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 payload.packageName?.let {
                     Text(
                         text = it.substringAfterLast('.'),
@@ -1250,11 +1333,20 @@ fun OcrGlanceCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "📷 Texto Detectado (OCR)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DocumentScanner,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Texto Detectado (OCR)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = payload.fullText.ifBlank { "Sin texto legible." },
@@ -1284,12 +1376,21 @@ fun DrivingModeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "🚗 Modo Conducción",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Modo Conducción",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
                 Text(
                     text = if (payload.isActive) "● ACTIVO" else "DESACTIVADO",
                     color = if (payload.isActive) Color(0xFF81C784) else Color.Gray,
@@ -1345,11 +1446,20 @@ fun ExpenseReportCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "💰 Finanzas Personales",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AttachMoney,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Finanzas Personales",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 verticalAlignment = Alignment.Bottom
@@ -1411,11 +1521,20 @@ fun LocalFilesCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "📁 Archivos Encontrados (${payload.files.size})",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Archivos Encontrados (${payload.files.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             payload.files.take(4).forEach { file ->
                 val sizeKb = (file.sizeBytes / 1024).coerceAtLeast(1)
@@ -1461,12 +1580,21 @@ fun EmergencySosCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "🚨 ALERTA SOS ACTIVA",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color(0xFFFF8A80)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFFF8A80),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ALERTA SOS ACTIVA",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFFFF8A80)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -1503,11 +1631,20 @@ fun Otp2FaCard(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "🔐 Código de Seguridad 2FA",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.VpnKey,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Código de Seguridad 2FA",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "De: ${payload.sender}",
@@ -1522,13 +1659,21 @@ fun Otp2FaCard(
                 letterSpacing = 4.sp,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "✓ Copiado automáticamente al portapapeles",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF4CAF50),
-                fontWeight = FontWeight.Medium
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Copiado automáticamente al portapapeles",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF4CAF50),
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
@@ -1542,7 +1687,12 @@ fun VoiceprintCard(payload: VoiceprintUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🎙️", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -1590,7 +1740,12 @@ fun KnowledgeRagCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🧠", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Psychology,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -1652,7 +1807,12 @@ fun VoiceJournalCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📖", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Book,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -1703,7 +1863,12 @@ fun MeshSyncCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🔗", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -1750,7 +1915,12 @@ fun CallScreeningCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📞", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Call,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
@@ -1794,7 +1964,16 @@ fun InterpreterCard(payload: InterpreterUiPayload) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "🗣️ Modo Intérprete", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Translate,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Modo Intérprete", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
                 Text(text = "${payload.langA} ⇄ ${payload.langB}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -1825,7 +2004,12 @@ fun ContextTriggerCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📍", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Contexto Proactivo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1850,7 +2034,12 @@ fun AmbientDockCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🌙", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.NightsStay,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Modo Ambient Dock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1877,7 +2066,12 @@ fun BatteryHealthCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🔋", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.BatteryChargingFull,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Salud Térmica de Batería", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1899,7 +2093,12 @@ fun PrivacyFirewallCard(payload: PrivacyFirewallUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🛡️", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Shield,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Firewall de Privacidad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1926,7 +2125,12 @@ fun SecurityAuditCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🔍", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Auditoría de Seguridad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1948,7 +2152,12 @@ fun HardwareGestureCard(payload: HardwareGestureUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📱", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Smartphone,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Gestos Físicos de Hardware", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1971,7 +2180,12 @@ fun CameraDirectorCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📸", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Asistente de Cámara", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1993,7 +2207,12 @@ fun HealthTelemetryCard(payload: HealthTelemetryUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "❤️", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Hub de Salud Local", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2018,7 +2237,12 @@ fun TaskPlanCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📋", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Assignment,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Planificador Autónomo Multi-Paso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2051,7 +2275,12 @@ fun AutomotiveCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🚗", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Android Auto Hendrix Car", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2097,7 +2326,12 @@ fun WearCompanionCard(payload: WearCompanionUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "⌚", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Watch,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Wear OS Companion", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2132,7 +2366,12 @@ fun MeetingRecorderCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🎙️", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Grabadora & Diarización", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2186,7 +2425,12 @@ fun MultiModelOrchestratorCard(payload: MultiModelOrchestratorUiPayload) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "⚡", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Orquestador Multi-Modelo IA", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2223,7 +2467,12 @@ fun DocumentChatCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📄", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Chat con Documentos & PDFs", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2269,7 +2518,12 @@ fun SoundscapeCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🎧", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Headphones,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "Paisaje Sonoro & Ondas Binaurales", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2310,7 +2564,12 @@ fun VoiceCraftCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🎚️", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(text = "VoiceCraft Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2385,13 +2644,25 @@ fun PcWorkspaceCard(
             if (telemetry != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 if (telemetry.activeWindowTitle.isNotBlank()) {
-                    Text(
-                        text = "🪟 ${telemetry.activeWindowTitle}",
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DesktopWindows,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = telemetry.activeWindowTitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -2433,7 +2704,19 @@ fun PcWorkspaceCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                 ) {
-                    Text(text = "🔇 Mute", fontSize = 11.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Mute", fontSize = 11.sp)
+                    }
                 }
                 OutlinedButton(
                     onClick = { onExecuteCommand("pausa la musica en la pc") },
@@ -2441,7 +2724,19 @@ fun PcWorkspaceCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                 ) {
-                    Text(text = "⏸️ Media", fontSize = 11.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Media", fontSize = 11.sp)
+                    }
                 }
                 OutlinedButton(
                     onClick = { onExecuteCommand("bloquea la pc") },
@@ -2449,7 +2744,19 @@ fun PcWorkspaceCard(
                     modifier = Modifier.weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                 ) {
-                    Text(text = "🔒 Bloquear", fontSize = 11.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Bloquear", fontSize = 11.sp)
+                    }
                 }
             }
 
@@ -2461,7 +2768,18 @@ fun PcWorkspaceCard(
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text(text = "🖥️ Abrir Espacio de Trabajo (Workspace)", fontWeight = FontWeight.Bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DesktopWindows,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Abrir Espacio de Trabajo (Workspace)", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

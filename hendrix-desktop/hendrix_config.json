@@ -10,55 +10,47 @@
   "allow_screen_capture": true,
   "allow_terminal_commands": true,
   "paired_tokens": [
-    "cb39938a-50eb-40dc-9f65-5540db9367d8",
-    "9cd9178c-f497-4fb2-9cf5-80af7219f64f",
-    "76166874-731d-420a-8a71-a650006dc6be",
-    "a36ea82b-ce1b-470b-9ce9-bf473bbef1db",
-    "7d805060-d2d6-4f09-a1c1-01a93525d870",
-    "c3467636-e829-4b0a-89a4-915e437402dd"
+    "c3467636-e829-4b0a-89a4-915e437402dd",
+    "489d8d0a-11f7-4416-ba89-e3395c9d8bc3",
+    "6dc06dc4-873b-4dfb-af45-976c07bf0532",
+    "0a8c3af3-2c90-4685-ac46-48c26014ad3b",
+    "07a3a28a-1315-428e-98d3-2c39800c044f"
   ],
   "paired_devices": [
     {
-      "token": "cb39938a-50eb-40dc-9f65-5540db9367d8",
-      "name": "TestClient",
-      "ip": "192.168.100.159",
-      "paired_at": 1790052935,
-      "last_seen": 1790052935
-    },
-    {
-      "token": "9cd9178c-f497-4fb2-9cf5-80af7219f64f",
-      "name": "Hendrix Android Client",
-      "ip": "192.168.100.118",
-      "paired_at": 1790053991,
-      "last_seen": 1790053991
-    },
-    {
-      "token": "76166874-731d-420a-8a71-a650006dc6be",
-      "name": "Hendrix Android Client",
-      "ip": "192.168.100.118",
-      "paired_at": 1790053991,
-      "last_seen": 1790053991
-    },
-    {
-      "token": "a36ea82b-ce1b-470b-9ce9-bf473bbef1db",
-      "name": "Hendrix Android Client",
-      "ip": "192.168.100.118",
-      "paired_at": 1790053991,
-      "last_seen": 1790053991
-    },
-    {
-      "token": "7d805060-d2d6-4f09-a1c1-01a93525d870",
-      "name": "Hendrix Android Client",
-      "ip": "192.168.100.118",
-      "paired_at": 1790053991,
-      "last_seen": 1790053991
-    },
-    {
       "token": "c3467636-e829-4b0a-89a4-915e437402dd",
+      "name": "Test Runner",
+      "ip": "127.0.0.1",
+      "paired_at": 1790053991,
+      "last_seen": 1790132418
+    },
+    {
+      "token": "489d8d0a-11f7-4416-ba89-e3395c9d8bc3",
       "name": "Hendrix Android Client",
       "ip": "192.168.100.118",
-      "paired_at": 1790053991,
-      "last_seen": 1790077707
+      "paired_at": 1790131744,
+      "last_seen": 1790131783
+    },
+    {
+      "token": "6dc06dc4-873b-4dfb-af45-976c07bf0532",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
+      "paired_at": 1790132009,
+      "last_seen": 1790167803
+    },
+    {
+      "token": "0a8c3af3-2c90-4685-ac46-48c26014ad3b",
+      "name": "M\u00f3vil (127.0.0.1)",
+      "ip": "127.0.0.1",
+      "paired_at": 1790133463,
+      "last_seen": 1790133463
+    },
+    {
+      "token": "07a3a28a-1315-428e-98d3-2c39800c044f",
+      "name": "M\u00f3vil (127.0.0.1)",
+      "ip": "127.0.0.1",
+      "paired_at": 1790133467,
+      "last_seen": 1790133467
     }
   ],
   "remote_tunnel_url": null

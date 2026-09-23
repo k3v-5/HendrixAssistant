@@ -4,6 +4,7 @@ import com.asistente.celular.nlu.construct.CapturingConstruct
 import com.asistente.celular.nlu.construct.Construct
 import com.asistente.celular.nlu.construct.MatchContext
 import com.asistente.celular.nlu.construct.OptionalConstruct
+import com.asistente.celular.nlu.construct.OrConstruct
 import com.asistente.celular.nlu.construct.SequenceConstruct
 import com.asistente.celular.nlu.construct.WordConstruct
 import com.asistente.celular.nlu.model.SkillScore
@@ -58,19 +59,28 @@ class NotesSkill(
         ),
         // 2. "anota|apunta [que|de] [contenido]"
         SequenceConstruct(
-            WordConstruct("anota", "anotar", "anotame", "apunta", "apuntar", "apuntame", "recuerda"),
+            WordConstruct("anota", "anotar", "anotame", "apunta", "apuntar", "apuntame"),
             OptionalConstruct(WordConstruct("que", "de", "en")),
             OptionalConstruct(WordConstruct("una", "un")),
-            OptionalConstruct(WordConstruct("nota")),
+            OptionalConstruct(WordConstruct("nota", "apunte")),
             CapturingConstruct("note_body")
         ),
-        // 3. Búsqueda por tema: "¿qué anoté sobre...", "busca notas de..."
-        SequenceConstruct(
-            WordConstruct("que", "busca", "buscar", "encuentra", "dime"),
-            OptionalConstruct(WordConstruct("anote", "puse", "escribi", "en", "mis")),
-            OptionalConstruct(WordConstruct("notas", "apuntes", "nota")),
-            OptionalConstruct(WordConstruct("sobre", "de", "acerca")),
-            CapturingConstruct("search_query")
+        // 3. Búsqueda por tema: "¿qué anoté sobre...", "busca notas de..." (requiere explícitamente términos de notas)
+        OrConstruct(
+            SequenceConstruct(
+                WordConstruct("que", "dime"),
+                WordConstruct("anote", "puse", "escribi", "tengo"),
+                OptionalConstruct(WordConstruct("sobre", "de", "en", "acerca")),
+                OptionalConstruct(WordConstruct("notas", "apuntes", "nota")),
+                CapturingConstruct("search_query")
+            ),
+            SequenceConstruct(
+                WordConstruct("busca", "buscar", "encuentra", "dime", "ver", "mostrar"),
+                OptionalConstruct(WordConstruct("en", "mis", "las")),
+                WordConstruct("notas", "apuntes", "nota"),
+                OptionalConstruct(WordConstruct("sobre", "de", "acerca")),
+                CapturingConstruct("search_query")
+            )
         ),
         // 4. Consulta general: "cuáles son mis notas", "léeme mis notas", "mis notas"
         SequenceConstruct(
@@ -101,8 +111,16 @@ class NotesSkill(
         val lower = MatchContext.normalize(input)
         if (lower.isBlank()) return SkillScore.NO_MATCH
 
+        // Filtro estricto: Si la entrada no contiene raíces de notas, no clasificar como nota
+        val hasNoteKeyword = lower.contains("nota") || lower.contains("apunte") ||
+                lower.contains("anota") || lower.contains("apunta") ||
+                lower.contains("anote") || lower.contains("anotar")
+        if (!hasNoteKeyword) {
+            return SkillScore.NO_MATCH
+        }
+
         // 1. Borrado de notas
-        if (lower.contains("borra") || lower.contains("elimina")) {
+        if (lower.contains("borra") || lower.contains("elimina") || lower.contains("quita")) {
             if (lower.contains("nota") || lower.contains("apunte")) {
                 val target = lower.substringAfter("nota", "").substringAfter("apunte", "").trim()
                 return SkillScore(
@@ -151,7 +169,9 @@ class NotesSkill(
 
         // 5. Creación rápida
         val isCreateKeyword = lower.startsWith("anota") || lower.startsWith("apunta") ||
-                lower.contains("nota") || lower.contains("apunte")
+                lower.contains("crea una nota") || lower.contains("guarda una nota") ||
+                lower.contains("toma nota") || lower.contains("nueva nota") ||
+                lower.contains("apunte")
         if (isCreateKeyword) {
             val body = extractBody(input)
             if (body.isNotBlank()) {
@@ -163,21 +183,47 @@ class NotesSkill(
             }
         }
 
-        return super.score(context, input)
+        val baseScore = super.score(context, input)
+        if (baseScore.isMatch) {
+            val updatedSlots = HashMap(baseScore.capturedSlots)
+            if (updatedSlots.containsKey("search_query") && !updatedSlots.containsKey("action")) {
+                updatedSlots["action"] = "search"
+            } else if (updatedSlots.containsKey("note_body") && !updatedSlots.containsKey("action")) {
+                updatedSlots["action"] = "create"
+            }
+            return baseScore.copy(capturedSlots = updatedSlots)
+        }
+
+        return baseScore
     }
 
     override suspend fun execute(context: SkillContext, input: String, score: SkillScore): SkillOutput {
         val action = score.capturedSlots["action"]
         val lower = MatchContext.normalize(input)
+        val hasSearchQuery = score.capturedSlots.containsKey("search_query") || score.capturedSlots.containsKey("query")
+        val hasNoteBody = score.capturedSlots.containsKey("note_body")
 
         return when {
             action == "delete" -> handleDeleteNote(score.capturedSlots["target"] ?: lower)
             action == "pin" -> handlePinNote(score.capturedSlots["target"] ?: lower)
-            action == "search" -> handleSearchNotes(score.capturedSlots["query"] ?: lower)
+            action == "search" || hasSearchQuery -> {
+                val query = score.capturedSlots["query"] ?: score.capturedSlots["search_query"] ?: lower
+                handleSearchNotes(query)
+            }
             action == "list" || isQueryCommand(lower) -> listNotes()
-            else -> {
+            action == "create" || hasNoteBody -> {
                 val body = extractBody(input).ifBlank { score.capturedSlots["note_body"] ?: input }
                 createNote(body)
+            }
+            else -> {
+                if (lower.contains("busca") || lower.contains("que anote") || lower.contains("encuentra")) {
+                    handleSearchNotes(lower)
+                } else if (isQueryCommand(lower)) {
+                    listNotes()
+                } else {
+                    val body = extractBody(input)
+                    createNote(body)
+                }
             }
         }
     }
@@ -276,7 +322,6 @@ class NotesSkill(
             return SkillOutput(speech = msg, displayText = "🗑️ $msg", success = false)
         }
 
-        // Caso: "la última nota"
         val noteToDelete = if (cleanTarget.contains("ultima") || cleanTarget.contains("última") || cleanTarget.isBlank()) {
             allNotes.firstOrNull()
         } else {
@@ -344,7 +389,6 @@ class NotesSkill(
             if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
         }
 
-        // Título automático basado en las primeras palabras si es extensa
         val words = cleanContent.split("\\s+".toRegex())
         val title = if (words.size > 5) {
             words.take(5).joinToString(" ") + "..."

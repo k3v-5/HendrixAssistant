@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +62,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.PcActionType
 import com.asistente.celular.nlu.pc.PcInteractionAction
+import com.asistente.celular.ui.theme.NeonAmber
+import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonGreen
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 
 /**
  * Muelle de Acciones Flotante (PcFloatingActionDock) de ultra alta ergonomía móvil.
@@ -87,109 +98,164 @@ fun PcFloatingActionDock(
     val view = LocalView.current
 
     var isKeyboardExpanded by remember { mutableStateOf(false) }
+    var isDockCollapsed by remember { mutableStateOf(false) }
     var inlineTextInput by remember { mutableStateOf("") }
     val activeModifiers = remember { mutableStateListOf<String>() }
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .animateContentSize(),
-        shape = RoundedCornerShape(22.dp),
-        color = Color(0xFF1E293B).copy(alpha = 0.94f),
-        tonalElevation = 8.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+    if (isDockCollapsed) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Fila principal: Cápsula de Acciones Rápidas
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = VoidSurfaceElevated.copy(alpha = 0.92f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                modifier = Modifier.clickable {
+                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    isDockCollapsed = false
+                }
             ) {
-                // 1. Pegar portapapeles de Android en la PC
-                DockActionIcon(
-                    icon = Icons.Default.ContentPaste,
-                    tooltip = "Pegar",
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
-                        if (!clipText.isNullOrBlank()) {
-                            onTypeText(clipText)
-                        }
-                    }
-                )
-
-                // 2. Alt+Tab para ciclar ventanas
-                DockActionIcon(
-                    icon = Icons.Default.Tab,
-                    tooltip = "Alt+Tab",
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.HOTKEY,
-                                keyCodes = listOf("alt", "tab")
-                            )
-                        )
-                    }
-                )
-
-                // 3. Conmutar Auto-crop a Ventana Activa
-                DockActionPill(
-                    text = if (isFocusWindowActive) "Ventana" else "Pantalla",
-                    icon = if (isFocusWindowActive) Icons.Default.CenterFocusStrong else Icons.Default.FitScreen,
-                    isActive = isFocusWindowActive,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onToggleFocusWindow()
-                    }
-                )
-
-                // 4. Conmutar Lupa HD de Precisión
-                DockActionPill(
-                    text = "Lupa",
-                    icon = Icons.Default.Search,
-                    isActive = isLoupeActive,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onToggleLoupe()
-                    }
-                )
-
-                // 5. Dictado por voz
-                DockActionIcon(
-                    icon = Icons.Default.Mic,
-                    tooltip = "Dictar",
-                    tint = Color(0xFF38BDF8),
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        onStartVoiceDictation()
-                    }
-                )
-
-                // 6. Desplegar / Colapsar teclado de modificadores
-                DockActionIcon(
-                    icon = if (isKeyboardExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.Keyboard,
-                    tooltip = "Teclado PC",
-                    tint = if (isKeyboardExpanded) MaterialTheme.colorScheme.primary else Color(0xFF94A3B8),
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        isKeyboardExpanded = !isKeyboardExpanded
-                    }
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Keyboard,
+                        contentDescription = null,
+                        tint = NeonCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Muelle de Control",
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Expandir muelle",
+                        tint = NeonCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
-
-            // Panel expandible de modificadores y teclas especiales de Windows
-            AnimatedVisibility(
-                visible = isKeyboardExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+        }
+    } else {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .animateContentSize(),
+            shape = RoundedCornerShape(22.dp),
+            color = VoidSurfaceElevated.copy(alpha = 0.95f),
+            tonalElevation = 8.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, VoidBorder)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Fila principal: Cápsula de Acciones Rápidas
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // 1. Pegar portapapeles de Android en la PC
+                    DockActionIcon(
+                        icon = Icons.Default.ContentPaste,
+                        tooltip = "Pegar",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            val clipText = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
+                            if (!clipText.isNullOrBlank()) {
+                                onTypeText(clipText)
+                            }
+                        }
+                    )
+
+                    // 2. Alt+Tab para ciclar ventanas
+                    DockActionIcon(
+                        icon = Icons.Default.Tab,
+                        tooltip = "Alt+Tab",
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onSendAction(
+                                PcInteractionAction(
+                                    type = PcActionType.HOTKEY,
+                                    keyCodes = listOf("alt", "tab")
+                                )
+                            )
+                        }
+                    )
+
+                    // 3. Conmutar Auto-crop a Ventana Activa
+                    DockActionPill(
+                        text = if (isFocusWindowActive) "Ventana" else "Pantalla",
+                        icon = if (isFocusWindowActive) Icons.Default.CenterFocusStrong else Icons.Default.FitScreen,
+                        isActive = isFocusWindowActive,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onToggleFocusWindow()
+                        }
+                    )
+
+                    // 4. Conmutar Lupa HD de Precisión
+                    DockActionPill(
+                        text = "Lupa",
+                        icon = Icons.Default.Search,
+                        isActive = isLoupeActive,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onToggleLoupe()
+                        }
+                    )
+
+                    // 5. Dictado por voz
+                    DockActionIcon(
+                        icon = Icons.Default.Mic,
+                        tooltip = "Dictar",
+                        tint = NeonCyan,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onStartVoiceDictation()
+                        }
+                    )
+
+                    // 6. Desplegar / Colapsar teclado de modificadores
+                    DockActionIcon(
+                        icon = if (isKeyboardExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.Keyboard,
+                        tooltip = "Teclado PC",
+                        tint = if (isKeyboardExpanded) NeonCyan else TextMuted,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            isKeyboardExpanded = !isKeyboardExpanded
+                        }
+                    )
+
+                    // 7. Minimizar muelle para pantalla completa
+                    DockActionIcon(
+                        icon = Icons.Default.KeyboardArrowDown,
+                        tooltip = "Minimizar",
+                        tint = TextMuted,
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            isDockCollapsed = true
+                        }
+                    )
+                }
+
+                // Panel expandible de modificadores y teclas especiales de Windows
+                AnimatedVisibility(
+                    visible = isKeyboardExpanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -282,15 +348,17 @@ fun PcFloatingActionDock(
                                 Text(
                                     text = if (activeModifiers.isNotEmpty()) "Escribir con [${activeModifiers.joinToString("+").uppercase()}]..." else "Escribir directamente en PC...",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF64748B)
+                                    color = TextMuted
                                 )
                             },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color(0xFF334155),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = VoidBorder,
+                                focusedContainerColor = VoidBlack,
+                                unfocusedContainerColor = VoidBlack,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -310,12 +378,12 @@ fun PcFloatingActionDock(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.primary)
+                                .background(NeonCyan)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Send,
+                                imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "Enviar texto",
-                                tint = Color.White,
+                                tint = VoidBlack,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -324,6 +392,7 @@ fun PcFloatingActionDock(
             }
         }
     }
+}
 }
 
 private fun sendKeyOrHotkey(
@@ -381,10 +450,10 @@ private fun DockActionPill(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color(0xFF0F172A))
+            .background(if (isActive) NeonCyan.copy(alpha = 0.2f) else VoidBlack)
             .border(
                 1.dp,
-                if (isActive) MaterialTheme.colorScheme.primary else Color(0xFF334155),
+                if (isActive) NeonCyan else VoidBorder,
                 RoundedCornerShape(14.dp)
             )
             .clickable { onClick() }
@@ -398,13 +467,13 @@ private fun DockActionPill(
                 imageVector = icon,
                 contentDescription = text,
                 modifier = Modifier.size(14.dp),
-                tint = if (isActive) MaterialTheme.colorScheme.primary else Color(0xFF94A3B8)
+                tint = if (isActive) NeonCyan else TextMuted
             )
             Text(
                 text = text,
                 fontSize = 11.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                color = if (isActive) Color.White else Color(0xFFCBD5E1)
+                color = if (isActive) TextPrimary else TextSecondary
             )
         }
     }
@@ -420,10 +489,10 @@ private fun ModifierChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFF0284C7) else Color(0xFF0F172A))
+            .background(if (isSelected) NeonCyan.copy(alpha = 0.25f) else VoidBlack)
             .border(
                 1.dp,
-                if (isSelected) Color(0xFF38BDF8) else Color(0xFF334155),
+                if (isSelected) NeonCyan else VoidBorder,
                 RoundedCornerShape(8.dp)
             )
             .clickable { onClick() }
@@ -433,7 +502,7 @@ private fun ModifierChip(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) Color.White else Color(0xFF94A3B8)
+            color = if (isSelected) NeonCyan else TextMuted
         )
     }
 }
@@ -447,8 +516,8 @@ private fun SpecialKeyButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF0F172A))
-            .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+            .background(VoidBlack)
+            .border(1.dp, VoidBorder, RoundedCornerShape(8.dp))
             .clickable { onClick() }
             .padding(horizontal = 8.dp, vertical = 5.dp)
     ) {
@@ -456,7 +525,7 @@ private fun SpecialKeyButton(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFFCBD5E1)
+            color = TextSecondary
         )
     }
 }

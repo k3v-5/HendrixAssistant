@@ -28,4 +28,5 @@ env/
 hendrix-desktop/**/__pycache__/
 hendrix-desktop/storage/hendrix_clipboard_history.json
 *.log
+.kotlin/
 

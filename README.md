@@ -2,7 +2,11 @@
 
 > Asistente de voz inteligente para Android con arquitectura **Offline-First**, motor local de PNL/gramáticas (inspirado en **Dicio**), procesamiento de voz y palabra de activación en el dispositivo (inspirado en **Sherpa-ONNX**), y enrutamiento inteligente hacia modelos de Inteligencia Artificial (**Gemini, Groq, OpenAI, Ollama o SLM local**) para tareas complejas.
 
-Para ver las directrices fundamentales y la fuente única de verdad del proyecto, consulta [PROJECT_OBJECTIVE.md](PROJECT_OBJECTIVE.md).
+📚 **Documentación Central:**
+* [Índice Maestro y Documentación Integral del Proyecto (PROJECT_INDEX.md)](PROJECT_INDEX.md)
+* [Documento Maestro de Objetivos y Filosofía (PROJECT_OBJECTIVE.md)](PROJECT_OBJECTIVE.md)
+* [Reglas y Directrices de Arquitectura (GEMINI.md)](GEMINI.md)
+* [Guía de Automatización de PC Studio y Dropzone (docs/PC_STUDIO_AUTOMATION_GUIDE.md)](docs/PC_STUDIO_AUTOMATION_GUIDE.md)
 
 ---
 
@@ -19,15 +23,15 @@ Para ver las directrices fundamentales y la fuente única de verdad del proyecto
   - Si la consulta es abierta, explicativa o creativa (*"explícame cómo funciona un motor de cohete"*, *"resume este texto"*), el motor detecta la complejidad o la ausencia de coincidencia local y la deriva automáticamente a la IA seleccionada.
   - Compatible con: **Google Gemini**, **Groq (Llama 3 ultra-rápido)**, **OpenAI (ChatGPT)**, **Ollama (servidor propio en red local)** y **SLM Local On-Device**.
   - Si no hay conexión a internet y se pide una tarea compleja, el asistente ofrece una respuesta offline informando al usuario sin romperse.
-- **🎙️ Arquitectura de Audio y Voz:**
-  - **Wake Word (KWS):** Detección continua de *"Oye Hendrix"* offline mediante Sherpa-ONNX KeywordSpotter.
-  - **Reconocimiento de voz (STT):** Transcripción offline con modelos cuantizados ONNX (Zipformer / Whisper-tiny).
-  - **Síntesis de voz (TTS):** Motor nativo de Android TTS para cero huella de almacenamiento y respuesta inmediata.
-- **📱 Interfaz Moderna con Jetpack Compose y Material 3:**
-  - Historial conversacional interactivo.
-  - Indicador visual animado (Orb/Ondas) de escucha, procesamiento y habla.
-  - Chips distintivos que muestran si cada respuesta provino del **Motor Local (⚡ NLU)** o de la **Inteligencia Artificial (✨ IA)**.
-  - Pantalla completa de ajustes para configurar claves de API, modelos y activación por voz en segundo plano.
+- **🎙️ Arquitectura de Audio y Síntesis Barítona:**
+  - **Wake Word (KWS):** Detección continua de *"Oye Hendrix"* offline mediante Sherpa-ONNX y fallback con tolerancia a fonemas.
+  - **Reconocimiento de voz (STT):** Transcripción con Android Speech Recognizer nativo y modelos Zipformer/Whisper.
+  - **Voz Humana Masculina (Barítono):** Síntesis calibrada a pitch `0.85f` y velocidad `0.98f` con priorización automática de voces neuronales masculinas cálidas y profundas.
+- **📱 Sistema UI/UX OLED Void & Chat Puro de IA:**
+  - **Orbe Líquido Morado Bioluminiscente (220dp):** Simulación física de fluido orgánico con deformación armónica multifrecuencia, capas de plasma y destellos 3D en la pantalla principal.
+  - **Chat Puro de IA:** Interfaz libre de saturación, centrada en el hilo conversacional e integración de tarjetas interactivas.
+  - **Modo Pantalla PC Inmersivo 98%:** Control remoto con auto-ocultamiento de barras de navegación, zoom multitáctil con 2 dedos (1.0x-6.0x), paneo suave y clics temporizados (2s izquierdo / 4s derecho).
+  - **Tema OLED Void:** Fondos negros puros `#050508` con acentos neón (Cian, Púrpura, Ámbar, Verde, Rojo) y cero consumo en píxeles negros.
 
 ---
 

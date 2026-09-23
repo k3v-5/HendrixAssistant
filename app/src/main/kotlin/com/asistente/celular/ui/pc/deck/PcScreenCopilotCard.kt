@@ -16,7 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,15 +62,15 @@ fun PcScreenCopilotCard(
     onShowSnackbar: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
-    val clipboardManager = LocalClipboardManager.current
     val telemetry by pcBridge.telemetry.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
+
+    val activeWindow = telemetry?.activeWindowTitle ?: "Sin ventana activa"
 
     var promptText by remember { mutableStateOf("") }
     var cropToActiveWindow by remember { mutableStateOf(true) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var analysisResult by remember { mutableStateOf<PcScreenAnalysisResult?>(null) }
-
-    val activeWindow = telemetry?.activeWindowTitle ?: "Sin ventana activa"
 
     fun executeAnalysis(query: String) {
         val effectiveQuery = query.ifBlank { "Diagnostica la pantalla actual, identifica errores, procesos y sugiere soluciones." }
@@ -114,7 +120,12 @@ fun PcScreenCopilotCard(
                             .background(Color(0xFF6366F1).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "👁️", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.SmartToy,
+                            contentDescription = null,
+                            tint = Color(0xFF6366F1),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -180,7 +191,18 @@ fun PcScreenCopilotCard(
                         promptText = "Diagnostica errores o excepciones visibles en esta ventana y cómo solucionarlos."
                         executeAnalysis(promptText)
                     },
-                    label = { Text("⚠️ Errores", fontSize = 11.sp) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFF87171),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Errores", fontSize = 11.sp)
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color(0xFF1E293B),
                         labelColor = Color(0xFFF87171)
@@ -192,7 +214,18 @@ fun PcScreenCopilotCard(
                         promptText = "Explica qué está sucediendo en esta pantalla o qué proceso se está ejecutando."
                         executeAnalysis(promptText)
                     },
-                    label = { Text("🔍 ¿Qué pasa?", fontSize = 11.sp) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = null,
+                                tint = Color(0xFF60A5FA),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("¿Qué pasa?", fontSize = 11.sp)
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color(0xFF1E293B),
                         labelColor = Color(0xFF60A5FA)
@@ -204,7 +237,18 @@ fun PcScreenCopilotCard(
                         promptText = "¿Cómo va el render o progreso de la tarea y cuánto le falta aproximadamente?"
                         executeAnalysis(promptText)
                     },
-                    label = { Text("⏳ Render", fontSize = 11.sp) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.HourglassTop,
+                                contentDescription = null,
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Render", fontSize = 11.sp)
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = Color(0xFF1E293B),
                         labelColor = Color(0xFF34D399)
@@ -259,7 +303,16 @@ fun PcScreenCopilotCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Analizando pantalla con IA...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 } else {
-                    Text("🚀 Diagnosticar Pantalla Bajo Demanda", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Diagnosticar Pantalla Bajo Demanda", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
 
@@ -278,12 +331,21 @@ fun PcScreenCopilotCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (res.success) "📋 Diagnóstico de IA:" else "⚠️ Error:",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (res.success) Color(0xFF60A5FA) else Color(0xFFF87171)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (res.success) Icons.Default.Psychology else Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = if (res.success) Color(0xFF60A5FA) else Color(0xFFF87171),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (res.success) "Diagnóstico de IA:" else "Error:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (res.success) Color(0xFF60A5FA) else Color(0xFFF87171)
+                                )
+                            }
                             Row {
                                 if (res.success) {
                                     Button(

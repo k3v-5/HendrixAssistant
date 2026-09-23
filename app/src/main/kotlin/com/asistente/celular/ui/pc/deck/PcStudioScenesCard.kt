@@ -15,9 +15,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LinearScale
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,7 +75,12 @@ fun PcStudioScenesCard(
                             .background(Color(0xFF8B5CF6).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🎬", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF8B5CF6),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -119,13 +132,13 @@ fun PcStudioScenesCard(
                                     try {
                                         val result = pcBridge.executeStudioScene(scene.id)
                                         lastResultMessage = if (result.success) {
-                                            "✅ ${result.message} (${result.stepsExecuted}/${result.totalSteps} pasos)"
+                                            "${result.message} (${result.stepsExecuted}/${result.totalSteps} pasos)"
                                         } else {
-                                            "⚠️ ${result.message}"
+                                            result.message
                                         }
                                         onShowSnackbar(lastResultMessage ?: "")
                                     } catch (e: Exception) {
-                                        lastResultMessage = "❌ Error: ${e.message}"
+                                        lastResultMessage = "Error: ${e.message}"
                                         onShowSnackbar("Error ejecutando escena: ${e.message}")
                                     } finally {
                                         runningSceneId = null
@@ -159,10 +172,22 @@ private fun StudioSceneItem(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(Color(0xFF8B5CF6).copy(alpha = 0.25f), RoundedCornerShape(8.dp)),
+                    .background(Color(scene.accentColorHex).copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = scene.iconEmoji, fontSize = 18.sp)
+                val sceneIcon = when (scene.id) {
+                    PcStudioSceneRegistry.SCENE_MUSIC_PRODUCTION -> Icons.Default.MusicNote
+                    PcStudioSceneRegistry.SCENE_RENDER_NIGHT -> Icons.Default.NightsStay
+                    PcStudioSceneRegistry.SCENE_CLOSE -> Icons.Default.PowerSettingsNew
+                    PcStudioSceneRegistry.SCENE_STREAMING -> Icons.Default.Videocam
+                    else -> Icons.Default.PlayCircle
+                }
+                Icon(
+                    imageVector = sceneIcon,
+                    contentDescription = null,
+                    tint = Color(scene.accentColorHex),
+                    modifier = Modifier.size(20.dp)
+                )
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -178,11 +203,20 @@ private fun StudioSceneItem(
                     color = Color.LightGray,
                     maxLines = 2
                 )
-                Text(
-                    text = "⚙️ ${scene.steps.size} pasos encadenados",
-                    fontSize = 9.sp,
-                    color = Color(0xFF8B5CF6)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LinearScale,
+                        contentDescription = null,
+                        tint = Color(0xFF8B5CF6),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${scene.steps.size} pasos encadenados",
+                        fontSize = 9.sp,
+                        color = Color(0xFF8B5CF6)
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(8.dp))
             Button(

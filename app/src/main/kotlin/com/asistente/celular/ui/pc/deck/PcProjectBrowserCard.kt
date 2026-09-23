@@ -18,8 +18,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -103,7 +109,12 @@ fun PcProjectBrowserCard(
                             .background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "📂", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = Color(0xFF06B6D4),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -203,12 +214,30 @@ fun PcProjectBrowserCard(
                 )
 
                 PcProjectCategory.entries.forEach { cat ->
+                    val catIcon = when (cat) {
+                        PcProjectCategory.AUDIO_DAW -> Icons.Default.MusicNote
+                        PcProjectCategory.THREE_D_VFX -> Icons.Default.ViewInAr
+                        PcProjectCategory.VIDEO_DESIGN -> Icons.Default.Movie
+                        PcProjectCategory.CODE_DEV -> Icons.Default.Code
+                        PcProjectCategory.OTHER -> Icons.Default.Folder
+                    }
                     FilterChip(
                         selected = selectedCategory == cat,
                         onClick = {
                             selectedCategory = if (selectedCategory == cat) null else cat
                         },
-                        label = { Text("${cat.iconEmoji} ${cat.displayName}", fontSize = 11.sp) },
+                        label = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = catIcon,
+                                    contentDescription = null,
+                                    tint = if (selectedCategory == cat) Color.Black else Color(0xFF06B6D4),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(cat.displayName, fontSize = 11.sp)
+                            }
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF06B6D4),
                             selectedLabelColor = Color.Black
@@ -247,9 +276,9 @@ fun PcProjectBrowserCard(
                                         try {
                                             val ok = pcBridge.launchRemoteProject(project.path)
                                             if (ok) {
-                                                onShowSnackbar("🚀 Abriendo ${project.name} en PC...")
+                                                onShowSnackbar("Abriendo ${project.name} en PC...")
                                             } else {
-                                                onShowSnackbar("⚠️ Error al intentar abrir ${project.name}")
+                                                onShowSnackbar("Error al intentar abrir ${project.name}")
                                             }
                                         } catch (e: Exception) {
                                             onShowSnackbar("Error: ${e.message}")

@@ -141,4 +141,30 @@ class EnhancedNotesSkillTest {
         assertTrue(output.success)
         assertTrue(repo.notes.value.first().isPinned)
     }
+
+    @Test
+    fun testGeneralQueriesDoNotMatchNotesSkill() = runBlocking {
+        val repo = MockNoteRepository()
+        val skill = NotesSkill(repo)
+
+        val nonNoteInputs = listOf(
+            "qué día es hoy",
+            "que dia es hoy",
+            "qué hora es",
+            "dime la hora",
+            "cuál es la fecha",
+            "qué tiempo hace",
+            "cuéntame un chiste",
+            "hola cómo estás",
+            "para el que era la materializacion"
+        )
+
+        for (input in nonNoteInputs) {
+            val score = skill.score(dummyContext, input)
+            assertFalse(
+                "La frase '$input' NO debe coincidir con NotesSkill (confidence=${score.confidence})",
+                score.isMatch
+            )
+        }
+    }
 }

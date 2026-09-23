@@ -1,12 +1,19 @@
+import os
+import tempfile
+import shutil
 import unittest
+import config as cfg_module
 from config import config
 from core.session_manager import SessionManager
 
 class TestSessionDevices(unittest.TestCase):
 
     def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.old_config_file = cfg_module.CONFIG_FILE
+        cfg_module.CONFIG_FILE = os.path.join(self.temp_dir, "test_config.json")
+
         self.mgr = SessionManager()
-        # Backup config
         self.orig_tokens = list(config.paired_tokens)
         self.orig_devices = list(config.paired_devices)
         config.paired_tokens.clear()
@@ -16,6 +23,8 @@ class TestSessionDevices(unittest.TestCase):
     def tearDown(self):
         config.paired_tokens = self.orig_tokens
         config.paired_devices = self.orig_devices
+        cfg_module.CONFIG_FILE = self.old_config_file
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_pairing_with_pin(self):
         # Intento con PIN erróneo

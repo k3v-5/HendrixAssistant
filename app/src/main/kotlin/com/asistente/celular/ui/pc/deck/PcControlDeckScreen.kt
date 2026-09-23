@@ -25,6 +25,34 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.FolderShared
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import com.asistente.celular.ui.pc.deck.airsync.PcAirSyncCard
 import com.asistente.celular.ui.pc.deck.terminal.PcWorkspaceContextCard
@@ -67,6 +95,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import com.asistente.celular.nlu.pc.PcWorkspaceBridge
+import com.asistente.celular.nlu.pc.PcWindowInfo
 import com.asistente.celular.nlu.pc.dropzone.PcDropzoneFile
 import com.asistente.celular.nlu.pc.module.PcModuleActionRequest
 import com.asistente.celular.nlu.pc.module.PcModuleId
@@ -80,16 +109,30 @@ import kotlinx.coroutines.isActive
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.draw.clip
+import com.asistente.celular.ui.components.oled.OledCard
+import com.asistente.celular.ui.theme.NeonAmber
+import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonGreen
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 
 /**
  * Pestañas principales para navegación segmentada de la workstation de PC.
  * Prioriza la visualización de la pantalla en vivo y atajos esenciales sin scroll infinito.
  */
-enum class PcDeckTab(val title: String, val icon: String) {
-    SCREEN("Pantalla", "🖥️"),
-    DECK("Atajos", "🎛️"),
-    AIRSYNC("Archivos", "📁"),
-    TELEMETRY("Sistema", "📊")
+enum class PcDeckTab(val title: String, val icon: ImageVector) {
+    SCREEN("Pantalla", Icons.Default.DesktopWindows),
+    DECK("Atajos", Icons.Default.Tune),
+    AIRSYNC("Archivos", Icons.Default.FolderShared),
+    TELEMETRY("Sistema", Icons.Default.BarChart)
 }
 
 /**
@@ -106,6 +149,7 @@ fun PcControlDeckScreen(
     macroDeckProfileRepository: com.asistente.celular.nlu.pc.deck.dynamic.MacroDeckProfileRepository? = null,
     onEnterDeskStandby: (() -> Unit)? = null,
     onBack: () -> Unit,
+    onImmersiveModeChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -118,6 +162,12 @@ fun PcControlDeckScreen(
     val enabledModules by moduleManager.enabledModules.collectAsState()
 
     var selectedTab by remember { mutableStateOf(PcDeckTab.SCREEN) }
+    val isScreenImmersive = selectedTab == PcDeckTab.SCREEN
+
+    LaunchedEffect(isScreenImmersive) {
+        onImmersiveModeChanged?.invoke(isScreenImmersive)
+    }
+
     var showSelectorDialog by remember { mutableStateOf(false) }
     var showUnlockDialog by remember { mutableStateOf(false) }
     var unlockPinInput by remember { mutableStateOf("") }
@@ -126,6 +176,7 @@ fun PcControlDeckScreen(
     var showConnectDialog by remember { mutableStateOf(false) }
     val coordinator = pcBridge as? com.asistente.celular.pc.PcRemoteCoordinator
     val savedConfig by coordinator?.endpointConfig?.collectAsState() ?: remember { mutableStateOf(null) }
+    val openWindows by coordinator?.openWindows?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     var manualIpInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
     var manualPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
     var manualPinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
@@ -194,185 +245,211 @@ fun PcControlDeckScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = Color(0xFF0B1120),
+        containerColor = VoidBlack,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Workstation PC",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        // Indicador de conexión
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    if (isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
-                                    CircleShape
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isConnected) (telemetry?.hostname ?: "Conectado") else "Desconectado",
-                            fontSize = 11.sp,
-                            color = if (isConnected) Color(0xFF10B981) else Color(0xFFEF4444),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showConnectDialog = true }) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "Configurar Conexión PC",
-                            tint = Color(0xFF38BDF8)
-                        )
-                    }
-                    IconButton(onClick = {
-                        scope.launch {
-                            val ok = pcBridge.wakeOnLan()
-                            if (ok) {
-                                snackbarHostState.showSnackbar("⚡ Paquete Wake-on-LAN emitido a la red local")
-                            } else {
-                                snackbarHostState.showSnackbar("⚠️ No se pudo enviar Wake-on-LAN (Verifica MAC registrada)")
-                            }
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.PowerSettingsNew,
-                            contentDescription = "Despertar PC (Wake-on-LAN)",
-                            tint = Color(0xFFFBBF24)
-                        )
-                    }
-                    IconButton(onClick = { showSelectorDialog = true }) {
-                        Icon(
-                            Icons.Default.Extension,
-                            contentDescription = "Gestor de Módulos",
-                            tint = Color(0xFF8B5CF6)
-                        )
-                    }
-                    IconButton(onClick = { showMacroDeckScreen = true }) {
-                        Icon(
-                            Icons.Default.TouchApp,
-                            contentDescription = "Macro Deck Táctil",
-                            tint = Color(0xFF00E5FF)
-                        )
-                    }
-                    if (onEnterDeskStandby != null) {
-                        IconButton(onClick = onEnterDeskStandby) {
-                            Icon(
-                                Icons.Default.Tv,
-                                contentDescription = "Modo Desk Standby",
-                                tint = Color(0xFF38BDF8)
+            if (!isScreenImmersive) {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "WORKSTATION PC",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // Indicador de conexión
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        if (isConnected) NeonCyan else NeonRed,
+                                        CircleShape
+                                    )
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isConnected) (telemetry?.hostname ?: "ONLINE") else "OFFLINE",
+                                fontSize = 10.sp,
+                                color = if (isConnected) NeonCyan else NeonRed,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
                             )
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E293B))
-            )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showConnectDialog = true }) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Configurar Conexión PC",
+                                tint = NeonCyan
+                            )
+                        }
+                        IconButton(onClick = {
+                            scope.launch {
+                                val ok = pcBridge.wakeOnLan()
+                                if (ok) {
+                                    snackbarHostState.showSnackbar("Paquete Wake-on-LAN emitido a la red local")
+                                } else {
+                                    snackbarHostState.showSnackbar("No se pudo enviar Wake-on-LAN (Verifica MAC registrada)")
+                                }
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.PowerSettingsNew,
+                                contentDescription = "Despertar PC (Wake-on-LAN)",
+                                tint = NeonAmber
+                            )
+                        }
+                        IconButton(onClick = { showSelectorDialog = true }) {
+                            Icon(
+                                Icons.Default.Extension,
+                                contentDescription = "Gestor de Módulos",
+                                tint = TextSecondary
+                            )
+                        }
+                        if (onEnterDeskStandby != null) {
+                            IconButton(onClick = onEnterDeskStandby) {
+                                Icon(
+                                    Icons.Default.Tv,
+                                    contentDescription = "Modo Desk Standby",
+                                    tint = NeonCyan
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = VoidBlack)
+                )
+            }
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(if (isScreenImmersive) PaddingValues(0.dp) else paddingValues)
         ) {
-            // Barra de Pestañas Segmentadas
-            TabRow(
-                selectedTabIndex = selectedTab.ordinal,
-                containerColor = Color(0xFF1E293B),
-                contentColor = Color(0xFF38BDF8)
-            ) {
-                PcDeckTab.entries.forEach { tab ->
-                    Tab(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
-                        text = {
-                            Text(
-                                text = "${tab.icon} ${tab.title}",
-                                fontSize = 11.sp,
-                                fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selectedTab == tab) Color(0xFF38BDF8) else Color.LightGray,
-                                maxLines = 1
-                            )
-                        }
-                    )
-                }
-            }
-
-            // Banner proactivo si hay una nueva compilación OTA disponible en la PC
-            if (otaUpdateInfo?.available == true) {
-                Surface(
-                    color = Color(0xFF0284C7).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFF0284C7)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
+            if (!isScreenImmersive) {
+                // Barra de Pestañas Segmentadas en VoidBlack con línea indicadora NeonCyan
+                TabRow(
+                    selectedTabIndex = selectedTab.ordinal,
+                    containerColor = VoidBlack,
+                    contentColor = NeonCyan,
+                    divider = {
+                        androidx.compose.material3.HorizontalDivider(
+                            thickness = 1.dp,
+                            color = VoidBorder
+                        )
+                    }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("🚀", fontSize = 20.sp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Nueva compilación disponible en PC",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            val mbSize = (otaUpdateInfo?.apkSizeBytes ?: 0L).toFloat() / (1024f * 1024f)
-                            Text(
-                                text = "${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Lista para instalar",
-                                fontSize = 11.sp,
-                                color = Color.LightGray
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        when (val state = otaDownloadState) {
-                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
+                    PcDeckTab.entries.forEach { tab ->
+                        Tab(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            icon = {
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (selectedTab == tab) NeonCyan else TextMuted
+                                )
+                            },
+                            text = {
                                 Text(
-                                    text = "${(state.progress * 100).toInt()}%",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF38BDF8)
+                                    text = tab.title,
+                                    fontSize = 10.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selectedTab == tab) NeonCyan else TextMuted,
+                                    maxLines = 1
                                 )
                             }
-                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
-                                Button(
-                                    onClick = { otaCoordinator.triggerInstall(state.apkFile) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text("Instalar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
+                        )
+                    }
+                }
+
+                // Banner proactivo si hay una nueva compilación OTA disponible en la PC
+                if (otaUpdateInfo?.available == true) {
+                    Surface(
+                        color = NeonCyan.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(NeonCyan.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdateAlt,
+                                    contentDescription = null,
+                                    tint = NeonCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                            else -> {
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("Descargando actualización desde la PC...")
-                                            otaCoordinator.downloadAndInstall(otaUpdateInfo!!)
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text("Actualizar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Nueva compilación disponible en PC",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                val mbSize = (otaUpdateInfo?.apkSizeBytes ?: 0L).toFloat() / (1024f * 1024f)
+                                Text(
+                                    text = "${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Lista para instalar",
+                                    fontSize = 11.sp,
+                                    color = Color.LightGray
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            when (val state = otaDownloadState) {
+                                is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
+                                    Text(
+                                        text = "${(state.progress * 100).toInt()}%",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = NeonCyan
+                                    )
+                                }
+                                is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
+                                    Button(
+                                        onClick = { otaCoordinator.triggerInstall(state.apkFile) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Instalar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                                    }
+                                }
+                                else -> {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Descargando actualización desde la PC...")
+                                                otaCoordinator.downloadAndInstall(otaUpdateInfo!!)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Actualizar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                                    }
                                 }
                             }
                         }
@@ -388,17 +465,19 @@ fun PcControlDeckScreen(
                         pcBridge = pcBridge,
                         telemetry = telemetry,
                         isSessionLocked = telemetry?.isSessionLocked == true,
+                        openWindows = openWindows,
                         onConnectClick = { showConnectDialog = true },
                         onWakeClick = {
                             scope.launch {
                                 val sent = pcBridge.wakeOnLan()
                                 snackbarHostState.showSnackbar(
-                                    if (sent) "⚡ Paquete Wake-on-LAN emitido a la red local"
-                                    else "⚠️ No hay dirección MAC guardada para esta PC"
+                                    if (sent) "Paquete Wake-on-LAN emitido a la red local"
+                                    else "No hay dirección MAC guardada para esta PC"
                                 )
                             }
                         },
                         onUnlockClick = { showUnlockDialog = true },
+                        onExitScreenTab = { selectedTab = PcDeckTab.DECK },
                         onShowSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
                     )
                 }
@@ -455,19 +534,22 @@ fun PcControlDeckScreen(
         AlertDialog(
             onDismissRequest = { showUnlockDialog = false },
             title = {
-                Text(
-                    text = "🔓 Desbloquear Sesión de Windows",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = "Desbloquear Sesión de Windows",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                }
             },
             text = {
                 Column {
                     Text(
                         text = "Ingresa tu PIN o contraseña de Windows para iniciar sesión remotamente:",
                         fontSize = 12.sp,
-                        color = Color.LightGray
+                        color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
@@ -477,12 +559,12 @@ fun PcControlDeckScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFF59E0B),
-                            unfocusedBorderColor = Color(0xFF334155),
-                            focusedContainerColor = Color(0xFF0F172A),
-                            unfocusedContainerColor = Color(0xFF0F172A),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedBorderColor = NeonAmber,
+                            unfocusedBorderColor = VoidBorder,
+                            focusedContainerColor = VoidBlack,
+                            unfocusedContainerColor = VoidBlack,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
                         )
                     )
                 }
@@ -493,26 +575,26 @@ fun PcControlDeckScreen(
                         val pinToSend = unlockPinInput
                         showUnlockDialog = false
                         scope.launch {
-                            snackbarHostState.showSnackbar("🔓 Enviando comando de desbloqueo a Windows...")
+                            snackbarHostState.showSnackbar("Enviando comando de desbloqueo a Windows...")
                             val ok = pcBridge.unlockSession(pinToSend)
                             if (ok) {
-                                snackbarHostState.showSnackbar("✅ Sesión de Windows desbloqueada")
+                                snackbarHostState.showSnackbar("Sesión de Windows desbloqueada")
                             } else {
-                                snackbarHostState.showSnackbar("⚠️ La sesión aún continúa bloqueada")
+                                snackbarHostState.showSnackbar("La sesión aún continúa bloqueada")
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B))
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonAmber)
                 ) {
-                    Text("Desbloquear", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("Desbloquear", color = VoidBlack, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showUnlockDialog = false }) {
-                    Text("Cancelar", color = Color.LightGray)
+                    Text("Cancelar", color = TextMuted)
                 }
             },
-            containerColor = Color(0xFF1E293B)
+            containerColor = VoidSurfaceElevated
         )
     }
 
@@ -520,19 +602,22 @@ fun PcControlDeckScreen(
         AlertDialog(
             onDismissRequest = { showConnectDialog = false },
             title = {
-                Text(
-                    text = "🔗 Conectar con Hendrix PC",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color.White
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Link, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = "Conectar con Hendrix PC",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextPrimary
+                    )
+                }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = "Configura la IP y PIN de tu computadora para conectar directamente:",
                         fontSize = 12.sp,
-                        color = Color.LightGray
+                        color = TextSecondary
                     )
                     OutlinedTextField(
                         value = manualIpInput,
@@ -540,7 +625,15 @@ fun PcControlDeckScreen(
                         label = { Text("IP de la PC (LAN)") },
                         placeholder = { Text("192.168.100.159") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NeonCyan,
+                            unfocusedBorderColor = VoidBorder,
+                            focusedContainerColor = VoidBlack,
+                            unfocusedContainerColor = VoidBlack,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -552,7 +645,15 @@ fun PcControlDeckScreen(
                             label = { Text("Puerto") },
                             placeholder = { Text("8899") },
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = VoidBorder,
+                                focusedContainerColor = VoidBlack,
+                                unfocusedContainerColor = VoidBlack,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
                         )
                         OutlinedTextField(
                             value = manualPinInput,
@@ -560,7 +661,15 @@ fun PcControlDeckScreen(
                             label = { Text("PIN") },
                             placeholder = { Text("123456") },
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = VoidBorder,
+                                focusedContainerColor = VoidBlack,
+                                unfocusedContainerColor = VoidBlack,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
                         )
                     }
                 }
@@ -577,23 +686,23 @@ fun PcControlDeckScreen(
                             coordinator?.updateEndpoint(ip, port, pin)
                             val ok = pcBridge.connect(ip, port, pin)
                             if (ok) {
-                                snackbarHostState.showSnackbar("✅ Conectado con éxito a la PC")
+                                snackbarHostState.showSnackbar("Conectado con éxito a la PC")
                             } else {
-                                snackbarHostState.showSnackbar("❌ No se pudo conectar. Verifica que el servidor de PC esté abierto y el firewall permitido.")
+                                snackbarHostState.showSnackbar("No se pudo conectar. Verifica que el servidor de PC esté abierto y el firewall permitido.")
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
                 ) {
-                    Text("Conectar", fontWeight = FontWeight.Bold)
+                    Text("Conectar", fontWeight = FontWeight.Bold, color = VoidBlack)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConnectDialog = false }) {
-                    Text("Cancelar", color = Color.LightGray)
+                    Text("Cancelar", color = TextMuted)
                 }
             },
-            containerColor = Color(0xFF1E293B)
+            containerColor = VoidSurfaceElevated
         )
     }
 }
@@ -608,9 +717,11 @@ private fun ScreenLiveTabContent(
     pcBridge: PcWorkspaceBridge,
     telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
     isSessionLocked: Boolean,
+    openWindows: List<PcWindowInfo> = emptyList(),
     onConnectClick: () -> Unit,
     onWakeClick: () -> Unit,
     onUnlockClick: () -> Unit,
+    onExitScreenTab: () -> Unit = {},
     onShowSnackbar: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -639,9 +750,9 @@ private fun ScreenLiveTabContent(
             contentAlignment = Alignment.Center
         ) {
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurfaceElevated,
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -651,10 +762,15 @@ private fun ScreenLiveTabContent(
                     Box(
                         modifier = Modifier
                             .size(72.dp)
-                            .background(Color(0xFF0284C7).copy(alpha = 0.15f), CircleShape),
+                            .background(NeonCyan.copy(alpha = 0.15f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("🖥️", fontSize = 36.sp)
+                        Icon(
+                            imageVector = Icons.Default.DesktopWindows,
+                            contentDescription = null,
+                            tint = NeonCyan,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -663,7 +779,7 @@ private fun ScreenLiveTabContent(
                         text = "Pantalla de PC Remota",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = TextPrimary
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -671,7 +787,7 @@ private fun ScreenLiveTabContent(
                     Text(
                         text = "Visualiza el escritorio de tu computadora en tiempo real y contrólalo con toques, gestos táctiles y teclado.",
                         fontSize = 13.sp,
-                        color = Color.LightGray,
+                        color = TextSecondary,
                         textAlign = TextAlign.Center
                     )
 
@@ -679,21 +795,49 @@ private fun ScreenLiveTabContent(
 
                     Button(
                         onClick = onConnectClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("🔗 Conectar a la PC", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Conectar a la PC", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = VoidBlack)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedButton(
                         onClick = onWakeClick,
+                        border = BorderStroke(1.dp, NeonAmber.copy(alpha = 0.6f)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("⚡ Despertar PC (Wake-on-LAN)", fontSize = 13.sp, color = Color(0xFFFBBF24))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Despertar PC (Wake-on-LAN)", fontSize = 13.sp, color = NeonAmber)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    TextButton(onClick = onExitScreenTab) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Ir al Deck de Atajos", color = TextMuted, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -702,29 +846,35 @@ private fun ScreenLiveTabContent(
         Column(modifier = Modifier.fillMaxSize()) {
             if (isSessionLocked) {
                 Surface(
-                    color = Color(0xFFF59E0B).copy(alpha = 0.18f),
+                    color = NeonAmber.copy(alpha = 0.18f),
+                    border = BorderStroke(1.dp, NeonAmber.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🔒", fontSize = 14.sp)
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = NeonAmber,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Pantalla de Windows bloqueada",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFFBBF24),
+                            color = NeonAmber,
                             modifier = Modifier.weight(1f)
                         )
                         Button(
                             onClick = onUnlockClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
                         ) {
-                            Text("Desbloquear", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("Desbloquear", fontSize = 11.sp, color = VoidBlack, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -745,8 +895,42 @@ private fun ScreenLiveTabContent(
                     },
                     isLoupeEnabled = isLoupeActive,
                     isWindowFocusActive = isFocusWindowActive,
-                    activeWindowBounds = telemetry?.activeWindowBounds
+                    activeWindowBounds = telemetry?.activeWindowBounds,
+                    openWindows = openWindows,
+                    onRequestWindows = { pcBridge.getOpenWindows() },
+                    onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
                 )
+
+                // Botón flotante para regresar al Deck / Atajos en modo inmersivo
+                Surface(
+                    onClick = onExitScreenTab,
+                    color = VoidSurfaceElevated.copy(alpha = 0.88f),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, VoidBorder),
+                    modifier = Modifier
+                        .padding(top = 16.dp, start = 16.dp)
+                        .align(Alignment.TopStart)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = NeonCyan,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Deck",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = TextPrimary
+                        )
+                    }
+                }
             }
 
             PcFloatingActionDock(
@@ -772,34 +956,50 @@ private fun ScreenLiveTabContent(
         var dictationInput by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showDictationDialog = false },
-            title = { Text("🎙️ Escribir en la PC", fontWeight = FontWeight.Bold, color = Color.White) },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Mic, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
+                    Text("Escribir en la PC", fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+            },
             text = {
                 OutlinedTextField(
                     value = dictationInput,
                     onValueChange = { dictationInput = it },
                     label = { Text("Texto a escribir") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = NeonCyan,
+                        unfocusedBorderColor = VoidBorder,
+                        focusedContainerColor = VoidBlack,
+                        unfocusedContainerColor = VoidBlack,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
                 )
             },
             confirmButton = {
-                Button(onClick = {
-                    val toSend = dictationInput
-                    showDictationDialog = false
-                    scope.launch {
-                        pcBridge.typeTextDirectly(toSend)
-                        onShowSnackbar("⌨️ Texto enviado a la PC")
-                    }
-                }) {
-                    Text("Enviar")
+                Button(
+                    onClick = {
+                        val toSend = dictationInput
+                        showDictationDialog = false
+                        scope.launch {
+                            pcBridge.typeTextDirectly(toSend)
+                            onShowSnackbar("⌨️ Texto enviado a la PC")
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                ) {
+                    Text("Enviar", fontWeight = FontWeight.Bold, color = VoidBlack)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDictationDialog = false }) {
-                    Text("Cancelar", color = Color.LightGray)
+                    Text("Cancelar", color = TextMuted)
                 }
             },
-            containerColor = Color(0xFF1E293B)
+            containerColor = VoidSurfaceElevated
         )
     }
 }
@@ -840,20 +1040,27 @@ private fun DeckMacrosTabContent(
         // 1. Acciones Rápidas del Sistema
         item {
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("⚡", fontSize = 16.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(NeonCyan.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Acciones del Sistema",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = TextPrimary
                         )
                     }
 
@@ -864,41 +1071,41 @@ private fun DeckMacrosTabContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickActionButton(
-                            icon = "🔒",
+                            icon = Icons.Default.Lock,
                             label = "Bloquear",
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("lock")
-                                    onShowSnackbar("🔒 PC Bloqueada")
+                                    onShowSnackbar("PC Bloqueada")
                                 }
                             }
                         )
                         QuickActionButton(
-                            icon = "🪟",
+                            icon = Icons.Default.DesktopWindows,
                             label = "Escritorio",
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeWindowCommand("minimize_all")
-                                    onShowSnackbar("🪟 Mostrando Escritorio")
+                                    onShowSnackbar("Mostrando Escritorio")
                                 }
                             }
                         )
                         QuickActionButton(
-                            icon = "❌",
+                            icon = Icons.Default.Close,
                             label = "Cerrar App",
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeWindowCommand("close")
-                                    onShowSnackbar("❌ Ventana cerrada")
+                                    onShowSnackbar("Ventana cerrada")
                                 }
                             }
                         )
                         if (onEnterDeskStandby != null) {
                             QuickActionButton(
-                                icon = "📺",
+                                icon = Icons.Default.Tv,
                                 label = "Standby",
                                 modifier = Modifier.weight(1f),
                                 onClick = onEnterDeskStandby
@@ -912,9 +1119,9 @@ private fun DeckMacrosTabContent(
         // 2. Control de Volumen & Multimedia
         item {
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -924,20 +1131,27 @@ private fun DeckMacrosTabContent(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🔊", fontSize = 16.sp)
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .background(NeonLilac.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(16.dp))
+                            }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Multimedia & Audio",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = TextPrimary
                             )
                         }
                         Text(
                             text = "${telemetry?.masterVolumePercent ?: 50}%",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF38BDF8)
+                            color = NeonCyan
                         )
                     }
 
@@ -951,43 +1165,58 @@ private fun DeckMacrosTabContent(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("volume_down")
-                                    onShowSnackbar("🔉 Volumen -")
+                                    onShowSnackbar("Volumen -")
                                 }
                             },
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("🔉 Bajar", fontSize = 12.sp, color = Color.White)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VolumeDown, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Bajar", fontSize = 12.sp, color = TextPrimary)
+                            }
                         }
 
                         Button(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("volume_mute")
-                                    onShowSnackbar("🔇 Silenciar")
+                                    onShowSnackbar("Silenciar")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            colors = ButtonDefaults.buttonColors(containerColor = VoidSurfaceElevated),
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("🔇 Mute", fontSize = 12.sp, color = Color.White)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VolumeOff, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Mute", fontSize = 12.sp, color = NeonAmber)
+                            }
                         }
 
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("volume_up")
-                                    onShowSnackbar("🔊 Volumen +")
+                                    onShowSnackbar("Volumen +")
                                 }
                             },
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("🔊 Subir", fontSize = 12.sp, color = Color.White)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Subir", fontSize = 12.sp, color = TextPrimary)
+                            }
                         }
                     }
 
@@ -1002,40 +1231,46 @@ private fun DeckMacrosTabContent(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_prev")
-                                    onShowSnackbar("⏮️ Anterior")
+                                    onShowSnackbar("Anterior")
                                 }
                             },
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("⏮️", fontSize = 14.sp)
+                            Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = TextPrimary, modifier = Modifier.size(16.dp))
                         }
 
                         Button(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_play_pause")
-                                    onShowSnackbar("⏯️ Play/Pausa")
+                                    onShowSnackbar("Play / Pausa")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1.5f)
                         ) {
-                            Text("⏯️ Play/Pausa", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Play / Pausa", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                            }
                         }
 
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_next")
-                                    onShowSnackbar("⏭️ Siguiente")
+                                    onShowSnackbar("Siguiente")
                                 }
                             },
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("⏭️", fontSize = 14.sp)
+                            Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = TextPrimary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1045,20 +1280,27 @@ private fun DeckMacrosTabContent(
         // 3. Macros & Automatización
         item {
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🎛️", fontSize = 16.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(NeonGreen.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Macros y Herramientas",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = TextPrimary
                         )
                     }
 
@@ -1070,21 +1312,30 @@ private fun DeckMacrosTabContent(
                     ) {
                         Button(
                             onClick = onOpenMacroDeck,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
-                            Text("🎛️ Macro Deck", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Macro Deck", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                            }
                         }
 
                         OutlinedButton(
                             onClick = onOpenDesigner,
+                            border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 10.dp)
                         ) {
-                            Text("🎨 Diseñar Rutina", fontSize = 12.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Brush, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Diseñar Rutina", fontSize = 12.sp, color = NeonGreen, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
 
@@ -1092,11 +1343,16 @@ private fun DeckMacrosTabContent(
 
                     OutlinedButton(
                         onClick = onManageModules,
+                        border = BorderStroke(1.dp, VoidBorder),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        Text("🧩 Gestionar Módulos (Blender, DAW, Adobe)", fontSize = 12.sp, color = Color(0xFF8B5CF6))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Extension, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Gestionar Módulos (Blender, DAW, Adobe)", fontSize = 12.sp, color = TextSecondary)
+                        }
                     }
                 }
             }
@@ -1106,28 +1362,33 @@ private fun DeckMacrosTabContent(
 
 @Composable
 private fun QuickActionButton(
-    icon: String,
+    icon: ImageVector,
     label: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        color = Color(0xFF0F172A),
-        border = BorderStroke(1.dp, Color(0xFF334155)),
+        shape = RoundedCornerShape(12.dp),
+        color = VoidSurfaceElevated,
+        border = BorderStroke(1.dp, VoidBorder),
         modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(icon, fontSize = 18.sp)
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = NeonLilac,
+                modifier = Modifier.size(20.dp)
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
                 fontSize = 11.sp,
-                color = Color.LightGray,
+                color = TextSecondary,
                 maxLines = 1,
                 fontWeight = FontWeight.Medium
             )
@@ -1153,7 +1414,7 @@ private fun StudioTabContent(
 
     if (!studioModulesActive) {
         EmptyTabPlaceholder(
-            icon = "🎵",
+            icon = Icons.Default.MusicNote,
             title = "No hay módulos de Estudio activos",
             onAction = onManageModules
         )
@@ -1207,7 +1468,7 @@ private fun StudioTabContent(
                             val res = pcBridge.executeModuleAction(
                                 PcModuleActionRequest(moduleId = moduleId, actionId = actionId)
                             )
-                            onShowSnackbar(if (res.success) "⚡ ${res.message}" else "❌ Error: ${res.message}")
+                            onShowSnackbar(if (res.success) res.message else "Error: ${res.message}")
                         }
                     }
                 )
@@ -1231,7 +1492,7 @@ private fun AirSyncTabContent(
 
     if (!airSyncActive) {
         EmptyTabPlaceholder(
-            icon = "📁",
+            icon = Icons.Default.FolderShared,
             title = "No hay módulos de AirSync activos",
             onAction = onManageModules
         )
@@ -1299,7 +1560,7 @@ private fun TelemetryTabContent(
 
     if (telemetry == null && !telemetryActive) {
         EmptyTabPlaceholder(
-            icon = "📊",
+            icon = Icons.Default.BarChart,
             title = "No hay telemetría ni módulos activos",
             onAction = onManageModules
         )
@@ -1316,9 +1577,9 @@ private fun TelemetryTabContent(
         // Tarjeta principal de Recursos y Estado en Tiempo Real
         item {
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1328,24 +1589,24 @@ private fun TelemetryTabContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("💻", fontSize = 16.sp)
+                            Icon(Icons.Default.DesktopWindows, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = telemetry?.hostname ?: "PC Remota",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = TextPrimary
                             )
                         }
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF0F172A),
-                            border = BorderStroke(1.dp, Color(0xFF334155))
+                            color = VoidSurfaceElevated,
+                            border = BorderStroke(1.dp, VoidBorder)
                         ) {
                             Text(
                                 text = "${telemetry?.roundTripLatencyMs ?: 0} ms • ${telemetry?.activeTransportType?.name ?: "LAN"}",
                                 fontSize = 11.sp,
-                                color = Color(0xFF10B981),
+                                color = NeonGreen,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -1359,12 +1620,12 @@ private fun TelemetryTabContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("CPU", fontSize = 12.sp, color = Color.LightGray)
+                        Text("CPU", fontSize = 12.sp, color = TextSecondary)
                         Text(
                             "${cpuVal.toInt()}%",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (cpuVal > 80f) Color(0xFFEF4444) else Color(0xFF38BDF8)
+                            color = if (cpuVal > 80f) NeonRed else NeonCyan
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1373,8 +1634,8 @@ private fun TelemetryTabContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp),
-                        color = if (cpuVal > 80f) Color(0xFFEF4444) else Color(0xFF38BDF8),
-                        trackColor = Color(0xFF0F172A)
+                        color = if (cpuVal > 80f) NeonRed else NeonCyan,
+                        trackColor = VoidBlack
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -1387,12 +1648,12 @@ private fun TelemetryTabContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("RAM", fontSize = 12.sp, color = Color.LightGray)
+                        Text("RAM", fontSize = 12.sp, color = TextSecondary)
                         Text(
                             text = if (ramTotal > 0f) "${ramVal.toInt()}% (${String.format(java.util.Locale.US, "%.1f", ramUsed)} / ${String.format(java.util.Locale.US, "%.1f", ramTotal)} GB)" else "${ramVal.toInt()}%",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (ramVal > 85f) Color(0xFFEF4444) else Color(0xFF10B981)
+                            color = if (ramVal > 85f) NeonRed else NeonCyan
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1401,30 +1662,31 @@ private fun TelemetryTabContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp),
-                        color = if (ramVal > 85f) Color(0xFFEF4444) else Color(0xFF10B981),
-                        trackColor = Color(0xFF0F172A)
+                        color = if (ramVal > 85f) NeonRed else NeonCyan,
+                        trackColor = VoidBlack
                     )
 
-                    if (telemetry != null && (!telemetry.activeWindowTitle.isNullOrBlank() || telemetry.isBatteryPresent)) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                    // Footer telemetry
+                    if (telemetry != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (!telemetry.activeWindowTitle.isNullOrBlank()) {
+                            if (telemetry.activeWindowTitle.isNotBlank()) {
                                 Surface(
-                                    modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155))
+                                    color = VoidSurfaceElevated,
+                                    border = BorderStroke(1.dp, VoidBorder),
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
-                                        Text("VENTANA ACTIVA", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Text("VENTANA ACTIVA", fontSize = 9.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = telemetry.activeWindowTitle,
                                             fontSize = 11.sp,
-                                            color = Color.White,
+                                            color = TextPrimary,
                                             maxLines = 1
                                         )
                                     }
@@ -1433,18 +1695,29 @@ private fun TelemetryTabContent(
                             if (telemetry.isBatteryPresent) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF0F172A),
-                                    border = BorderStroke(1.dp, Color(0xFF334155))
+                                    color = VoidSurfaceElevated,
+                                    border = BorderStroke(1.dp, VoidBorder)
                                 ) {
                                     Column(modifier = Modifier.padding(8.dp)) {
-                                        Text("BATERÍA", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                        Text("BATERÍA", fontSize = 9.sp, color = TextMuted, fontWeight = FontWeight.Bold)
                                         Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${telemetry.batteryPercent ?: 0}% ${if (telemetry.isBatteryCharging) "⚡" else "🔋"}",
-                                            fontSize = 11.sp,
-                                            color = Color(0xFFFBBF24),
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (telemetry.isBatteryCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+                                                contentDescription = null,
+                                                tint = NeonAmber,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = "${telemetry.batteryPercent ?: 0}%",
+                                                fontSize = 11.sp,
+                                                color = NeonAmber,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1460,9 +1733,9 @@ private fun TelemetryTabContent(
             val otaState = otaDownloadState
 
             Surface(
-                color = Color(0xFF1E293B),
+                color = VoidSurface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155)),
+                border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1472,13 +1745,13 @@ private fun TelemetryTabContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🚀", fontSize = 16.sp)
+                            Icon(Icons.Default.SystemUpdateAlt, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Actualizaciones de App (OTA Local)",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = TextPrimary
                             )
                         }
                         IconButton(
@@ -1495,7 +1768,7 @@ private fun TelemetryTabContent(
                             },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Text("🔄", fontSize = 14.sp)
+                            Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = NeonCyan, modifier = Modifier.size(16.dp))
                         }
                     }
 
@@ -1506,14 +1779,14 @@ private fun TelemetryTabContent(
                         Text(
                             text = "¡Hay una nueva compilación de desarrollo lista en tu PC!",
                             fontSize = 12.sp,
-                            color = Color(0xFF38BDF8),
+                            color = NeonCyan,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Tamaño: ${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Archivo: ${otaInfo.fileName}",
                             fontSize = 11.sp,
-                            color = Color.LightGray
+                            color = TextSecondary
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -1525,33 +1798,40 @@ private fun TelemetryTabContent(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Descargando desde la PC...", fontSize = 11.sp, color = Color.LightGray)
-                                        Text("${(state.progress * 100).toInt()}%", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                        Text("Descargando desde la PC...", fontSize = 11.sp, color = TextSecondary)
+                                        Text("${(state.progress * 100).toInt()}%", fontSize = 11.sp, color = NeonCyan, fontWeight = FontWeight.Bold)
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     LinearProgressIndicator(
                                         progress = { state.progress },
                                         modifier = Modifier.fillMaxWidth().height(6.dp),
-                                        color = Color(0xFF38BDF8),
-                                        trackColor = Color(0xFF0F172A)
+                                        color = NeonCyan,
+                                        trackColor = VoidBlack
                                     )
                                 }
                             }
                             is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
                                 Button(
                                     onClick = { otaCoordinator?.triggerInstall(state.apkFile) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("✅ Instalar Actualización Ahora", fontWeight = FontWeight.Bold)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Instalar Actualización Ahora", fontWeight = FontWeight.Bold, color = VoidBlack)
+                                    }
                                 }
                             }
                             is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Error -> {
                                 Text(
                                     text = "Error: ${state.message}",
                                     fontSize = 11.sp,
-                                    color = Color(0xFFEF4444)
+                                    color = NeonRed
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Button(
@@ -1560,10 +1840,11 @@ private fun TelemetryTabContent(
                                             otaCoordinator?.downloadAndInstall(otaInfo)
                                         }
                                     },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Reintentar Descarga")
+                                    Text("Reintentar Descarga", color = VoidBlack)
                                 }
                             }
                             else -> {
@@ -1574,26 +1855,39 @@ private fun TelemetryTabContent(
                                             otaCoordinator?.downloadAndInstall(otaInfo)
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("⚡ Descargar e Instalar de Inmediato", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Descargar e Instalar de Inmediato", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = VoidBlack)
+                                    }
                                 }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "💡 Si Play Protect muestra una advertencia, pulsa en 'Más detalles' e 'Instalar de todas formas'.",
-                            fontSize = 10.sp,
-                            color = Color(0xFFFBBF24)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(12.dp))
+                            Text(
+                                text = "Si Play Protect muestra una advertencia, pulsa en 'Más detalles' e 'Instalar de todas formas'.",
+                                fontSize = 10.sp,
+                                color = NeonAmber
+                            )
+                        }
                     } else {
                         Text(
                             text = "Tu aplicación móvil está sincronizada con la última versión de desarrollo de tu PC.",
                             fontSize = 12.sp,
-                            color = Color.LightGray
+                            color = TextSecondary
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
@@ -1608,10 +1902,18 @@ private fun TelemetryTabContent(
                                     }
                                 }
                             },
+                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("🔍 Buscar Actualizaciones en la PC", fontSize = 12.sp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Buscar Actualizaciones en la PC", fontSize = 12.sp, color = TextPrimary)
+                            }
                         }
                     }
                 }
@@ -1667,7 +1969,7 @@ private fun TelemetryTabContent(
                             val res = pcBridge.executeModuleAction(
                                 PcModuleActionRequest(moduleId = moduleId, actionId = actionId)
                             )
-                            onShowSnackbar(if (res.success) "⚡ ${res.message}" else "❌ Error: ${res.message}")
+                            onShowSnackbar(if (res.success) res.message else "Error: ${res.message}")
                         }
                     }
                 )
@@ -1678,7 +1980,7 @@ private fun TelemetryTabContent(
 
 @Composable
 private fun EmptyTabPlaceholder(
-    icon: String,
+    icon: ImageVector,
     title: String,
     onAction: () -> Unit
 ) {
@@ -1689,20 +1991,34 @@ private fun EmptyTabPlaceholder(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = icon, fontSize = 36.sp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(NeonCyan.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = NeonCyan,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                color = Color.White
+                color = TextPrimary
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onAction,
+                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Gestionar Módulos")
+                Text("Gestionar Módulos", color = VoidBlack, fontWeight = FontWeight.Bold)
             }
         }
     }

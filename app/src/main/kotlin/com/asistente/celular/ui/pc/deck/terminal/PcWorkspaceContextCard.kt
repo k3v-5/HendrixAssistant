@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
@@ -269,13 +270,24 @@ fun PcWorkspaceContextCard(
                         }
 
                         if (activeError.failedFile != null) {
-                            Text(
-                                text = "📍 ${activeError.failedFile}:${activeError.failedLine ?: 0}",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(top = 2.dp)
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF8A80),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "${activeError.failedFile}:${activeError.failedLine ?: 0}",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
 
                         Text(
@@ -294,12 +306,23 @@ fun PcWorkspaceContextCard(
                                 shape = RoundedCornerShape(6.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             ) {
-                                Text(
-                                    text = "💡 IA: $aiDiagnosisResult",
-                                    color = Color(0xFFE9D5FF),
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(6.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Psychology,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE9D5FF),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "IA: $aiDiagnosisResult",
+                                        color = Color(0xFFE9D5FF),
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
                         }
 

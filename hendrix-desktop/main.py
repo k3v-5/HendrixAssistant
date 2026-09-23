@@ -1,6 +1,15 @@
 import sys
 import threading
 import asyncio
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from config import config
 from core import ws_server
 from core.session_manager import session_manager
@@ -17,7 +26,9 @@ def start_background_server():
     try:
         server_loop.run_until_complete(ws_server.run_server(config.port))
     except Exception as e:
-        print(f"Error en servidor WebSocket: {e}")
+        import traceback
+        traceback.print_exc()
+        ws_server.log_activity(f"❌ Error crítico en WebSocket: {e}")
 
 def main():
     # Iniciar servidor WebSocket en hilo secundario de fondo

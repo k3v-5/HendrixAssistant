@@ -27,11 +27,17 @@ class MediaControlSkill : StandardRecognizerSkill(
     specificity = Specificity.NORMAL
 ) {
     override val patterns: List<Construct> = listOf(
-        // "pausa la música", "para la música", "detén música"
+        // "pausa la música", "pausa", "detén música", "alto"
         SequenceConstruct(
-            WordConstruct("pausa", "pausar", "pausame", "para", "parar", "deten", "detener", "detenme"),
+            WordConstruct("pausa", "pausar", "pausame", "deten", "detener", "detenme", "alto"),
             OptionalConstruct(WordConstruct("la", "el")),
             OptionalConstruct(WordConstruct("musica", "reproduccion", "cancion", "audio"))
+        ),
+        // "para la música", "parar la canción", "para de reproducir" - el sustantivo musical o verbo es OBLIGATORIO para evitar colisiones con la preposición 'para'
+        SequenceConstruct(
+            WordConstruct("para", "parar"),
+            OptionalConstruct(WordConstruct("la", "el", "de")),
+            WordConstruct("musica", "reproduccion", "cancion", "audio", "tema", "pista", "reproducir")
         ),
         // "reanuda la música", "sigue la música", "play", "reproduce", "pon música"
         SequenceConstruct(
@@ -62,8 +68,11 @@ class MediaControlSkill : StandardRecognizerSkill(
             return SkillOutput(speech = err, displayText = err, success = false)
         }
 
+        val isPause = lower.contains("pausa") || lower.contains("deten") ||
+            Regex("""\b(para|parar)\b.*\b(musica|cancion|reproducc|audio|tema|pista|reproducir)\b""").containsMatchIn(lower)
+
         return when {
-            lower.contains("pausa") || lower.contains("para") || lower.contains("deten") -> {
+            isPause -> {
                 sendMediaKeyEvent(audioManager, KeyEvent.KEYCODE_MEDIA_PAUSE)
                 val msg = "Música pausada."
                 SkillOutput(speech = msg, displayText = msg, success = true)

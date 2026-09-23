@@ -403,4 +403,14 @@ interface PcWorkspaceBridge {
      * Descarga y obtiene el JSON de un respaldo de bóveda guardado en la PC.
      */
     suspend fun restoreVault(filename: String? = null): String? = null
+
+    /**
+     * Obtiene la lista de aplicaciones abiertas visibles en la barra de tareas de Windows.
+     */
+    suspend fun getOpenWindows(): List<PcWindowInfo> = emptyList()
+
+    /**
+     * Trae al primer plano y restaura la ventana de Windows con el identificador [hwnd] especificado.
+     */
+    suspend fun focusWindow(hwnd: Long): Boolean = false
 }

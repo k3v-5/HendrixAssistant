@@ -21,16 +21,50 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import com.asistente.celular.ui.theme.NeonAmber
+import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,10 +109,17 @@ import com.asistente.celular.voice.stt.AsrModelDownloadState
 import com.asistente.celular.voice.stt.OfflineAsrModelManager
 import com.asistente.celular.voice.stt.SttEngineType
 
+enum class SettingsSectionTab(val title: String, val icon: ImageVector) {
+    VOICE_AUDIO("Voz & Audio", Icons.Default.Mic),
+    AI_MODELS("IA & Modelos", Icons.Default.Psychology),
+    SENSORS_GESTURES("Gestos & Físico", Icons.Default.Smartphone),
+    VAULT_SMART("Bóveda & Red", Icons.Default.Shield)
+}
+
 /**
  * Pantalla de Configuración modular para Hendrix Assistant.
- * Rediseñada con tarjetas de acordeón expandibles para eliminar el scroll vertical infinito
- * y agrupar las opciones en 6 dominios cohesivos.
+ * Rediseñada con navegación segmentada en 4 pestañas para eliminar el scroll vertical infinito
+ * y agrupar las opciones en dominios cohesivos con estética OLED Void.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,9 +146,9 @@ fun SettingsScreen(
     onExportVault: () -> Unit = {},
     onRestoreVault: () -> Unit = {},
     onSyncVaultPc: () -> Unit = {},
-    ttsPitch: Float = 1.08f,
-    ttsSpeechRate: Float = 1.02f,
-    onChangeTtsParameters: (pitch: Float, rate: Float) -> Unit = { _, _ -> },
+    ttsPitch: Float = 1.0f,
+    ttsSpeechRate: Float = 1.0f,
+    onChangeTtsParameters: (Float, Float) -> Unit = { _, _ -> },
     onTestTtsVoice: () -> Unit = {},
     smartHomeCustomSubnet: String? = null,
     onChangeSmartHomeCustomSubnet: (String?) -> Unit = {},
@@ -121,11 +162,12 @@ fun SettingsScreen(
     onDeleteModel: (String) -> Unit = {},
     onSelectLocalModel: (String) -> Unit = {},
     onDiscoverSmartDevices: () -> Unit = {},
-    onAddManualSmartDevice: (name: String, ip: String) -> Unit = { _, _ -> },
+    onAddManualSmartDevice: (String, String) -> Unit = { _, _ -> },
     onDeleteSmartDevice: (String) -> Unit = {},
     onToggleSmartDevice: (com.asistente.celular.nlu.smarthome.SmartDevice) -> Unit = {},
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var selectedProvider by remember { mutableStateOf(currentConfig.provider) }
     var selectedPersonality by remember { mutableStateOf(currentConfig.personality) }
     var zeroCloudMode by remember { mutableStateOf(currentConfig.zeroCloudMode) }
@@ -147,8 +189,8 @@ fun SettingsScreen(
     var manualIp by remember { mutableStateOf("") }
     var showManualAddDialog by remember { mutableStateOf(false) }
 
-    // Control de acordeón expandible: el usuario puede abrir/cerrar cualquier sección
-    var expandedCategories by remember { mutableStateOf(setOf(0)) }
+    var selectedSectionTab by remember { mutableStateOf(SettingsSectionTab.VOICE_AUDIO) }
+    var expandedCategories by remember { mutableStateOf(setOf(0, 1, 2, 3, 4, 5)) }
 
     fun toggleCategory(index: Int) {
         expandedCategories = if (expandedCategories.contains(index)) {
@@ -159,20 +201,25 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        containerColor = VoidBlack,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Ajustes del Asistente",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "AJUSTES",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp,
+                        color = TextPrimary
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = TextPrimary)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = VoidBlack)
             )
         }
     ) { padding ->
@@ -184,18 +231,58 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            // Selector segmentado horizontal compacto
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SettingsSectionTab.entries.forEach { tab ->
+                    val isSelected = selectedSectionTab == tab
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) VoidSurfaceElevated else VoidSurface,
+                        border = BorderStroke(1.dp, if (isSelected) NeonCyan else VoidBorder),
+                        modifier = Modifier.clickable { selectedSectionTab = tab }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = null,
+                                tint = if (isSelected) NeonCyan else TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = tab.title,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) NeonCyan else TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             // ---------------------------------------------------------------
             // 1. INTELIGENCIA ARTIFICIAL & MODELOS
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "🧠",
-                title = "Inteligencia Artificial & Modelos",
-                subtitle = "Enrutador LLM (${selectedProvider.displayName}), Harness y parámetros",
-                isExpanded = expandedCategories.contains(0),
-                onToggleExpand = { toggleCategory(0) }
-            ) {
+            if (selectedSectionTab == SettingsSectionTab.AI_MODELS) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Psychology,
+                    title = "Inteligencia Artificial & Modelos",
+                    subtitle = "Enrutador LLM (${selectedProvider.displayName}), Harness y parámetros",
+                    isExpanded = expandedCategories.contains(0),
+                    onToggleExpand = { toggleCategory(0) }
+                ) {
                 Text(
                     "Cuando la orden no sea una acción local del móvil, se derivará a este proveedor:",
                     fontSize = 12.sp,
@@ -364,17 +451,19 @@ fun SettingsScreen(
                     maxLines = 5
                 )
             }
+        }
 
             // ---------------------------------------------------------------
             // 2. VOZ, ASR & SÍNTESIS (TTS)
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "🎙️",
-                title = "Voz, Reconocimiento & Síntesis",
-                subtitle = "Palabra de activación ('Oye Hendrix'), TTS y motor STT",
-                isExpanded = expandedCategories.contains(1),
-                onToggleExpand = { toggleCategory(1) }
-            ) {
+            if (selectedSectionTab == SettingsSectionTab.VOICE_AUDIO) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Mic,
+                    title = "Voz, Reconocimiento & Síntesis",
+                    subtitle = "Palabra de activación ('Oye Hendrix'), TTS y motor STT",
+                    isExpanded = expandedCategories.contains(1),
+                    onToggleExpand = { toggleCategory(1) }
+                ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -434,12 +523,21 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text(
-                                    "⚠️ Permiso de Ventana Flotante necesario",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Permiso de Ventana Flotante necesario",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     "Concede 'Mostrar sobre otras apps' para que Hendrix responda mientras usas otra aplicación.",
@@ -470,7 +568,16 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("🔋 Batería sin restricciones", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.BatteryChargingFull,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Batería sin restricciones", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
                                 Text(
                                     "Configura Hendrix como 'Sin restricciones' para evitar que el sistema duerma el micrófono.",
                                     fontSize = 11.sp,
@@ -543,7 +650,15 @@ fun SettingsScreen(
                     onClick = onTestTtsVoice,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("🔊 Probar Voz", fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Probar Voz", fontSize = 11.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -618,17 +733,19 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
 
             // ---------------------------------------------------------------
             // 3. GESTOS FÍSICOS & SENSORES
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "📱",
-                title = "Gestos Físicos & Sensores",
-                subtitle = "Agitar para activar, silencio en bolsillo y mini HUD",
-                isExpanded = expandedCategories.contains(2),
-                onToggleExpand = { toggleCategory(2) }
-            ) {
+            if (selectedSectionTab == SettingsSectionTab.SENSORS_GESTURES) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Smartphone,
+                    title = "Gestos Físicos & Sensores",
+                    subtitle = "Agitar para activar, silencio en bolsillo y mini HUD",
+                    isExpanded = expandedCategories.contains(2),
+                    onToggleExpand = { toggleCategory(2) }
+                ) {
                 // 1. Shake to wake
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -739,17 +856,19 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
 
             // ---------------------------------------------------------------
             // 4. DOMÓTICA & FOCOS INTELIGENTES
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "💡",
-                title = "Domótica & Focos Inteligentes",
-                subtitle = "Xiaomi / Yeelight WiFi local (${smartDevices.size} vinculados)",
-                isExpanded = expandedCategories.contains(3),
-                onToggleExpand = { toggleCategory(3) }
-            ) {
+            if (selectedSectionTab == SettingsSectionTab.VAULT_SMART) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Lightbulb,
+                    title = "Domótica & Focos Inteligentes",
+                    subtitle = "Xiaomi / Yeelight WiFi local (${smartDevices.size} vinculados)",
+                    isExpanded = expandedCategories.contains(3),
+                    onToggleExpand = { toggleCategory(3) }
+                ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -798,7 +917,12 @@ fun SettingsScreen(
                                     .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(if (device.isPoweredOn) "💡" else "🌑", fontSize = 20.sp)
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = null,
+                                    tint = if (device.isPoweredOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(20.dp)
+                                )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(device.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -836,14 +960,30 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Buscando...", fontSize = 11.sp)
                         } else {
-                            Text("🔍 Buscar WiFi", fontSize = 11.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Buscar WiFi", fontSize = 11.sp)
+                            }
                         }
                     }
                     OutlinedButton(
                         onClick = { showManualAddDialog = !showManualAddDialog },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (showManualAddDialog) "Ocultar IP" else "➕ Añadir IP", fontSize = 11.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (showManualAddDialog) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (showManualAddDialog) "Ocultar IP" else "Añadir IP", fontSize = 11.sp)
+                        }
                     }
                 }
 
@@ -900,17 +1040,19 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+        }
 
             // ---------------------------------------------------------------
             // 5. PERSONALIDAD & PRIVACIDAD (ZERO-CLOUD)
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "🛡️",
-                title = "Personalidad & Privacidad (Zero-Cloud)",
-                subtitle = "Tono del asistente y modo 100% offline",
-                isExpanded = expandedCategories.contains(4),
-                onToggleExpand = { toggleCategory(4) }
-            ) {
+            if (selectedSectionTab == SettingsSectionTab.AI_MODELS) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Shield,
+                    title = "Personalidad & Privacidad (Zero-Cloud)",
+                    subtitle = "Tono del asistente y modo 100% offline",
+                    isExpanded = expandedCategories.contains(4),
+                    onToggleExpand = { toggleCategory(4) }
+                ) {
                 // Modo Zero Cloud
                 Card(
                     colors = CardDefaults.cardColors(
@@ -931,7 +1073,7 @@ fun SettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Zero-Cloud Privacy Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(
-                                    if (zeroCloudMode) "🔒 100% Offline con SLM local" else "Permite consultas cloud cuando aplique",
+                                    if (zeroCloudMode) "100% Offline con SLM local" else "Permite consultas cloud cuando aplique",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -973,48 +1115,75 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
 
             // ---------------------------------------------------------------
             // 6. BÓVEDA & RESPALDO UNIFICADO (VAULT)
             // ---------------------------------------------------------------
-            ExpandableSettingsCategoryCard(
-                icon = "📦",
-                title = "Bóveda & Respaldo (Hendrix Vault)",
-                subtitle = "Exportar, restaurar y sincronizar rutinas y notas con PC",
-                isExpanded = expandedCategories.contains(5),
-                onToggleExpand = { toggleCategory(5) }
-            ) {
-                Text(
-                    "Crea copias de seguridad de todas tus rutinas, botones, tareas, notas y configuraciones sin depender de servicios en la nube.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+            if (selectedSectionTab == SettingsSectionTab.VAULT_SMART) {
+                ExpandableSettingsCategoryCard(
+                    icon = Icons.Default.Archive,
+                    title = "Bóveda & Respaldo (Hendrix Vault)",
+                    subtitle = "Exportar, restaurar y sincronizar rutinas y notas con PC",
+                    isExpanded = expandedCategories.contains(5),
+                    onToggleExpand = { toggleCategory(5) }
+                ) {
+                    Text(
+                        "Crea copias de seguridad de todas tus rutinas, botones, tareas, notas y configuraciones sin depender de servicios en la nube.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onExportVault,
-                        modifier = Modifier.weight(1f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("📤 Exportar", fontSize = 11.sp)
+                        OutlinedButton(
+                            onClick = onExportVault,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Exportar", fontSize = 11.sp)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = onRestoreVault,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Archive,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Restaurar", fontSize = 11.sp)
+                            }
+                        }
                     }
-                    OutlinedButton(
-                        onClick = onRestoreVault,
-                        modifier = Modifier.weight(1f)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Button(
+                        onClick = onSyncVaultPc,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
-                        Text("📥 Restaurar", fontSize = 11.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DesktopWindows,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sincronizar Bóveda con PC", fontSize = 12.sp)
+                        }
                     }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Button(
-                    onClick = onSyncVaultPc,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                ) {
-                    Text("💻 Sincronizar Bóveda con PC", fontSize = 12.sp)
                 }
             }
 
@@ -1039,12 +1208,22 @@ fun SettingsScreen(
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = NeonCyan,
+                    contentColor = Color.Black
+                ),
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(vertical = 12.dp)
             ) {
-                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Guardar Configuración", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = "GUARDAR CONFIGURACIÓN",
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    color = Color.Black
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1058,7 +1237,7 @@ fun SettingsScreen(
  */
 @Composable
 private fun ExpandableSettingsCategoryCard(
-    icon: String,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     isExpanded: Boolean,
@@ -1073,11 +1252,11 @@ private fun ExpandableSettingsCategoryCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isExpanded)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                VoidSurfaceElevated
             else
-                MaterialTheme.colorScheme.surface
+                VoidSurface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isExpanded) 2.dp else 1.dp)
+        border = BorderStroke(1.dp, if (isExpanded) NeonCyan.copy(alpha = 0.4f) else VoidBorder)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -1087,26 +1266,41 @@ private fun ExpandableSettingsCategoryCard(
                     .clickable { onToggleExpand() }
                     .padding(14.dp)
             ) {
-                Text(text = icon, fontSize = 22.sp)
+                Surface(
+                    shape = CircleShape,
+                    color = NeonLilac.copy(alpha = 0.15f),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = NeonLilac,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontFamily = FontFamily.Monospace,
+                        color = TextPrimary
                     )
                     Text(
                         text = subtitle,
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = TextSecondary,
                         maxLines = 1
                     )
                 }
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (isExpanded) "Colapsar" else "Expandir",
-                    tint = MaterialTheme.colorScheme.outline
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -1116,7 +1310,10 @@ private fun ExpandableSettingsCategoryCard(
                         .fillMaxWidth()
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+                    HorizontalDivider(
+                        color = VoidBorder,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     content()
                     Spacer(modifier = Modifier.height(6.dp))
                 }

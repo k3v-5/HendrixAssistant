@@ -3,10 +3,15 @@ from tkinter import ttk
 from config import config
 from ui.telemetry_view import TelemetryView
 from ui.activity_log import ActivityLogView
+from ui.theme import (
+    COLOR_VOID_BLACK,
+    COLOR_NEON_LILAC,
+    FONT_TITLE,
+)
 
 class SystemLogsView(tk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, background="#0B0F19")
+        super().__init__(parent, background=COLOR_VOID_BLACK)
         self._build_ui()
 
     def _build_ui(self):
@@ -20,9 +25,9 @@ class SystemLogsView(tk.Frame):
 
         sec_title = ttk.Label(
             sec_card,
-            text="🛡️ Permisos de Control y Seguridad",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Permisos de Control y Seguridad",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         sec_title.pack(anchor="w", padx=16, pady=(12, 6))
 
@@ -35,7 +40,7 @@ class SystemLogsView(tk.Frame):
             text="Permitir control de Ratón físico (clics, movimientos y scrolls)",
             variable=self.mouse_var,
             command=self._save_perms
-        ).pack(anchor="w", pady=2)
+        ).pack(anchor="w", pady=3)
 
         self.kbd_var = tk.BooleanVar(value=config.allow_keyboard_control)
         ttk.Checkbutton(
@@ -43,7 +48,7 @@ class SystemLogsView(tk.Frame):
             text="Permitir control de Teclado, Atajos y Dictado directo por voz",
             variable=self.kbd_var,
             command=self._save_perms
-        ).pack(anchor="w", pady=2)
+        ).pack(anchor="w", pady=3)
 
         self.cap_var = tk.BooleanVar(value=config.allow_screen_capture)
         ttk.Checkbutton(
@@ -51,7 +56,7 @@ class SystemLogsView(tk.Frame):
             text="Permitir Captura de Pantalla bajo demanda (Snapshots WebP ultraligeros)",
             variable=self.cap_var,
             command=self._save_perms
-        ).pack(anchor="w", pady=2)
+        ).pack(anchor="w", pady=3)
 
         # 3. Registro en Vivo
         self.activity_log = ActivityLogView(self)

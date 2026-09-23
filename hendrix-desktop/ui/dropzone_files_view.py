@@ -3,10 +3,30 @@ import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from storage.dropzone_manager import dropzone_manager
+from ui.theme import (
+    COLOR_VOID_BLACK,
+    COLOR_VOID_SURFACE,
+    COLOR_VOID_BORDER,
+    COLOR_NEON_VIOLET,
+    COLOR_NEON_LILAC,
+    COLOR_NEON_CYAN,
+    COLOR_NEON_GREEN,
+    COLOR_NEON_AMBER,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_TEXT_MUTED,
+    FONT_TITLE,
+    FONT_BODY,
+    FONT_BODY_ITALIC,
+    FONT_TERMINAL,
+    create_neon_button,
+    create_secondary_button,
+    create_accent_button,
+)
 
 class DropzoneFilesView(tk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, background="#0B0F19")
+        super().__init__(parent, background=COLOR_VOID_BLACK)
         self.selected_file_path = None
         self._build_ui()
         dropzone_manager.add_file_ready_listener(self._on_file_ready_threadsafe)
@@ -15,9 +35,9 @@ class DropzoneFilesView(tk.Frame):
         self.after(0, self.refresh_files)
 
     def _build_ui(self):
-        canvas = tk.Canvas(self, background="#0B0F19", highlightthickness=0)
+        canvas = tk.Canvas(self, background=COLOR_VOID_BLACK, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        self.scroll_content = tk.Frame(canvas, background="#0B0F19")
+        self.scroll_content = tk.Frame(canvas, background=COLOR_VOID_BLACK)
 
         self.scroll_content.bind(
             "<Configure>",
@@ -44,9 +64,9 @@ class DropzoneFilesView(tk.Frame):
 
         title = ttk.Label(
             path_card,
-            text="📁 Buzón Dropzone & Sincronización",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Buzón Dropzone & Sincronización",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         title.pack(anchor="w", padx=16, pady=(12, 4))
 
@@ -56,42 +76,34 @@ class DropzoneFilesView(tk.Frame):
         self.path_lbl = ttk.Label(
             body,
             text=f"Ruta activa: {dropzone_manager.root_path}",
-            font=("Consolas", 9),
-            foreground="#94A3B8"
+            font=FONT_TERMINAL,
+            foreground=COLOR_TEXT_SECONDARY
         )
         self.path_lbl.pack(anchor="w", pady=(0, 4))
 
         self.provider_lbl = ttk.Label(
             body,
-            text=f"☁️ Proveedor detectado: {dropzone_manager.cloud_provider} (Nube: {'Sí' if dropzone_manager.is_cloud_synced else 'Local'})",
-            font=("Segoe UI", 9, "italic"),
-            foreground="#10B981" if dropzone_manager.is_cloud_synced else "#F59E0B"
+            text=f"Proveedor detectado: {dropzone_manager.cloud_provider} (Sincronización en la nube: {'Sí' if dropzone_manager.is_cloud_synced else 'Local'})",
+            font=FONT_BODY_ITALIC,
+            foreground=COLOR_NEON_GREEN if dropzone_manager.is_cloud_synced else COLOR_NEON_AMBER
         )
         self.provider_lbl.pack(anchor="w", pady=(0, 8))
 
         btn_row = ttk.Frame(body, style="Card.TFrame")
         btn_row.pack(fill="x")
 
-        open_folder_btn = tk.Button(
+        open_folder_btn = create_neon_button(
             btn_row,
-            text="📁 Abrir Carpeta en Windows",
-            font=("Segoe UI", 8, "bold"),
-            bg="#0284C7",
-            fg="white",
-            relief="flat",
+            text="Abrir Carpeta en Windows",
             command=self._open_dropzone_folder,
             padx=10,
             pady=4
         )
         open_folder_btn.pack(side="left", padx=(0, 8))
 
-        change_path_btn = tk.Button(
+        change_path_btn = create_secondary_button(
             btn_row,
-            text="⚙️ Cambiar Ubicación...",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Cambiar Ubicación...",
             command=self._change_dropzone_path,
             padx=8,
             pady=4
@@ -114,8 +126,8 @@ class DropzoneFilesView(tk.Frame):
             if ok:
                 self.path_lbl.configure(text=f"Ruta activa: {dropzone_manager.root_path}")
                 self.provider_lbl.configure(
-                    text=f"☁️ Proveedor detectado: {dropzone_manager.cloud_provider}",
-                    foreground="#10B981" if dropzone_manager.is_cloud_synced else "#F59E0B"
+                    text=f"Proveedor detectado: {dropzone_manager.cloud_provider} (Sincronización en la nube: {'Sí' if dropzone_manager.is_cloud_synced else 'Local'})",
+                    foreground=COLOR_NEON_GREEN if dropzone_manager.is_cloud_synced else COLOR_NEON_AMBER
                 )
                 self.refresh_files()
                 messagebox.showinfo("Ruta Actualizada", f"Dropzone reconfigurado en:\n{new_dir}")
@@ -128,9 +140,9 @@ class DropzoneFilesView(tk.Frame):
 
         title = ttk.Label(
             act_card,
-            text="📤 Compartir Archivos hacia el Teléfono Móvil",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#10B981"
+            text="Compartir Archivos hacia el Teléfono Móvil",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         title.pack(anchor="w", padx=16, pady=(12, 6))
 
@@ -139,46 +151,38 @@ class DropzoneFilesView(tk.Frame):
 
         desc = ttk.Label(
             body,
-            text="Los archivos importados se guardan en el Dropzone y disparan una notificación inmediata al celular:",
-            font=("Segoe UI", 9),
-            foreground="#94A3B8"
+            text="Los archivos importados se guardan en el Dropzone y notifican inmediatamente al celular:",
+            font=FONT_BODY,
+            foreground=COLOR_TEXT_SECONDARY
         )
         desc.pack(anchor="w", pady=(0, 8))
 
         btn_row = ttk.Frame(body, style="Card.TFrame")
         btn_row.pack(fill="x", pady=(0, 6))
 
-        browse_btn = tk.Button(
+        browse_btn = create_accent_button(
             btn_row,
-            text="📂 Seleccionar Archivo(s)...",
-            font=("Segoe UI", 9, "bold"),
-            bg="#10B981",
-            fg="black",
-            relief="flat",
+            text="Seleccionar Archivo(s)...",
             command=self._select_and_import_files,
             padx=12,
-            pady=6
+            pady=5
         )
         browse_btn.pack(side="left", padx=(0, 8))
 
-        paste_explorer_btn = tk.Button(
+        paste_explorer_btn = create_secondary_button(
             btn_row,
-            text="📋 Pegar Archivo Copiado (Explorer)",
-            font=("Segoe UI", 9),
-            bg="#8B5CF6",
-            fg="white",
-            relief="flat",
+            text="Pegar Archivo Copiado (Explorer)",
             command=self._paste_clipboard_files,
-            padx=12,
-            pady=6
+            padx=10,
+            pady=5
         )
         paste_explorer_btn.pack(side="left")
 
         self.import_status_lbl = ttk.Label(
             body,
             text="",
-            font=("Segoe UI", 8, "italic"),
-            foreground="#38BDF8"
+            font=FONT_BODY_ITALIC,
+            foreground=COLOR_NEON_CYAN
         )
         self.import_status_lbl.pack(anchor="w", pady=(4, 0))
 
@@ -193,7 +197,7 @@ class DropzoneFilesView(tk.Frame):
                 if res:
                     count += 1
             self.refresh_files()
-            self.import_status_lbl.configure(text=f"✅ {count} archivo(s) importados y notificados al móvil.")
+            self.import_status_lbl.configure(text=f"{count} archivo(s) importados y notificados al móvil.")
 
     def _paste_clipboard_files(self):
         files = dropzone_manager.get_clipboard_files()
@@ -207,7 +211,7 @@ class DropzoneFilesView(tk.Frame):
             if res:
                 count += 1
         self.refresh_files()
-        self.import_status_lbl.configure(text=f"✅ {count} archivo(s) pegados desde el portapapeles al Dropzone.")
+        self.import_status_lbl.configure(text=f"{count} archivo(s) pegados desde el portapapeles al Dropzone.")
 
     def _build_recent_files_card(self):
         rec_card = ttk.Frame(self.scroll_content, style="Card.TFrame")
@@ -218,36 +222,37 @@ class DropzoneFilesView(tk.Frame):
 
         title = ttk.Label(
             header_row,
-            text="🕒 Entregables & Archivos Recientes",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Entregables & Archivos Recientes",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         title.pack(side="left")
 
-        refresh_btn = tk.Button(
+        refresh_btn = create_secondary_button(
             header_row,
-            text="🔄 Actualizar",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Actualizar",
             command=self.refresh_files,
             padx=8,
             pady=2
         )
         refresh_btn.pack(side="right")
 
-        list_frame = tk.Frame(rec_card, background="#0F172A")
+        list_frame = tk.Frame(
+            rec_card,
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
+        )
         list_frame.pack(fill="x", padx=16, pady=(0, 8))
 
         self.files_listbox = tk.Listbox(
             list_frame,
             height=7,
-            font=("Segoe UI", 9),
-            bg="#0F172A",
-            fg="#E2E8F0",
-            selectbackground="#0284C7",
-            selectforeground="#FFFFFF",
+            font=FONT_BODY,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_TEXT_PRIMARY,
+            selectbackground=COLOR_NEON_VIOLET,
+            selectforeground=COLOR_TEXT_PRIMARY,
             relief="flat",
             highlightthickness=0
         )
@@ -261,13 +266,9 @@ class DropzoneFilesView(tk.Frame):
         btn_row = ttk.Frame(rec_card, style="Card.TFrame")
         btn_row.pack(fill="x", padx=16, pady=(0, 12))
 
-        open_btn = tk.Button(
+        open_btn = create_neon_button(
             btn_row,
             text="Abrir Archivo Seleccionado",
-            font=("Segoe UI", 8, "bold"),
-            bg="#0284C7",
-            fg="white",
-            relief="flat",
             command=self._open_selected_file,
             padx=10,
             pady=4

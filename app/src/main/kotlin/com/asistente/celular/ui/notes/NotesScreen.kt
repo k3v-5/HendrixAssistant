@@ -12,12 +12,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.PushPin
@@ -34,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -43,6 +50,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
+import com.asistente.celular.ui.theme.NeonAmber
+import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,54 +96,118 @@ fun NotesScreen(
     val pinnedNotes = filteredNotes.filter { it.isPinned }
     val regularNotes = filteredNotes.filter { !it.isPinned }
 
+    var isSearchActive by remember { mutableStateOf(false) }
+
     Scaffold(
+        containerColor = VoidBlack,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Notas",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
+                    if (isSearchActive) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Buscar...", fontSize = 13.sp, color = TextMuted) },
+                            singleLine = true,
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = VoidSurfaceElevated,
+                                unfocusedContainerColor = VoidSurface,
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = VoidBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = NeonCyan
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    searchQuery = ""
+                                    isSearchActive = false
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "NOTAS",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 2.sp,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = VoidSurfaceElevated,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, VoidBorder)
+                            ) {
+                                Text(
+                                    text = "${filteredNotes.size} TOTAL",
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonAmber,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                actions = {
+                    if (!isSearchActive) {
+                        IconButton(onClick = { isSearchActive = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Buscar",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        // Botón integrado en cabecera [+ NUEVA] que elimina el FAB flotante
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = NeonCyan,
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .clickable { isCreatingNewNote = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "NUEVA",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+                },
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = VoidBlack
+                )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { isCreatingNewNote = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir nota")
-            }
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Barra de búsqueda rápida
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Buscar en tus notas...") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp)
-            )
-
             if (filteredNotes.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -135,38 +219,56 @@ fun NotesScreen(
                         Icon(
                             imageVector = Icons.Default.Description,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            modifier = Modifier.size(64.dp)
+                            tint = NeonAmber.copy(alpha = 0.4f),
+                            modifier = Modifier.size(48.dp)
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         Text(
-                            text = if (searchQuery.isNotBlank()) "No se encontraron notas" else "No tienes notas guardadas",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = if (searchQuery.isNotBlank()) "Sin resultados" else "Sin notas guardadas",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = TextPrimary
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Toca el botón + o dile a Hendrix: 'Toma una nota...'",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
+                            text = "Toca [+ NUEVA] o pídele a Hendrix por voz.",
+                            fontSize = 12.sp,
+                            color = TextSecondary
                         )
                     }
                 }
             } else {
-                LazyColumn(
+                // Cuadrícula escalonada de 2 columnas de alta densidad
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp, top = 8.dp),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Sección de Notas Fijadas
                     if (pinnedNotes.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = "FIJADAS",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                            )
+                        item(span = { GridItemSpan(2) }) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    tint = NeonAmber,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "FIJADAS",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonAmber
+                                )
+                            }
                         }
                         items(pinnedNotes, key = { it.id }) { note ->
                             NoteCard(
@@ -176,28 +278,39 @@ fun NotesScreen(
                                 onDelete = { onDeleteNote(note.id) }
                             )
                         }
-                    }
-
-                    // Sección de Otras Notas
-                    if (regularNotes.isNotEmpty()) {
-                        if (pinnedNotes.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "OTRAS",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                                )
+                        if (regularNotes.isNotEmpty()) {
+                            item(span = { GridItemSpan(2) }) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "TODAS",
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextMuted
+                                    )
+                                }
                             }
                         }
-                        items(regularNotes, key = { it.id }) { note ->
-                            NoteCard(
-                                note = note,
-                                onClick = { selectedNoteForEdit = note },
-                                onTogglePin = { onTogglePin(note.id) },
-                                onDelete = { onDeleteNote(note.id) }
-                            )
-                        }
+                    }
+
+                    // Sección de Notas Regulares
+                    items(regularNotes, key = { it.id }) { note ->
+                        NoteCard(
+                            note = note,
+                            onClick = { selectedNoteForEdit = note },
+                            onTogglePin = { onTogglePin(note.id) },
+                            onDelete = { onDeleteNote(note.id) }
+                        )
                     }
                 }
             }
@@ -238,20 +351,22 @@ fun NoteCard(
     val formatter = SimpleDateFormat("d MMM, h:mm a", Locale("es", "ES"))
     val updatedDate = formatter.format(Date(note.updatedAt))
 
+    val borderColor = if (note.isPinned) NeonAmber.copy(alpha = 0.6f) else VoidBorder
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            containerColor = VoidSurface
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -260,7 +375,10 @@ fun NoteCard(
                 if (note.title.isNotBlank()) {
                     Text(
                         text = note.title,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = TextPrimary,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -269,21 +387,21 @@ fun NoteCard(
                     Spacer(modifier = Modifier.weight(1f))
                 }
 
-                IconButton(onClick = onTogglePin, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = onTogglePin, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = if (note.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                         contentDescription = "Fijar nota",
-                        tint = if (note.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(18.dp)
+                        tint = if (note.isPinned) NeonAmber else TextMuted,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
-                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar nota",
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(18.dp)
+                        tint = TextMuted,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
@@ -292,18 +410,19 @@ fun NoteCard(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = note.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    color = TextSecondary,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = updatedDate,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
+                fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace,
+                color = TextMuted
             )
         }
     }

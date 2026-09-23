@@ -24,8 +24,10 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
@@ -100,8 +102,8 @@ fun PcAirSyncCard(
                     )
                     if (success) {
                         onShowSnackbar(
-                            if (autoPasteEnabled) "📸 ¡Imagen pegada automáticamente en la PC!"
-                            else "📸 ¡Imagen copiada al portapapeles de la PC! (Ctrl+V listo)"
+                            if (autoPasteEnabled) "Imagen pegada automáticamente en la PC"
+                            else "Imagen copiada al portapapeles de la PC (Ctrl+V listo)"
                         )
                     } else {
                         onShowSnackbar("Fallo al enviar imagen a la PC vía AirSync")
@@ -138,7 +140,7 @@ fun PcAirSyncCard(
                         )
                     )
                     if (success) {
-                        onShowSnackbar("✅ Archivo enviado con éxito a la Dropzone de PC")
+                        onShowSnackbar("Archivo enviado con éxito a la Dropzone de PC")
                     } else {
                         onShowSnackbar("Error al subir archivo a la PC")
                     }
@@ -226,12 +228,21 @@ fun PcAirSyncCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
-                    Text(
-                        text = "📲 LENS-TO-WORKSPACE (MÓVIL ➔ PC)",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00E5FF)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Smartphone,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "LENS-TO-WORKSPACE (MÓVIL -> PC)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00E5FF)
+                        )
+                    }
                     Text(
                         text = "Envía fotos o bocetos a la PC con inyección instantánea en portapapeles (Ctrl+V)",
                         fontSize = 10.sp,
@@ -318,15 +329,26 @@ fun PcAirSyncCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "⬇️ ${activeTransfer.fileName}",
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = null,
+                                    tint = Color(0xFF00E5FF),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = activeTransfer.fileName,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             val speedMb = activeTransfer.speedBytesPerSec / (1024.0 * 1024.0)
                             Text(
                                 text = "${"%.1f".format(speedMb)} MB/s",

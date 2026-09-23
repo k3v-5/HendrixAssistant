@@ -15,9 +15,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -79,13 +91,13 @@ fun PcAutomatedRoutinesCard(
                             pcBridge.executeQuickCommand(action.commandText)
                         }
                         is AutomatedRoutineAction.SpeakTtsAction -> {
-                            onShowSnackbar("🗣️ ${action.text}")
+                            onShowSnackbar(action.text)
                             true
                         }
                         else -> true
                     }
                 }
-                onShowSnackbar("⚡ Rutina '${routine.name}' ejecutada ($count acciones)")
+                onShowSnackbar("Rutina '${routine.name}' ejecutada ($count acciones)")
             } catch (e: Exception) {
                 onShowSnackbar("Error ejecutando rutina: ${e.localizedMessage}")
             } finally {
@@ -114,7 +126,12 @@ fun PcAutomatedRoutinesCard(
                             .background(Color(0xFF10B981).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "⚡", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -141,7 +158,16 @@ fun PcAutomatedRoutinesCard(
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                             modifier = Modifier.padding(end = 6.dp)
                         ) {
-                            Text("🎨 Diseñar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Brush,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Diseñar", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            }
                         }
                     }
 
@@ -150,14 +176,23 @@ fun PcAutomatedRoutinesCard(
                         onClick = {
                             scope.launch {
                                 pcBridge.triggerTestAlert("GPU_OVERHEAT")
-                                onShowSnackbar("🔔 Alerta proactiva simulada emitida")
+                                onShowSnackbar("Alerta proactiva simulada emitida")
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("⚠️ Alerta", fontSize = 10.sp, color = Color(0xFFFBBF24))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = Color(0xFFFBBF24),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Alerta", fontSize = 10.sp, color = Color(0xFFFBBF24))
+                        }
                     }
                 }
             }
@@ -202,7 +237,19 @@ private fun RoutineItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = routine.iconEmoji, fontSize = 18.sp)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(Color(0xFF334155), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            tint = if (routine.isEnabled) Color(0xFF10B981) else Color.Gray,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
@@ -237,27 +284,39 @@ private fun RoutineItemRow(
             // Pills de disparadores
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 routine.triggers.take(2).forEach { trigger ->
-                    val (label, color) = when (trigger) {
-                        is AutomatedRoutineTrigger.WifiSsidTrigger -> "📶 Wi-Fi: ${trigger.ssid}" to Color(0xFF3B82F6)
-                        is AutomatedRoutineTrigger.GeofenceTrigger -> "📍 ${trigger.zoneName}" to Color(0xFF8B5CF6)
-                        is AutomatedRoutineTrigger.PcEventTrigger -> "🌙 PC: ${trigger.eventType}" to Color(0xFFF59E0B)
-                        is AutomatedRoutineTrigger.ChargingTrigger -> "⚡ Cargador" to Color(0xFF10B981)
-                        is AutomatedRoutineTrigger.ScheduleTrigger -> "⏰ ${trigger.timeString}" to Color(0xFFEC4899)
-                        is AutomatedRoutineTrigger.VoicePhraseTrigger -> "🗣️ '${trigger.phrases.firstOrNull() ?: ""}'" to Color(0xFF06B6D4)
+                    val (label, icon, color) = when (trigger) {
+                        is AutomatedRoutineTrigger.WifiSsidTrigger -> Triple("Wi-Fi: ${trigger.ssid}", Icons.Default.Wifi, Color(0xFF3B82F6))
+                        is AutomatedRoutineTrigger.GeofenceTrigger -> Triple(trigger.zoneName, Icons.Default.LocationOn, Color(0xFF8B5CF6))
+                        is AutomatedRoutineTrigger.PcEventTrigger -> Triple("PC: ${trigger.eventType}", Icons.Default.NightsStay, Color(0xFFF59E0B))
+                        is AutomatedRoutineTrigger.ChargingTrigger -> Triple("Cargador", Icons.Default.Bolt, Color(0xFF10B981))
+                        is AutomatedRoutineTrigger.ScheduleTrigger -> Triple(trigger.timeString, Icons.Default.Schedule, Color(0xFFEC4899))
+                        is AutomatedRoutineTrigger.VoicePhraseTrigger -> Triple("'${trigger.phrases.firstOrNull() ?: ""}'", Icons.Default.RecordVoiceOver, Color(0xFF06B6D4))
                     }
                     Surface(
                         color = color.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(4.dp)
                     ) {
-                        Text(
-                            text = label,
-                            fontSize = 9.sp,
-                            color = color,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                color = color
+                            )
+                        }
                     }
                 }
 
@@ -277,8 +336,16 @@ private fun RoutineItemRow(
                             color = Color.White
                         )
                         Spacer(modifier = Modifier.width(4.dp))
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color(0xFF34D399),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
                     }
-                    Text("⚡ Probar", fontSize = 10.sp, color = Color(0xFF34D399))
+                    Text("Probar", fontSize = 10.sp, color = Color(0xFF34D399))
                 }
             }
         }

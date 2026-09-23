@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,13 +72,13 @@ fun PcWirelessAudioMonitorCard(
             try {
                 if (isStreaming) {
                     pcBridge.stopAudioMonitoring()
-                    onShowSnackbar("⏹️ Monitor de audio inalámbrico detenido")
+                    onShowSnackbar("Monitor de audio inalámbrico detenido")
                 } else {
                     val ok = pcBridge.startAudioMonitoring(sampleRate = 24000)
                     if (ok) {
-                        onShowSnackbar("🎙️ Monitor de audio en vivo activado (< 25ms)")
+                        onShowSnackbar("Monitor de audio en vivo activado (< 25ms)")
                     } else {
-                        onShowSnackbar("⚠️ Error al iniciar monitor de audio en la PC")
+                        onShowSnackbar("Error al iniciar monitor de audio en la PC")
                     }
                 }
             } catch (e: Exception) {
@@ -106,7 +109,12 @@ fun PcWirelessAudioMonitorCard(
                             .background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🎧", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.Headphones,
+                            contentDescription = null,
+                            tint = Color(0xFF06B6D4),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -243,12 +251,21 @@ fun PcWirelessAudioMonitorCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Conectando audio...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 } else {
-                    Text(
-                        text = if (isStreaming) "⏹️ Detener Monitoreo de Audio" else "▶️ Iniciar Monitoreo Inalámbrico",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isStreaming) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isStreaming) "Detener Monitoreo de Audio" else "Iniciar Monitoreo Inalámbrico",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

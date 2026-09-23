@@ -29,8 +29,12 @@ abstract class StandardRecognizerSkill(
 
                 // Proporción de palabras consumidas
                 val ratio = if (totalWords > 0) matchedWords.toFloat() / totalWords.toFloat() else 1.0f
-                // Si consumió todas las palabras o la gran mayoría, confianza alta
-                val confidence = if (matchContext.isAtEnd) 1.0f else (0.7f + 0.3f * ratio)
+                // Si consumió todas las palabras o la gran mayoría (>= 75%), confianza alta; si es un fragmento pequeño, escala proporcionalmente por debajo del umbral
+                val confidence = when {
+                    matchContext.isAtEnd -> 1.0f
+                    ratio >= 0.75f -> 0.65f + 0.35f * ratio
+                    else -> ratio * 0.6f
+                }
 
                 val currentScore = SkillScore(
                     confidence = confidence,

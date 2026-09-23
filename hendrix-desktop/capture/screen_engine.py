@@ -14,9 +14,26 @@ class RECT(ctypes.Structure):
 
 class ScreenEngine:
     def __init__(self):
-        self._sct = mss.mss()
+        self._sct = None
+
+    def _ensure_input_desktop(self):
+        """Asegura que el hilo actual esté vinculado al escritorio interactivo activo (Default)."""
+        try:
+            hdesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                ctypes.windll.user32.SetThreadDesktop(hdesk)
+                ctypes.windll.user32.CloseDesktop(hdesk)
+        except Exception:
+            pass
+
+    def _get_sct(self):
+        self._ensure_input_desktop()
+        if self._sct is None:
+            self._sct = mss.MSS()
+        return self._sct
 
     def get_active_window_rect(self):
+        self._ensure_input_desktop()
         try:
             hwnd = ctypes.windll.user32.GetForegroundWindow()
             if not hwnd:
@@ -48,6 +65,7 @@ class ScreenEngine:
             return False
 
     def capture_webp(self, quality: int = 75, crop_to_active: bool = False) -> bytes:
+        self._ensure_input_desktop()
         if self.is_session_locked():
             # Sesión de Windows bloqueada (Winlogon): generar fotograma estilizado de alta resolución
             from PIL import ImageDraw
@@ -62,10 +80,11 @@ class ScreenEngine:
             draw.text((640, 505), "⚡ Desbloquear con Hendrix Assistant", fill="#38BDF8", anchor="mm")
 
             buffer = io.BytesIO()
-            img.save(buffer, format="WEBP", quality=quality, method=4)
+            img.save(buffer, format="WEBP", quality=quality, method=0)
             return buffer.getvalue()
 
-        monitor = self._sct.monitors[1] # Monitor primario
+        sct = self._get_sct()
+        monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
 
         if crop_to_active:
             win_rect = self.get_active_window_rect()
@@ -77,11 +96,46 @@ class ScreenEngine:
                     "height": win_rect["height"]
                 }
 
+        img = None
+        # Intento 1: MSS con el monitor seleccionado
         try:
-            sct_img = self._sct.grab(monitor)
+            sct_img = sct.grab(monitor)
             img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
         except Exception:
-            # Fallback elegante si GDI/DirectX no está disponible
+            # Recrear instancia de MSS si falló el contexto gráfico
+            try:
+                self._ensure_input_desktop()
+                if self._sct:
+                    try:
+                        self._sct.close()
+                    except Exception:
+                        pass
+                self._sct = mss.MSS()
+                sct_img = self._sct.grab(monitor)
+                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+            except Exception:
+                pass
+
+        # Intento 2: Fallback con PIL ImageGrab si MSS no pudo capturar
+        if img is None:
+            try:
+                self._ensure_input_desktop()
+                from PIL import ImageGrab
+                if crop_to_active and isinstance(monitor, dict):
+                    bbox = (
+                        monitor["left"],
+                        monitor["top"],
+                        monitor["left"] + monitor["width"],
+                        monitor["top"] + monitor["height"]
+                    )
+                    img = ImageGrab.grab(bbox=bbox)
+                else:
+                    img = ImageGrab.grab()
+            except Exception:
+                pass
+
+        # Intento 3: Fallback estilizado si la pantalla no está accesible
+        if img is None:
             from PIL import ImageDraw
             img = Image.new("RGB", (1280, 720), color="#0F172A")
             draw = ImageDraw.Draw(img)
@@ -91,7 +145,7 @@ class ScreenEngine:
             draw.text((640, 410), "Listo para recibir comandos de raton, teclado y dictado", fill="#64748B", anchor="mm")
 
         buffer = io.BytesIO()
-        img.save(buffer, format="WEBP", quality=quality, method=4)
+        img.save(buffer, format="WEBP", quality=quality, method=0)
         return buffer.getvalue()
 
 screen_engine = ScreenEngine()

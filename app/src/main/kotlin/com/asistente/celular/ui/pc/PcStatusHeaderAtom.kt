@@ -23,6 +23,9 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -104,32 +107,55 @@ fun PcStatusHeaderAtom(
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) "🌐 WAN Global" else "🟢 WiFi LAN",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) Color(0xFF818CF8) else Color(0xFF34D399)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) Icons.Default.Public else Icons.Default.Wifi,
+                                contentDescription = null,
+                                tint = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) Color(0xFF818CF8) else Color(0xFF34D399),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) "WAN Global" else "WiFi LAN",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (activeTransport == TransportType.GLOBAL_TUNNEL_WAN) Color(0xFF818CF8) else Color(0xFF34D399)
+                            )
+                        }
                     }
 
                     // Pill de modo de operación
+                    val (modeIcon, modeText) = when (currentMode) {
+                        PcOperationMode.INTERACTIVE_SNAPSHOT -> Icons.Default.Eco to "Eco Snapshot"
+                        PcOperationMode.COMMAND_ONLY -> Icons.Default.Bolt to "Comandos"
+                        PcOperationMode.FULL_STREAM -> Icons.Default.Speed to "Stream 60fps"
+                        PcOperationMode.AUTONOMOUS_RPA -> Icons.Default.SmartToy to "RPA Autónomo"
+                    }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = when (currentMode) {
-                                PcOperationMode.INTERACTIVE_SNAPSHOT -> "🌱 Eco Snapshot"
-                                PcOperationMode.COMMAND_ONLY -> "⚡ Comandos"
-                                PcOperationMode.FULL_STREAM -> "🎥 Stream 60fps"
-                                PcOperationMode.AUTONOMOUS_RPA -> "🤖 RPA Autónomo"
-                            },
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = modeIcon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = modeText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
 

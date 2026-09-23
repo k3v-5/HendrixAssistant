@@ -47,11 +47,17 @@ class SettingsRepository(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_FLIP_TO_MUTE, value).apply()
 
     var ttsPitch: Float
-        get() = prefs.getFloat(KEY_TTS_PITCH, 1.08f)
+        get() {
+            val saved = prefs.getFloat(KEY_TTS_PITCH, 1.0f)
+            return if (saved == 0.85f) 1.0f else saved
+        }
         set(value) = prefs.edit().putFloat(KEY_TTS_PITCH, value).apply()
 
     var ttsSpeechRate: Float
-        get() = prefs.getFloat(KEY_TTS_SPEECH_RATE, 1.02f)
+        get() {
+            val saved = prefs.getFloat(KEY_TTS_SPEECH_RATE, 1.0f)
+            return if (saved == 0.98f) 1.0f else saved
+        }
         set(value) = prefs.edit().putFloat(KEY_TTS_SPEECH_RATE, value).apply()
 
     var smartHomeCustomSubnet: String?

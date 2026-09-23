@@ -31,6 +31,27 @@ class OtaRequestHandler(BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
 
+    def do_HEAD(self):
+        clean_path = self.path.split("?")[0].rstrip("/")
+        if clean_path == "/api/update/download":
+            apk_path = system_ops.get_app_apk_path()
+            if not os.path.exists(apk_path):
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_cors_headers()
+                self.end_headers()
+                return
+            file_size = os.path.getsize(apk_path)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.android.package-archive")
+            self.send_header("Content-Disposition", 'attachment; filename="hendrix-assistant-update.apk"')
+            self.send_header("Content-Length", str(file_size))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_cors_headers()
+            self.end_headers()
+            return
+        self.do_GET()
+
     def do_GET(self):
         clean_path = self.path.split("?")[0].rstrip("/")
 

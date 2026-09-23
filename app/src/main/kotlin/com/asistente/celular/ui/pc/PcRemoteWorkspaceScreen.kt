@@ -74,6 +74,7 @@ fun PcRemoteWorkspaceScreen(
 
     val coordinator = pcBridge as? PcRemoteCoordinator
     val savedConfig = coordinator?.endpointConfig?.collectAsState()?.value
+    val openWindows by coordinator?.openWindows?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
 
     var showConfigDialog by remember { mutableStateOf(false) }
     var hostInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
@@ -143,7 +144,10 @@ fun PcRemoteWorkspaceScreen(
                         },
                         isLoupeEnabled = isLoupeActive,
                         isWindowFocusActive = isFocusWindowActive,
-                        activeWindowBounds = telemetry?.activeWindowBounds
+                        activeWindowBounds = telemetry?.activeWindowBounds,
+                        openWindows = openWindows,
+                        onRequestWindows = { pcBridge.getOpenWindows() },
+                        onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
                     )
                 }
 

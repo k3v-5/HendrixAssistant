@@ -21,6 +21,12 @@ sealed interface PcConnectionState {
     ) : PcConnectionState
 
 
+    data class Reconnecting(
+        val attempt: Int,
+        val host: String,
+        val port: Int
+    ) : PcConnectionState
+
     data class Error(
         val message: String,
         val canRetry: Boolean = true

@@ -21,9 +21,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -62,11 +69,11 @@ fun PcDropzoneDeliverableCard(
     val context = LocalContext.current
     var isAudioPlaying by remember { mutableStateOf(false) }
 
-    val (badgeText, badgeEmoji, accentColor) = when {
-        file.category.contains("blender", ignoreCase = true) -> Triple("Blender 3D", "🧊", Color(0xFFEA580C))
-        file.category.contains("audio", ignoreCase = true) -> Triple("Audio DAW", "🎹", Color(0xFF8B5CF6))
-        file.category.contains("video", ignoreCase = true) -> Triple("Adobe Video", "🎬", Color(0xFF06B6D4))
-        else -> Triple("Entregable Cloud", "📁", Color(0xFF10B981))
+    val (badgeText, badgeIcon, accentColor) = when {
+        file.category.contains("blender", ignoreCase = true) -> Triple("Blender 3D", Icons.Default.ViewInAr, Color(0xFFEA580C))
+        file.category.contains("audio", ignoreCase = true) -> Triple("Audio DAW", Icons.Default.MusicNote, Color(0xFF8B5CF6))
+        file.category.contains("video", ignoreCase = true) -> Triple("Adobe Video", Icons.Default.Videocam, Color(0xFF06B6D4))
+        else -> Triple("Entregable Cloud", Icons.Default.Folder, Color(0xFF10B981))
     }
 
     val isAudio = file.fileName.endsWith(".wav", ignoreCase = true) ||
@@ -116,7 +123,12 @@ fun PcDropzoneDeliverableCard(
                             .background(accentColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text(text = badgeEmoji, fontSize = 13.sp)
+                        Icon(
+                            imageVector = badgeIcon,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(13.dp)
+                        )
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = badgeText,
@@ -155,13 +167,15 @@ fun PcDropzoneDeliverableCard(
                             .background(Color(0xFF1E293B), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = when {
-                                isImage -> "🖼️"
-                                isAudio -> "🎧"
-                                else -> "📄"
+                        Icon(
+                            imageVector = when {
+                                isImage -> Icons.Default.Image
+                                isAudio -> Icons.Default.Headphones
+                                else -> Icons.Default.InsertDriveFile
                             },
-                            fontSize = 18.sp
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 

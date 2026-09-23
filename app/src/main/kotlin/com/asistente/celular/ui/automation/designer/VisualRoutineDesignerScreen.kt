@@ -26,13 +26,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -199,8 +210,16 @@ fun VisualRoutineDesignerScreen(
                             routineActions = r.actions
                             simulationLogs = emptyList()
                         },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = if (isSelected) Color(0xFF818CF8) else Color.Gray,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
                         label = {
-                            Text("${r.iconEmoji} ${r.name}", fontSize = 12.sp)
+                            Text(r.name, fontSize = 12.sp)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Color(0xFF6366F1).copy(alpha = 0.35f),
@@ -283,15 +302,22 @@ fun VisualRoutineDesignerScreen(
                                 Text("Sin disparador asignado", color = Color.Gray, fontSize = 12.sp)
                             } else {
                                 routineTriggers.forEach { trigger ->
-                                    val triggerText = when (trigger) {
-                                        is AutomatedRoutineTrigger.PcEventTrigger -> "🖥️ Evento PC: ${trigger.eventType}"
-                                        is AutomatedRoutineTrigger.WifiSsidTrigger -> "📶 Wi-Fi: ${trigger.ssid}"
-                                        is AutomatedRoutineTrigger.GeofenceTrigger -> "📍 Geocerca: ${trigger.zoneName}"
-                                        is AutomatedRoutineTrigger.ChargingTrigger -> "⚡ Al conectar cargador"
-                                        is AutomatedRoutineTrigger.ScheduleTrigger -> "⏰ Horario: ${trigger.timeString}"
-                                        is AutomatedRoutineTrigger.VoicePhraseTrigger -> "🗣️ Frase de voz: ${trigger.phrases.firstOrNull() ?: ""}"
+                                    val (icon, label) = when (trigger) {
+                                        is AutomatedRoutineTrigger.PcEventTrigger -> Icons.Default.DesktopWindows to "Evento PC: ${trigger.eventType}"
+                                        is AutomatedRoutineTrigger.WifiSsidTrigger -> Icons.Default.Wifi to "Wi-Fi: ${trigger.ssid}"
+                                        is AutomatedRoutineTrigger.GeofenceTrigger -> Icons.Default.LocationOn to "Geocerca: ${trigger.zoneName}"
+                                        is AutomatedRoutineTrigger.ChargingTrigger -> Icons.Default.Bolt to "Al conectar cargador"
+                                        is AutomatedRoutineTrigger.ScheduleTrigger -> Icons.Default.Schedule to "Horario: ${trigger.timeString}"
+                                        is AutomatedRoutineTrigger.VoicePhraseTrigger -> Icons.Default.RecordVoiceOver to "Frase de voz: ${trigger.phrases.firstOrNull() ?: ""}"
                                     }
-                                    Text(triggerText, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    ) {
+                                        Icon(icon, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(15.dp))
+                                        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
                                 }
                             }
                         }
@@ -354,31 +380,52 @@ fun VisualRoutineDesignerScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 when (action) {
                                     is AutomatedRoutineAction.SpeakTtsAction -> {
-                                        Text("🗣️ Hablar TTS", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.RecordVoiceOver, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                                            Text("Hablar TTS", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("\"${action.text}\"", color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.PcQuickCommandAction -> {
-                                        Text("💻 Comando PC", color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Terminal, contentDescription = null, tint = Color(0xFFA78BFA), modifier = Modifier.size(14.dp))
+                                            Text("Comando PC", color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("Acción: ${action.command}", color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.PcStudioSceneAction -> {
-                                        Text("🎬 Escena de Estudio", color = Color(0xFFF472B6), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Movie, contentDescription = null, tint = Color(0xFFF472B6), modifier = Modifier.size(14.dp))
+                                            Text("Escena de Estudio", color = Color(0xFFF472B6), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("Escena: ${action.sceneId}", color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.DelayAction -> {
-                                        Text("⏳ Pausa / Delay", color = Color(0xFFFBBF24), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.HourglassTop, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(14.dp))
+                                            Text("Pausa / Delay", color = Color(0xFFFBBF24), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("Esperar ${action.delayMillis} ms", color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.PcPluginAction -> {
-                                        Text("🔌 Plugin de Usuario", color = Color(0xFF34D399), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Extension, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(14.dp))
+                                            Text("Plugin de Usuario", color = Color(0xFF34D399), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("${action.pluginId} -> ${action.actionId}", color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.AssistantCommandAction -> {
-                                        Text("🤖 Comando Asistente", color = Color(0xFFE879F9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color(0xFFE879F9), modifier = Modifier.size(14.dp))
+                                            Text("Comando Asistente", color = Color(0xFFE879F9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text(action.commandText, color = Color.White, fontSize = 12.sp)
                                     }
                                     is AutomatedRoutineAction.EnterDeskStandbyAction -> {
-                                        Text("🖥️ Modo Desk Standby", color = Color(0xFF67E8F9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.DesktopWindows, contentDescription = null, tint = Color(0xFF67E8F9), modifier = Modifier.size(14.dp))
+                                            Text("Modo Desk Standby", color = Color(0xFF67E8F9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                         Text("Activar pantalla inteligente HUD", color = Color.White, fontSize = 12.sp)
                                     }
                                 }
@@ -406,7 +453,7 @@ fun VisualRoutineDesignerScreen(
                             if (isSimulating) return@Button
                             scope.launch {
                                 isSimulating = true
-                                simulationLogs = listOf("▶️ Iniciando simulación paso a paso de '${routineName}'...")
+                                simulationLogs = listOf("Iniciando simulación paso a paso de '${routineName}'...")
                                 for (i in routineActions.indices) {
                                     activeSimulatingStep = i
                                     val action = routineActions[i]
@@ -423,7 +470,7 @@ fun VisualRoutineDesignerScreen(
                                     delay(if (action is AutomatedRoutineAction.DelayAction) action.delayMillis else 800L)
                                 }
                                 activeSimulatingStep = -1
-                                simulationLogs = simulationLogs + "✅ Simulación completada con 100% de éxito."
+                                simulationLogs = simulationLogs + "Simulación completada con 100% de éxito."
                                 isSimulating = false
                                 onShowSnackbar("Simulación de rutina completada con éxito.")
                             }
@@ -466,7 +513,7 @@ fun VisualRoutineDesignerScreen(
                                 simulationLogs.forEach { log ->
                                     Text(
                                         text = log,
-                                        color = if (log.startsWith("✅")) Color(0xFF10B981) else Color(0xFFE2E8F0),
+                                        color = if (log.contains("completada con 100%")) Color(0xFF10B981) else Color(0xFFE2E8F0),
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace
                                     )

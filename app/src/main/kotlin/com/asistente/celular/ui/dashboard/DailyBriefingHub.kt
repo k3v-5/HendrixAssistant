@@ -15,10 +15,37 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CurrencyExchange
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Traffic
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.WbTwilight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +70,7 @@ import com.asistente.celular.ai.model.LlmConfig
 import com.asistente.celular.nlu.notes.NoteItem
 import com.asistente.celular.nlu.smarthome.SmartDevice
 import com.asistente.celular.nlu.tasks.TaskItem
+import com.asistente.celular.ui.theme.NeonLilac
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -68,11 +97,11 @@ fun DailyBriefingHub(
     val pinnedNotesCount = remember(notes) { notes.count { it.isPinned } }
 
     val currentHour = remember { LocalTime.now().hour }
-    val (greeting, greetingEmoji) = remember(currentHour) {
+    val (greeting, greetingIcon) = remember(currentHour) {
         when (currentHour) {
-            in 5..11 -> "¡Buenos días!" to "☀️"
-            in 12..18 -> "¡Buenas tardes!" to "🌤️"
-            else -> "¡Buenas noches!" to "🌙"
+            in 5..11 -> "¡Buenos días!" to Icons.Default.WbSunny
+            in 12..18 -> "¡Buenas tardes!" to Icons.Default.WbTwilight
+            else -> "¡Buenas noches!" to Icons.Default.NightsStay
         }
     }
 
@@ -102,8 +131,20 @@ fun DailyBriefingHub(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = greetingEmoji, fontSize = 26.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(NeonLilac.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = greetingIcon,
+                            contentDescription = null,
+                            tint = NeonLilac,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = greeting,
@@ -164,7 +205,12 @@ fun DailyBriefingHub(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text(if (llmConfig.zeroCloudMode) "🛡️" else "☁️", fontSize = 11.sp)
+                            Icon(
+                                imageVector = if (llmConfig.zeroCloudMode) Icons.Default.Shield else Icons.Default.Cloud,
+                                contentDescription = null,
+                                tint = if (llmConfig.zeroCloudMode) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (llmConfig.zeroCloudMode) "Zero-Cloud Local" else "IA: ${llmConfig.provider.displayName}",
@@ -184,7 +230,12 @@ fun DailyBriefingHub(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("🎭", fontSize = 11.sp)
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(12.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = llmConfig.personality.displayName,
@@ -205,7 +256,7 @@ fun DailyBriefingHub(
         ) {
             MetricBadge(
                 modifier = Modifier.weight(1f),
-                icon = "📋",
+                icon = Icons.Default.CheckCircle,
                 count = pendingTasksCount.toString(),
                 label = "Pendientes",
                 highlight = pendingTasksCount > 0,
@@ -213,7 +264,7 @@ fun DailyBriefingHub(
             )
             MetricBadge(
                 modifier = Modifier.weight(1f),
-                icon = "📝",
+                icon = Icons.Default.EditNote,
                 count = notes.size.toString(),
                 label = if (pinnedNotesCount > 0) "$pinnedNotesCount fijas" else "Notas",
                 highlight = false,
@@ -221,7 +272,7 @@ fun DailyBriefingHub(
             )
             MetricBadge(
                 modifier = Modifier.weight(1f),
-                icon = "💡",
+                icon = Icons.Default.Lightbulb,
                 count = smartDevices.size.toString(),
                 label = "Domótica",
                 highlight = smartDevices.any { it.isPoweredOn },
@@ -237,11 +288,20 @@ fun DailyBriefingHub(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "💡 Control Domótico",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Lightbulb,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Control Domótico",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
                         text = "${smartDevices.count { it.isPoweredOn }} encendidos",
                         fontSize = 11.sp,
@@ -267,71 +327,82 @@ fun DailyBriefingHub(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    QuickActionChip("☀️ Brillo 100%") { onSendCommand("Pon el foco al 100 por ciento") }
-                    QuickActionChip("🌙 Luz Noche 10%") { onSendCommand("Pon el foco al 10 por ciento") }
-                    QuickActionChip("💡 Luz Cálida") { onSendCommand("Pon el foco en color cálido") }
-                    QuickActionChip("🍿 Modo Cine") { onSendCommand("Activa el modo cine") }
+                    QuickActionChip("Brillo 100%", Icons.Default.WbSunny) { onSendCommand("Pon el foco al 100 por ciento") }
+                    QuickActionChip("Luz Noche 10%", Icons.Default.NightsStay) { onSendCommand("Pon el foco al 10 por ciento") }
+                    QuickActionChip("Luz Cálida", Icons.Default.Lightbulb) { onSendCommand("Pon el foco en color cálido") }
+                    QuickActionChip("Modo Cine", Icons.Default.Movie) { onSendCommand("Activa el modo cine") }
                 }
             }
         }
 
         // 4. Ecosistema de Aplicaciones
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "🚀 Accesos y Ecosistema de Apps",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 2.dp)
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Apps,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Accesos y Ecosistema de Apps",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AppActionCard(
-                    icon = "🗺️",
+                    icon = Icons.Default.Map,
                     title = "Navegar Casa",
                     app = "Google Maps",
                     onClick = { onSendCommand("Ir a casa con Google Maps") }
                 )
                 AppActionCard(
-                    icon = "🚕",
+                    icon = Icons.Default.DirectionsCar,
                     title = "Pedir Uber",
                     app = "Uber",
                     onClick = { onSendCommand("Pedir un Uber") }
                 )
                 AppActionCard(
-                    icon = "🚗",
+                    icon = Icons.Default.Traffic,
                     title = "Tráfico",
                     app = "Waze",
                     onClick = { onSendCommand("Abrir Waze") }
                 )
                 AppActionCard(
-                    icon = "📦",
+                    icon = Icons.Default.ShoppingBag,
                     title = "Compras",
                     app = "Mercado Libre",
                     onClick = { onSendCommand("Buscar compras en Mercado Libre") }
                 )
                 AppActionCard(
-                    icon = "🛍️",
+                    icon = Icons.Default.ShoppingCart,
                     title = "Ofertas",
                     app = "Amazon",
                     onClick = { onSendCommand("Buscar en Amazon") }
                 )
                 AppActionCard(
-                    icon = "🎵",
+                    icon = Icons.Default.MusicNote,
                     title = "Música",
                     app = "Spotify",
                     onClick = { onSendCommand("Pon música en Spotify") }
                 )
                 AppActionCard(
-                    icon = "✉️",
+                    icon = Icons.Default.Email,
                     title = "Correo",
                     app = "Gmail",
                     onClick = { onSendCommand("Abrir Gmail") }
                 )
                 AppActionCard(
-                    icon = "▶️",
+                    icon = Icons.Default.PlayCircle,
                     title = "Videos",
                     app = "YouTube",
                     onClick = { onSendCommand("Abrir YouTube") }
@@ -341,22 +412,33 @@ fun DailyBriefingHub(
 
         // 5. Productividad Instantánea
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "⚡ Productividad Instantánea",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 2.dp)
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Productividad Instantánea",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                ProductivityChip("⏱️ Pomodoro 25m") { onSendCommand("Pon un temporizador de 25 minutos") }
-                ProductivityChip("⏰ Alarma 7:00 AM") { onSendCommand("Pon una alarma a las 7 de la mañana") }
-                ProductivityChip("🔦 Linterna") { onSendCommand("Enciende la linterna") }
-                ProductivityChip("💱 50 USD a MXN") { onSendCommand("Convierte 50 dolares a pesos") }
-                ProductivityChip("📝 Anotar Idea") { onSendCommand("Anota comprar café para la oficina") }
+                ProductivityChip("Pomodoro 25m", Icons.Default.Timer) { onSendCommand("Pon un temporizador de 25 minutos") }
+                ProductivityChip("Alarma 7:00 AM", Icons.Default.Alarm) { onSendCommand("Pon una alarma a las 7 de la mañana") }
+                ProductivityChip("Linterna", Icons.Default.FlashlightOn) { onSendCommand("Enciende la linterna") }
+                ProductivityChip("50 USD a MXN", Icons.Default.CurrencyExchange) { onSendCommand("Convierte 50 dolares a pesos") }
+                ProductivityChip("Anotar Idea", Icons.Default.EditNote) { onSendCommand("Anota comprar café para la oficina") }
             }
         }
 
@@ -385,9 +467,11 @@ private fun CompactSmartDeviceCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = if (device.isPoweredOn) "💡" else "🌑",
-                    fontSize = 20.sp
+                Icon(
+                    imageVector = Icons.Default.Lightbulb,
+                    contentDescription = null,
+                    tint = if (device.isPoweredOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
                 )
                 Switch(
                     checked = device.isPoweredOn,
@@ -420,7 +504,7 @@ private fun CompactSmartDeviceCard(
 @Composable
 private fun MetricBadge(
     modifier: Modifier = Modifier,
-    icon: String,
+    icon: ImageVector,
     count: String,
     label: String,
     highlight: Boolean,
@@ -438,8 +522,13 @@ private fun MetricBadge(
             modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = icon, fontSize = 18.sp)
-            Spacer(modifier = Modifier.height(2.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (highlight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = count,
                 fontWeight = FontWeight.Bold,
@@ -458,6 +547,7 @@ private fun MetricBadge(
 @Composable
 private fun QuickActionChip(
     text: String,
+    icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
     Surface(
@@ -465,18 +555,31 @@ private fun QuickActionChip(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         modifier = Modifier.clickable { onClick() }
     ) {
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = text,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
 @Composable
 private fun AppActionCard(
-    icon: String,
+    icon: ImageVector,
     title: String,
     app: String,
     onClick: () -> Unit
@@ -489,8 +592,25 @@ private fun AppActionCard(
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
-            Text(text = icon, fontSize = 20.sp)
-            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                modifier = Modifier.size(32.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
@@ -512,6 +632,7 @@ private fun AppActionCard(
 @Composable
 private fun ProductivityChip(
     text: String,
+    icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
     Surface(
@@ -519,11 +640,24 @@ private fun ProductivityChip(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
         modifier = Modifier.clickable { onClick() }
     ) {
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Text(
+                text = text,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }

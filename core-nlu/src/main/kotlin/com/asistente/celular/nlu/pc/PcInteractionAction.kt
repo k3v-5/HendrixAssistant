@@ -15,7 +15,8 @@ enum class PcActionType {
     KEY_DOWN,
     KEY_UP,
     HOTKEY,
-    TYPE_TEXT
+    TYPE_TEXT,
+    FOCUS_WINDOW
 }
 
 /**
@@ -31,5 +32,6 @@ data class PcInteractionAction(
     val scrollDeltaY: Float = 0f,
     val textPayload: String? = null,
     val keyCodes: List<String> = emptyList(),
+    val hwnd: Long? = null,
     val timestampEpoch: Long = System.currentTimeMillis()
 )

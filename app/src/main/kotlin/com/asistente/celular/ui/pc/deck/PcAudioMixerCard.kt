@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeMute
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,7 +84,12 @@ fun PcAudioMixerCard(
                             .background(Color(0xFFF59E0B).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🎚️", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -105,7 +112,7 @@ fun PcAudioMixerCard(
                         scope.launch {
                             val res = pcBridge.queryAudioMixer()
                             if (res != null) {
-                                onShowSnackbar("🎚️ Sesiones de audio actualizadas (${res.sessions.size} apps)")
+                                onShowSnackbar("Sesiones de audio actualizadas (${res.sessions.size} apps)")
                             }
                         }
                     }
@@ -130,7 +137,12 @@ fun PcAudioMixerCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "🔊", fontSize = 14.sp)
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = null,
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Volumen Maestro Windows",

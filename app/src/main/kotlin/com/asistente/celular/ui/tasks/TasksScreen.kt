@@ -64,11 +64,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.tasks.TaskItem
+import com.asistente.celular.ui.theme.NeonAmber
+import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -100,13 +112,35 @@ fun TasksScreen(
     val completedTasks = filteredTasks.filter { it.isCompleted }
 
     Scaffold(
+        containerColor = VoidBlack,
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Tareas",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "TAREAS",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 2.sp,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = VoidSurfaceElevated,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, VoidBorder)
+                        ) {
+                            Text(
+                                text = "${pendingTasks.size} PENDIENTES",
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonCyan,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 },
                 actions = {
                     if (completedTasks.isNotEmpty()) {
@@ -114,21 +148,44 @@ fun TasksScreen(
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Limpiar completadas",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
-                }
+                    // Botón integrado en cabecera [+ NUEVA] que elimina el FAB flotante invasivo
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = NeonCyan,
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .clickable { showAddDialog = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "NUEVA",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                },
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = VoidBlack
+                )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir tarea")
-            }
         }
     ) { paddingValues ->
         Column(
@@ -136,19 +193,33 @@ fun TasksScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Selector de listas horizontal (Google Tasks style)
+            // Selector de listas horizontal compacto OLED
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(allLists) { listName ->
-                    FilterChip(
-                        selected = selectedList == listName,
-                        onClick = { selectedList = listName },
-                        label = { Text(listName) }
-                    )
+                    val isSelected = selectedList == listName
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) VoidSurfaceElevated else VoidSurface,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) NeonCyan else VoidBorder
+                        ),
+                        modifier = Modifier.clickable { selectedList = listName }
+                    ) {
+                        Text(
+                            text = listName,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) NeonCyan else TextSecondary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
 
@@ -252,7 +323,7 @@ fun TaskRow(
     onDelete: () -> Unit
 ) {
     val checkColor by animateColorAsState(
-        targetValue = if (task.isCompleted) MaterialTheme.colorScheme.primary else Color.Transparent,
+        targetValue = if (task.isCompleted) com.asistente.celular.ui.theme.NeonCyan else Color.Transparent,
         label = "taskCheckColor"
     )
 
@@ -261,11 +332,10 @@ fun TaskRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (task.isCompleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.surface
+            containerColor = com.asistente.celular.ui.theme.VoidSurface
         ),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (task.isCompleted) 0.dp else 1.dp)
+        border = androidx.compose.foundation.BorderStroke(1.dp, com.asistente.celular.ui.theme.VoidBorder)
     ) {
         Row(
             modifier = Modifier
@@ -273,15 +343,15 @@ fun TaskRow(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Checkbox circular estilo Google Tasks
+            // Checkbox circular estilo Google Tasks con estética NeonCyan
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
                     .background(checkColor)
                     .border(
-                        width = 2.dp,
-                        color = if (task.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        width = 1.5.dp,
+                        color = if (task.isCompleted) com.asistente.celular.ui.theme.NeonCyan else com.asistente.celular.ui.theme.VoidBorder,
                         shape = CircleShape
                     )
                     .clickable { onToggle() },
@@ -291,7 +361,7 @@ fun TaskRow(
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Completada",
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = Color.Black,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -302,10 +372,11 @@ fun TaskRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                        color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        else MaterialTheme.colorScheme.onSurface
+                        color = if (task.isCompleted) TextMuted else TextPrimary
                     ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -315,15 +386,15 @@ fun TaskRow(
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = task.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 if (task.dueDateMillis != null || task.reminderMillis != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     TaskDueBadge(
                         dueDateMillis = task.dueDateMillis,
                         hasReminder = task.reminderMillis != null,
@@ -332,12 +403,12 @@ fun TaskRow(
                 }
             }
 
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                 Icon(
                     imageVector = Icons.Default.Clear,
                     contentDescription = "Eliminar tarea",
-                    tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(20.dp)
+                    tint = TextMuted,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -356,41 +427,43 @@ fun TaskDueBadge(
     val isOverdue = dueDateMillis < now && !isCompleted
     val isToday = isSameDay(dueDateMillis, now)
 
-    val badgeColor = when {
-        isCompleted -> MaterialTheme.colorScheme.surfaceVariant
-        isOverdue -> MaterialTheme.colorScheme.errorContainer
-        isToday -> MaterialTheme.colorScheme.tertiaryContainer
-        else -> MaterialTheme.colorScheme.secondaryContainer
+    val badgeBorder = when {
+        isCompleted -> VoidBorder
+        isOverdue -> NeonRed.copy(alpha = 0.5f)
+        isToday -> NeonAmber.copy(alpha = 0.5f)
+        else -> NeonCyan.copy(alpha = 0.3f)
     }
 
     val contentColor = when {
-        isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant
-        isOverdue -> MaterialTheme.colorScheme.onErrorContainer
-        isToday -> MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.onSecondaryContainer
+        isCompleted -> TextMuted
+        isOverdue -> NeonRed
+        isToday -> NeonAmber
+        else -> NeonCyan
     }
 
     val formatter = SimpleDateFormat("d MMM, h:mm a", Locale("es", "ES"))
     val dateText = formatter.format(Date(dueDateMillis))
 
     Surface(
-        color = badgeColor,
-        shape = RoundedCornerShape(8.dp)
+        color = VoidSurfaceElevated,
+        shape = RoundedCornerShape(6.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, badgeBorder)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = if (hasReminder) Icons.Default.Alarm else Icons.Default.Event,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(14.dp)
+                modifier = Modifier.size(12.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = if (isOverdue) "Vencida: $dateText" else dateText,
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
                 color = contentColor
             )
         }

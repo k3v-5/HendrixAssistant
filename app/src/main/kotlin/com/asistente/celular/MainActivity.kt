@@ -10,7 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -30,9 +36,14 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import com.asistente.celular.service.AssistantVoiceService
 import com.asistente.celular.ui.AssistantScreen
@@ -40,7 +51,15 @@ import com.asistente.celular.ui.SettingsScreen
 import com.asistente.celular.ui.notes.NotesScreen
 import com.asistente.celular.ui.pc.deck.PcControlDeckScreen
 import com.asistente.celular.ui.tasks.TasksScreen
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.asistente.celular.ui.theme.AsistenteTheme
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
 import com.asistente.celular.viewmodel.AssistantViewModel
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +105,13 @@ class MainActivity : ComponentActivity() {
                 val isPcConnected by viewModel.pcRemoteCoordinator.isConnected.collectAsState()
                 val pcTelemetry by viewModel.pcRemoteCoordinator.telemetry.collectAsState()
 
+                var isPcScreenImmersive by remember { mutableStateOf(false) }
+                LaunchedEffect(currentScreen) {
+                    if (currentScreen != Screen.PcModules) {
+                        isPcScreenImmersive = false
+                    }
+                }
+
                 val inStandby = isDeskStandby || currentScreen == Screen.DeskStandby
 
                 androidx.compose.runtime.DisposableEffect(inStandby) {
@@ -111,94 +137,109 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     Scaffold(
+                        containerColor = com.asistente.celular.ui.theme.VoidBlack,
                         bottomBar = {
-                            NavigationBar {
-                                NavigationBarItem(
-                                selected = currentScreen == Screen.Assistant,
-                                onClick = { currentScreenFlow.value = Screen.Assistant },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (currentScreen == Screen.Assistant) Icons.Filled.Forum else Icons.Outlined.Forum,
-                                        contentDescription = "Asistente"
+                            AnimatedVisibility(
+                                visible = !isPcScreenImmersive,
+                                enter = slideInVertically { it } + fadeIn(),
+                                exit = slideOutVertically { it } + fadeOut()
+                            ) {
+                                NavigationBar(
+                                    containerColor = VoidBlack,
+                                    modifier = Modifier.border(BorderStroke(1.dp, VoidBorder))
+                                ) {
+                                    val navItemColors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                        selectedIconColor = NeonPurple,
+                                        selectedTextColor = NeonPurple,
+                                        indicatorColor = NeonPurple.copy(alpha = 0.16f),
+                                        unselectedIconColor = TextMuted,
+                                        unselectedTextColor = TextMuted
                                     )
-                                },
-                                label = { Text("Asistente") }
-                            )
 
-                            NavigationBarItem(
-                                selected = currentScreen == Screen.Tasks,
-                                onClick = { currentScreenFlow.value = Screen.Tasks },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (currentScreen == Screen.Tasks) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                                        contentDescription = "Tareas"
+                                    NavigationBarItem(
+                                        selected = currentScreen == Screen.Assistant,
+                                        onClick = { currentScreenFlow.value = Screen.Assistant },
+                                        colors = navItemColors,
+                                        icon = {
+                                            Icon(
+                                                imageVector = if (currentScreen == Screen.Assistant) Icons.Filled.Forum else Icons.Outlined.Forum,
+                                                contentDescription = "Asistente"
+                                            )
+                                        },
+                                        label = { Text("Asistente", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
                                     )
-                                },
-                                label = { Text("Tareas") }
-                            )
 
-                            NavigationBarItem(
-                                selected = currentScreen == Screen.Notes,
-                                onClick = { currentScreenFlow.value = Screen.Notes },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (currentScreen == Screen.Notes) Icons.Filled.EditNote else Icons.Outlined.EditNote,
-                                        contentDescription = "Notas"
+                                    NavigationBarItem(
+                                        selected = currentScreen == Screen.PcModules,
+                                        onClick = { currentScreenFlow.value = Screen.PcModules },
+                                        colors = navItemColors,
+                                        icon = {
+                                            Icon(
+                                                imageVector = Icons.Filled.Computer,
+                                                contentDescription = "Mi PC"
+                                            )
+                                        },
+                                        label = { Text("Mi PC", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
                                     )
-                                },
-                                label = { Text("Notas") }
-                            )
 
-                            NavigationBarItem(
-                                selected = currentScreen == Screen.PcModules,
-                                onClick = { currentScreenFlow.value = Screen.PcModules },
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Filled.Computer,
-                                        contentDescription = "Mi PC"
+                                    NavigationBarItem(
+                                        selected = currentScreen == Screen.Tasks,
+                                        onClick = { currentScreenFlow.value = Screen.Tasks },
+                                        colors = navItemColors,
+                                        icon = {
+                                            Icon(
+                                                imageVector = if (currentScreen == Screen.Tasks) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                                                contentDescription = "Tareas"
+                                            )
+                                        },
+                                        label = { Text("Tareas", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
                                     )
-                                },
-                                label = { Text("Mi PC") }
-                            )
 
-                            NavigationBarItem(
-                                selected = currentScreen == Screen.Settings,
-                                onClick = { currentScreenFlow.value = Screen.Settings },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (currentScreen == Screen.Settings) Icons.Filled.Settings else Icons.Outlined.Settings,
-                                        contentDescription = "Ajustes"
+                                    NavigationBarItem(
+                                        selected = currentScreen == Screen.Notes,
+                                        onClick = { currentScreenFlow.value = Screen.Notes },
+                                        colors = navItemColors,
+                                        icon = {
+                                            Icon(
+                                                imageVector = if (currentScreen == Screen.Notes) Icons.Filled.EditNote else Icons.Outlined.EditNote,
+                                                contentDescription = "Notas"
+                                            )
+                                        },
+                                        label = { Text("Notas", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
                                     )
-                                },
-                                label = { Text("Ajustes") }
-                            )
-                        }
-                    }
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    ) {
-                        when (currentScreen) {
-                            Screen.Assistant -> {
-                                AssistantScreen(
-                                    state = uiState,
-                                    isPcConnected = isPcConnected,
-                                    pcHostname = pcTelemetry?.hostname,
-                                    onOpenPcModules = { currentScreenFlow.value = Screen.PcModules },
-                                    tasks = tasks,
-                                    notes = notes,
-                                    smartDevices = smartDevices,
-                                    onToggleSmartDevice = { dev -> viewModel.toggleSmartDevice(dev) },
-                                    onStartListening = { ensurePermissionsAndListen() },
-                                    onStopListening = { viewModel.stopListening() },
-                                    onSendCommand = { text -> viewModel.processCommand(text) },
-                                    onStopSpeech = { viewModel.stopSpeech() },
-                                    onOpenSettings = { currentScreenFlow.value = Screen.Settings },
-                                    onClearError = { viewModel.clearError() }
-                                )
+                                }
                             }
+                        }
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(if (isPcScreenImmersive) PaddingValues(0.dp) else innerPadding)
+                        ) {
+                            when (currentScreen) {
+                                Screen.Assistant -> {
+                                    AssistantScreen(
+                                        state = uiState,
+                                        isPcConnected = isPcConnected,
+                                        pcHostname = pcTelemetry?.hostname,
+                                        pcTelemetry = pcTelemetry,
+                                        onOpenPcModules = { currentScreenFlow.value = Screen.PcModules },
+                                        onOpenTasks = { currentScreenFlow.value = Screen.Tasks },
+                                        onOpenNotes = { currentScreenFlow.value = Screen.Notes },
+                                        onOpenStandby = { currentScreenFlow.value = Screen.DeskStandby },
+                                        tasks = tasks,
+                                        notes = notes,
+                                        smartDevices = smartDevices,
+                                        onToggleSmartDevice = { dev -> viewModel.toggleSmartDevice(dev) },
+                                        onStartListening = { ensurePermissionsAndListen() },
+                                        onStopListening = { viewModel.stopListening() },
+                                        onSendCommand = { text -> viewModel.processCommand(text) },
+                                        onStopSpeech = { viewModel.stopSpeech() },
+                                        onOpenSettings = { currentScreenFlow.value = Screen.Settings },
+                                        onClearChat = { viewModel.clearChat() },
+                                        onClearError = { viewModel.clearError() }
+                                    )
+                                }
                             Screen.Tasks -> {
                                 TasksScreen(
                                     tasks = tasks,
@@ -299,7 +340,8 @@ class MainActivity : ComponentActivity() {
                                     routineRepository = viewModel.automatedRoutineRepository,
                                     macroDeckProfileRepository = viewModel.macroDeckProfileRepository,
                                     onEnterDeskStandby = { viewModel.enterDeskStandby() },
-                                    onBack = { currentScreenFlow.value = Screen.Assistant }
+                                    onBack = { currentScreenFlow.value = Screen.Assistant },
+                                    onImmersiveModeChanged = { isPcScreenImmersive = it }
                                 )
                             }
                             Screen.DeskStandby -> {

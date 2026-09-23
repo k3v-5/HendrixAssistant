@@ -1,11 +1,30 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from storage.clipboard_hub import clipboard_hub
+from ui.theme import (
+    COLOR_VOID_BLACK,
+    COLOR_VOID_SURFACE,
+    COLOR_VOID_BORDER,
+    COLOR_NEON_VIOLET,
+    COLOR_NEON_PURPLE,
+    COLOR_NEON_LILAC,
+    COLOR_NEON_CYAN,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    FONT_TITLE,
+    FONT_BODY,
+    FONT_CAPTION,
+    FONT_TERMINAL,
+    create_neon_button,
+    create_secondary_button,
+    create_accent_button,
+    create_danger_button,
+)
 import time
 
 class ClipboardSnippetsView(tk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, background="#0B0F19")
+        super().__init__(parent, background=COLOR_VOID_BLACK)
         self.selected_history_item = None
         self.selected_snippet = None
         self._build_ui()
@@ -20,9 +39,9 @@ class ClipboardSnippetsView(tk.Frame):
         self.after(0, self.refresh_snippets)
 
     def _build_ui(self):
-        canvas = tk.Canvas(self, background="#0B0F19", highlightthickness=0)
+        canvas = tk.Canvas(self, background=COLOR_VOID_BLACK, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        self.scroll_content = tk.Frame(canvas, background="#0B0F19")
+        self.scroll_content = tk.Frame(canvas, background=COLOR_VOID_BLACK)
 
         self.scroll_content.bind(
             "<Configure>",
@@ -49,19 +68,15 @@ class ClipboardSnippetsView(tk.Frame):
 
         title = ttk.Label(
             header_row,
-            text="📋 Historial de Portapapeles en Tiempo Real",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#10B981"
+            text="Historial de Portapapeles en Tiempo Real",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         title.pack(side="left")
 
-        clear_btn = tk.Button(
+        clear_btn = create_secondary_button(
             header_row,
-            text="🗑️ Limpiar",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Limpiar",
             command=self._clear_history,
             padx=8,
             pady=2
@@ -69,17 +84,22 @@ class ClipboardSnippetsView(tk.Frame):
         clear_btn.pack(side="right")
 
         # Lista de elementos recientes
-        list_frame = tk.Frame(hist_card, background="#0F172A")
+        list_frame = tk.Frame(
+            hist_card,
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
+        )
         list_frame.pack(fill="x", padx=16, pady=(0, 8))
 
         self.history_listbox = tk.Listbox(
             list_frame,
             height=6,
-            font=("Consolas", 9),
-            bg="#0F172A",
-            fg="#E2E8F0",
-            selectbackground="#10B981",
-            selectforeground="#000000",
+            font=FONT_TERMINAL,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_TEXT_PRIMARY,
+            selectbackground=COLOR_NEON_VIOLET,
+            selectforeground=COLOR_TEXT_PRIMARY,
             relief="flat",
             highlightthickness=0
         )
@@ -91,54 +111,52 @@ class ClipboardSnippetsView(tk.Frame):
         self.history_listbox.config(yscrollcommand=hist_scroll.set)
 
         # Vista previa del texto
-        self.history_preview = tk.Text(
+        preview_container = tk.Frame(
             hist_card,
-            height=3,
-            font=("Segoe UI", 9),
-            bg="#0B0F19",
-            fg="#38BDF8",
-            relief="flat",
-            wrap="word"
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
         )
-        self.history_preview.pack(fill="x", padx=16, pady=(0, 8))
+        preview_container.pack(fill="x", padx=16, pady=(0, 8))
+
+        self.history_preview = tk.Text(
+            preview_container,
+            height=3,
+            font=FONT_TERMINAL,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_NEON_CYAN,
+            relief="flat",
+            wrap="word",
+            padx=6,
+            pady=4
+        )
+        self.history_preview.pack(fill="x")
 
         # Botonera de acciones
         btn_row = ttk.Frame(hist_card, style="Card.TFrame")
         btn_row.pack(fill="x", padx=16, pady=(0, 12))
 
-        copy_btn = tk.Button(
+        copy_btn = create_neon_button(
             btn_row,
-            text="📋 Copiar al Portapapeles",
-            font=("Segoe UI", 8, "bold"),
-            bg="#10B981",
-            fg="black",
-            relief="flat",
+            text="Copiar al Portapapeles",
             command=self._copy_history_item,
-            padx=8,
+            padx=10,
             pady=4
         )
         copy_btn.pack(side="left", padx=(0, 6))
 
-        push_btn = tk.Button(
+        push_btn = create_accent_button(
             btn_row,
-            text="📱 Enviar al Móvil (Push)",
-            font=("Segoe UI", 8, "bold"),
-            bg="#0284C7",
-            fg="white",
-            relief="flat",
+            text="Enviar al Móvil (Push)",
             command=self._push_history_item,
-            padx=8,
+            padx=10,
             pady=4
         )
         push_btn.pack(side="left", padx=(0, 6))
 
-        save_snip_btn = tk.Button(
+        save_snip_btn = create_secondary_button(
             btn_row,
-            text="⭐ Guardar como Snippet",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Guardar como Snippet",
             command=self._save_history_as_snippet,
             padx=8,
             pady=4
@@ -201,22 +219,18 @@ class ClipboardSnippetsView(tk.Frame):
 
         title = ttk.Label(
             header_row,
-            text="⭐ Biblioteca de Snippets & Plantillas Rápidas",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#8B5CF6"
+            text="Biblioteca de Snippets & Plantillas",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         title.pack(side="left")
 
-        new_btn = tk.Button(
+        new_btn = create_neon_button(
             header_row,
-            text="➕ Nuevo Snippet",
-            font=("Segoe UI", 8, "bold"),
-            bg="#8B5CF6",
-            fg="white",
-            relief="flat",
+            text="Nuevo Snippet",
             command=self._create_new_snippet,
-            padx=8,
-            pady=2
+            padx=10,
+            pady=3
         )
         new_btn.pack(side="right")
 
@@ -224,30 +238,35 @@ class ClipboardSnippetsView(tk.Frame):
         filter_row = ttk.Frame(snip_card, style="Card.TFrame")
         filter_row.pack(fill="x", padx=16, pady=(0, 8))
 
-        ttk.Label(filter_row, text="Categoría:", font=("Segoe UI", 8), foreground="#94A3B8").pack(side="left", padx=(0, 6))
+        ttk.Label(filter_row, text="Categoría:", font=FONT_CAPTION, foreground=COLOR_TEXT_SECONDARY).pack(side="left", padx=(0, 6))
         self.category_var = tk.StringVar(value="Todos")
         self.category_combo = ttk.Combobox(
             filter_row,
             textvariable=self.category_var,
             state="readonly",
-            font=("Segoe UI", 9),
+            font=FONT_BODY,
             width=20
         )
         self.category_combo.pack(side="left")
         self.category_combo.bind("<<ComboboxSelected>>", lambda e: self.refresh_snippets())
 
         # Lista de snippets
-        snip_frame = tk.Frame(snip_card, background="#0F172A")
+        snip_frame = tk.Frame(
+            snip_card,
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
+        )
         snip_frame.pack(fill="x", padx=16, pady=(0, 8))
 
         self.snippets_listbox = tk.Listbox(
             snip_frame,
             height=6,
-            font=("Segoe UI", 9),
-            bg="#0F172A",
-            fg="#E2E8F0",
-            selectbackground="#8B5CF6",
-            selectforeground="#FFFFFF",
+            font=FONT_BODY,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_TEXT_PRIMARY,
+            selectbackground=COLOR_NEON_VIOLET,
+            selectforeground=COLOR_TEXT_PRIMARY,
             relief="flat",
             highlightthickness=0
         )
@@ -259,56 +278,54 @@ class ClipboardSnippetsView(tk.Frame):
         self.snippets_listbox.config(yscrollcommand=snip_scroll.set)
 
         # Vista previa del contenido del snippet
-        self.snippet_preview = tk.Text(
+        preview_container = tk.Frame(
             snip_card,
-            height=3,
-            font=("Consolas", 9),
-            bg="#0B0F19",
-            fg="#C4B5FD",
-            relief="flat",
-            wrap="word"
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
         )
-        self.snippet_preview.pack(fill="x", padx=16, pady=(0, 8))
+        preview_container.pack(fill="x", padx=16, pady=(0, 8))
+
+        self.snippet_preview = tk.Text(
+            preview_container,
+            height=3,
+            font=FONT_TERMINAL,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_NEON_LILAC,
+            relief="flat",
+            wrap="word",
+            padx=6,
+            pady=4
+        )
+        self.snippet_preview.pack(fill="x")
 
         # Botonera de acciones
         snip_btn_row = ttk.Frame(snip_card, style="Card.TFrame")
         snip_btn_row.pack(fill="x", padx=16, pady=(0, 12))
 
-        copy_snip_btn = tk.Button(
+        copy_snip_btn = create_neon_button(
             snip_btn_row,
-            text="📋 Copiar Snippet",
-            font=("Segoe UI", 8, "bold"),
-            bg="#8B5CF6",
-            fg="white",
-            relief="flat",
+            text="Copiar Snippet",
             command=self._copy_snippet,
-            padx=8,
+            padx=10,
             pady=4
         )
         copy_snip_btn.pack(side="left", padx=(0, 6))
 
-        push_snip_btn = tk.Button(
+        push_snip_btn = create_accent_button(
             snip_btn_row,
-            text="📱 Enviar a Móvil",
-            font=("Segoe UI", 8),
-            bg="#0284C7",
-            fg="white",
-            relief="flat",
+            text="Enviar a Móvil",
             command=self._push_snippet,
-            padx=8,
+            padx=10,
             pady=4
         )
         push_snip_btn.pack(side="left", padx=(0, 6))
 
-        del_snip_btn = tk.Button(
+        del_snip_btn = create_danger_button(
             snip_btn_row,
-            text="🗑️ Eliminar",
-            font=("Segoe UI", 8),
-            bg="#EF4444",
-            fg="white",
-            relief="flat",
+            text="Eliminar",
             command=self._delete_snippet,
-            padx=8,
+            padx=10,
             pady=4
         )
         del_snip_btn.pack(side="right")

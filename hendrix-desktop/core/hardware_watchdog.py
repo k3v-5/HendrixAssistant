@@ -80,7 +80,7 @@ class HardwareWatchdog:
     def start_render_watchdog(
         self,
         process_name: str = "blender",
-        auto_suspend: Boolean = True,
+        auto_suspend: bool = True,
         on_completed: Optional[Callable[[dict], None]] = None
     ) -> bool:
         if self._is_watching:

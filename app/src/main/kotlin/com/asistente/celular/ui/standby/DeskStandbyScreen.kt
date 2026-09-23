@@ -123,7 +123,7 @@ fun DeskStandbyScreen(
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF060913)
+        color = com.asistente.celular.ui.theme.VoidBlack
     ) {
         Column(
             modifier = Modifier
@@ -142,7 +142,7 @@ fun DeskStandbyScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Salir de Standby",
-                        tint = Color.White.copy(alpha = 0.7f)
+                        tint = com.asistente.celular.ui.theme.TextPrimary
                     )
                 }
 
@@ -151,14 +151,15 @@ fun DeskStandbyScreen(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(if (isConnected) Color(0xFF10B981) else Color(0xFFEF4444))
+                            .background(if (isConnected) com.asistente.celular.ui.theme.NeonCyan else com.asistente.celular.ui.theme.NeonRed)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (isConnected) "PC CONECTADA" else "PC DESCONECTADA",
-                        color = Color.White.copy(alpha = 0.8f),
+                        color = if (isConnected) com.asistente.celular.ui.theme.NeonCyan else com.asistente.celular.ui.theme.TextMuted,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
                         letterSpacing = 1.sp
                     )
 
@@ -171,12 +172,12 @@ fun DeskStandbyScreen(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.2f))
+                                .background(com.asistente.celular.ui.theme.NeonAmber.copy(alpha = 0.2f))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Bolt,
                                 contentDescription = "Wake on LAN",
-                                tint = Color(0xFFF59E0B),
+                                tint = com.asistente.celular.ui.theme.NeonAmber,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -196,7 +197,7 @@ fun DeskStandbyScreen(
                         fontSize = 76.sp,
                         fontWeight = FontWeight.ExtraBold,
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF00E5FF),
+                        color = com.asistente.celular.ui.theme.NeonCyan,
                         letterSpacing = (-2).sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -205,25 +206,26 @@ fun DeskStandbyScreen(
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF6366F1),
+                        color = com.asistente.celular.ui.theme.NeonAmber,
                         modifier = Modifier.padding(bottom = 14.dp)
                     )
                 }
                 Text(
                     text = dateFormatter.format(currentTime).replaceFirstChar { it.uppercase() },
                     fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.6f),
+                    fontFamily = FontFamily.Monospace,
+                    color = com.asistente.celular.ui.theme.TextSecondary,
                     fontWeight = FontWeight.Medium
                 )
             }
 
             // 3. Telemetría de PC en Vivo
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1426)),
-                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = com.asistente.celular.ui.theme.VoidSurface),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(20.dp))
+                    .border(1.dp, com.asistente.celular.ui.theme.VoidBorder, RoundedCornerShape(16.dp))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -314,57 +316,56 @@ fun DeskStandbyScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(
                         onClick = { scope.launch { pcBridge?.executeQuickCommand("volume_down") } },
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF0D1426))
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(com.asistente.celular.ui.theme.VoidSurfaceElevated)
+                            .border(androidx.compose.foundation.BorderStroke(1.dp, com.asistente.celular.ui.theme.VoidBorder), CircleShape)
                     ) {
-                        Icon(Icons.Default.VolumeDown, contentDescription = "Bajar Volumen", tint = Color.White)
+                        Icon(Icons.Default.VolumeDown, contentDescription = "Bajar Volumen", tint = com.asistente.celular.ui.theme.TextPrimary)
                     }
                     IconButton(
                         onClick = { scope.launch { pcBridge?.executeQuickCommand("volume_up") } },
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF0D1426))
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(com.asistente.celular.ui.theme.VoidSurfaceElevated)
+                            .border(androidx.compose.foundation.BorderStroke(1.dp, com.asistente.celular.ui.theme.VoidBorder), CircleShape)
                     ) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = "Subir Volumen", tint = Color.White)
+                        Icon(Icons.Default.VolumeUp, contentDescription = "Subir Volumen", tint = com.asistente.celular.ui.theme.TextPrimary)
                     }
                 }
 
-                // Orbe Central Interactivo
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(76.dp)
-                        .scale(pulseScale)
-                        .shadow(24.dp, CircleShape, spotColor = if (isListening) Color(0xFF00E5FF) else Color(0xFF6366F1))
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = if (isListening)
-                                    listOf(Color(0xFF00E5FF), Color(0xFF0284C7))
-                                else
-                                    listOf(Color(0xFF6366F1), Color(0xFF312E81))
-                            )
-                        )
-                        .clickable(onClick = effectiveMicClick)
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
-                        contentDescription = "Escuchar por voz",
-                        tint = Color.White,
-                        modifier = Modifier.size(34.dp)
-                    )
-                }
+                // Orbe Cuántico Central Interactivo (Mockup 1)
+                com.asistente.celular.ui.components.oled.OledVoiceOrb(
+                    isListening = isListening,
+                    isProcessing = false,
+                    isSpeaking = false,
+                    onClick = { effectiveMicClick() },
+                    size = 92.dp
+                )
 
-                // Controles de reproducción
+                // Controles de reproducción y energía
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     IconButton(
                         onClick = { scope.launch { pcBridge?.executeQuickCommand("media_play_pause") } },
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF0D1426))
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(com.asistente.celular.ui.theme.VoidSurfaceElevated)
+                            .border(androidx.compose.foundation.BorderStroke(1.dp, com.asistente.celular.ui.theme.VoidBorder), CircleShape)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pausa", tint = Color.White)
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pausa", tint = com.asistente.celular.ui.theme.NeonCyan)
                     }
                     IconButton(
                         onClick = { scope.launch { pcBridge?.executeQuickCommand("lock") } },
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF0D1426))
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(com.asistente.celular.ui.theme.VoidSurfaceElevated)
+                            .border(androidx.compose.foundation.BorderStroke(1.dp, com.asistente.celular.ui.theme.VoidBorder), CircleShape)
                     ) {
-                        Icon(Icons.Default.PowerSettingsNew, contentDescription = "Bloquear PC", tint = Color(0xFFEF4444))
+                        Icon(Icons.Default.PowerSettingsNew, contentDescription = "Bloquear PC", tint = com.asistente.celular.ui.theme.NeonRed)
                     }
                 }
             }

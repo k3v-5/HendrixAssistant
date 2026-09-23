@@ -1,3 +1,5 @@
+import os
+import sys
 import asyncio
 import json
 import socket
@@ -15,6 +17,7 @@ from automation.uia_manager import uia_manager
 from automation.antigravity_manager import antigravity_manager
 from automation.ableton_manager import ableton_manager
 from automation.module_automations import execute_module_action
+from automation.window_manager import window_manager
 from core.tunnel_manager import tunnel_manager
 from storage.dropzone_manager import dropzone_manager
 from core.audio_mixer import audio_mixer
@@ -138,6 +141,19 @@ def broadcast_clipboard_push(text: str):
         except Exception:
             pass
 
+def broadcast_json(payload: dict):
+    if not active_websockets:
+        return
+    msg = json.dumps(payload)
+    for ws in list(active_websockets):
+        try:
+            if main_event_loop and main_event_loop.is_running():
+                asyncio.run_coroutine_threadsafe(ws.send(msg), main_event_loop)
+        except Exception:
+            pass
+
+broadcast = broadcast_json
+
 dropzone_manager.add_file_ready_listener(broadcast_dropzone_file_ready)
 dropzone_manager.start_watcher()
 
@@ -146,9 +162,18 @@ clipboard_hub.broadcast_callback = broadcast_clipboard_push
 
 def log_activity(text: str):
     if activity_logger:
-        activity_logger(text)
-    else:
+        try:
+            activity_logger(text)
+        except Exception:
+            pass
+    try:
         print(f"[Hendrix] {text}")
+    except Exception:
+        try:
+            safe_text = text.encode("ascii", errors="replace").decode("ascii")
+            print(f"[Hendrix] {safe_text}")
+        except Exception:
+            pass
 
 def get_primary_mac_address():
     try:
@@ -271,9 +296,9 @@ async def handle_client(websocket):
                     crop_to_active = data.get("cropToActiveWindow", False)
                     quality = data.get("quality", 75)
                     try:
-                        webp_bytes = screen_engine.capture_webp(quality=quality, crop_to_active=crop_to_active)
+                        # Ejecutar captura y compresión WebP en pool de hilos para no bloquear el bucle de eventos WebSocket
+                        webp_bytes = await asyncio.to_thread(screen_engine.capture_webp, quality=quality, crop_to_active=crop_to_active)
                         await websocket.send(webp_bytes)
-                        log_activity(f"📸 Snapshot WebP enviado ({len(webp_bytes) // 1024} KB)")
                     except Exception as e:
                         log_activity(f"Error al capturar pantalla: {e}")
 
@@ -281,7 +306,9 @@ async def handle_client(websocket):
                 elif msg_type == "INPUT_ACTION":
                     action_type = data.get("actionType", "")
                     success = input_controller.process_action(data)
-                    log_activity(f"🖱️ Acción inyectada: {action_type} -> {'Éxito' if success else 'Denegado'}")
+                    # Omitir registro en consola para movimientos continuos del ratón para no saturar I/O
+                    if action_type != "MOUSE_MOVE":
+                        log_activity(f"🖱️ Acción inyectada: {action_type} -> {'Éxito' if success else 'Denegado'}")
 
                 # 4. Solicitud de telemetría en tiempo real
                 elif msg_type == "TELEMETRY_REQUEST":
@@ -301,6 +328,32 @@ async def handle_client(websocket):
                         "type": "TELEMETRY_DATA",
                         "telemetry": get_telemetry_dict()
                     }))
+
+                # 5.1. Solicitud de lista de aplicaciones abiertas en la barra de tareas
+                elif msg_type == "GET_OPEN_WINDOWS":
+                    req_id = data.get("requestId", "")
+                    windows = await asyncio.to_thread(window_manager.get_taskbar_windows)
+                    resp = {
+                        "type": "OPEN_WINDOWS_LIST",
+                        "requestId": req_id,
+                        "windows": windows
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🪟 Ventanas abiertas enviadas al móvil ({len(windows)} aplicaciones)")
+
+                # 5.2. Solicitud de traer al frente / enfocar una ventana específica
+                elif msg_type == "FOCUS_WINDOW":
+                    req_id = data.get("requestId", "")
+                    hwnd = data.get("hwnd", 0)
+                    success = await asyncio.to_thread(window_manager.focus_window, hwnd)
+                    resp = {
+                        "type": "FOCUS_WINDOW_RESP",
+                        "requestId": req_id,
+                        "hwnd": hwnd,
+                        "success": success
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🪟 Enfocar ventana HWND={hwnd}: {'Éxito' if success else 'Falló'}")
 
                 # 6. Generación de Plan Autónomo (RPA)
                 elif msg_type == "RPA_PLAN":
@@ -914,14 +967,10 @@ async def run_server(port: int = config.port):
     foreground_observer.start()
 
     def on_airsync_received(info):
-        if main_event_loop and main_event_loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                broadcast({
-                    "type": "AIRSYNC_FILE_RECEIVED",
-                    "file": info
-                }),
-                main_event_loop
-            )
+        broadcast_json({
+            "type": "AIRSYNC_FILE_RECEIVED",
+            "file": info
+        })
 
     airsync_server.on_file_received = on_airsync_received
     airsync_server.start()
@@ -934,5 +983,14 @@ async def run_server(port: int = config.port):
     asyncio.create_task(_apk_watchdog_loop())
 
     log_activity(f"Iniciando Hendrix PC Bridge en ws://0.0.0.0:{port}/ws")
-    async with websockets.serve(handle_client, "0.0.0.0", port):
+    async with websockets.serve(
+        handle_client,
+        "0.0.0.0",
+        port,
+        ping_interval=15,
+        ping_timeout=25,
+        max_size=32 * 1024 * 1024,
+        max_queue=256,
+        write_limit=1024 * 1024
+    ):
         await asyncio.Future() # Mantener corriendo indefinidamente

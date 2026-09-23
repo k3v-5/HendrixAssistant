@@ -16,7 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,12 +60,12 @@ fun PcCustomPluginsCard(
     var lastResult by remember { mutableStateOf<PcPluginActionResult?>(null) }
 
     fun refreshPlugins() {
-        isLoading = true
         scope.launch {
+            isLoading = true
             try {
                 plugins = pcBridge.queryCustomPlugins()
             } catch (e: Exception) {
-                onShowSnackbar("Error al consultar plugins: ${e.localizedMessage}")
+                onShowSnackbar("Error al cargar plugins: ${e.localizedMessage}")
             } finally {
                 isLoading = false
             }
@@ -92,7 +96,12 @@ fun PcCustomPluginsCard(
                             .background(Color(0xFF8B5CF6).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "🧩", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.Extension,
+                            contentDescription = null,
+                            tint = Color(0xFF8B5CF6),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -168,9 +177,9 @@ fun PcCustomPluginsCard(
                                         val res = pcBridge.executeCustomPluginAction(plugin.id, action.id)
                                         lastResult = res
                                         if (res.success) {
-                                            onShowSnackbar("✅ ${action.label}: ${res.message} (${res.elapsedMs}ms)")
+                                            onShowSnackbar("${action.label}: ${res.message} (${res.elapsedMs}ms)")
                                         } else {
-                                            onShowSnackbar("⚠️ ${action.label}: ${res.message}")
+                                            onShowSnackbar("${action.label}: ${res.message}")
                                         }
                                     } catch (e: Exception) {
                                         onShowSnackbar("Error al ejecutar plugin: ${e.localizedMessage}")
@@ -199,17 +208,31 @@ fun PcCustomPluginsCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (res.success) "✅ Ejecución exitosa (${res.elapsedMs}ms)" else "⚠️ Error en ejecución",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (res.success) Color(0xFF34D399) else Color(0xFFF87171)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (res.success) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = if (res.success) Color(0xFF34D399) else Color(0xFFF87171),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (res.success) "Ejecución exitosa (${res.elapsedMs}ms)" else "Error en ejecución",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (res.success) Color(0xFF34D399) else Color(0xFFF87171)
+                                )
+                            }
                             IconButton(
                                 onClick = { lastResult = null },
                                 modifier = Modifier.size(20.dp)
                             ) {
-                                Text("×", fontSize = 14.sp, color = Color.Gray)
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cerrar",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
                         Text(

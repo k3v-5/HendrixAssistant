@@ -19,10 +19,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -66,10 +71,10 @@ fun PcClipboardSnippetCard(
 
     val defaultSnippets = remember {
         listOf(
-            PcSnippetItem("blender_render", "Prompt Blender 3D", "Generar modelo fotorrealista con iluminación Cycles y exportar a Drive.", "🧊"),
-            PcSnippetItem("daw_notes", "Nota Musical DAW", "Estructura: Intro (8 compases), Verso (16), Coro (16), Drop en 128 BPM.", "🎹"),
-            PcSnippetItem("yt_search", "Buscar Plugins", "https://www.youtube.com/results?search_query=best+vst+plugins+2026", "📺"),
-            PcSnippetItem("git_push", "Comando Git", "git add . && git commit -m \"Actualización rápida\" && git push", "🐙")
+            PcSnippetItem("blender_render", "Prompt Blender 3D", "Generar modelo fotorrealista con iluminación Cycles y exportar a Drive.", "view_in_ar"),
+            PcSnippetItem("daw_notes", "Nota Musical DAW", "Estructura: Intro (8 compases), Verso (16), Coro (16), Drop en 128 BPM.", "music_note"),
+            PcSnippetItem("yt_search", "Buscar Plugins", "https://www.youtube.com/results?search_query=best+vst+plugins+2026", "video_library"),
+            PcSnippetItem("git_push", "Comando Git", "git add . && git commit -m \"Actualización rápida\" && git push", "code")
         )
     }
 
@@ -93,7 +98,12 @@ fun PcClipboardSnippetCard(
                             .background(Color(0xFF10B981).copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "📋", fontSize = 16.sp)
+                        Icon(
+                            imageVector = Icons.Default.ContentPaste,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -116,9 +126,9 @@ fun PcClipboardSnippetCard(
                         scope.launch {
                             val res = pcBridge.getClipboard()
                             if (res != null) {
-                                onShowSnackbar("📋 Portapapeles de la PC obtenido (${res.charCount} chars)")
+                                onShowSnackbar("Portapapeles de la PC obtenido (${res.charCount} chars)")
                             } else {
-                                onShowSnackbar("⚠️ No se pudo leer el portapapeles")
+                                onShowSnackbar("No se pudo leer el portapapeles")
                             }
                         }
                     }
@@ -174,11 +184,26 @@ fun PcClipboardSnippetCard(
                     SuggestionChip(
                         onClick = { textInput = snippet.content },
                         label = {
-                            Text(
-                                text = "${snippet.iconEmoji} ${snippet.title}",
-                                fontSize = 11.sp,
-                                color = Color.White
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = when (snippet.id) {
+                                        "blender_render" -> Icons.Default.ViewInAr
+                                        "daw_notes" -> Icons.Default.MusicNote
+                                        "yt_search" -> Icons.Default.VideoLibrary
+                                        "git_push" -> Icons.Default.Code
+                                        else -> Icons.Default.Description
+                                    },
+                                    contentDescription = null,
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = snippet.title,
+                                    fontSize = 11.sp,
+                                    color = Color.White
+                                )
+                            }
                         },
                         colors = SuggestionChipDefaults.suggestionChipColors(
                             containerColor = Color(0xFF1E293B)
@@ -239,7 +264,7 @@ fun PcClipboardSnippetCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "✓ 100% íntegro (${verified.charCount} c | SHA: ${verified.checksumSha256.take(8)})",
+                                text = "100% íntegro (${verified.charCount} c | SHA: ${verified.checksumSha256.take(8)})",
                                 fontSize = 10.sp,
                                 color = Color(0xFF10B981),
                                 fontWeight = FontWeight.Bold
@@ -263,9 +288,9 @@ fun PcClipboardSnippetCard(
                             val res = pcBridge.setClipboard(textInput, pasteImmediately = false)
                             if (res != null) {
                                 lastVerifiedPayload = res
-                                onShowSnackbar("📋 Copiado al portapapeles de la PC (${res.charCount} chars)")
+                                onShowSnackbar("Copiado al portapapeles de la PC (${res.charCount} chars)")
                             } else {
-                                onShowSnackbar("⚠️ Error al sincronizar con la PC")
+                                onShowSnackbar("Error al sincronizar con la PC")
                             }
                         }
                     },
@@ -286,9 +311,9 @@ fun PcClipboardSnippetCard(
                             val res = pcBridge.setClipboard(textInput, pasteImmediately = true)
                             if (res != null) {
                                 lastVerifiedPayload = res
-                                onShowSnackbar("⚡ Pegado instantáneo en la ventana activa de Windows")
+                                onShowSnackbar("Pegado instantáneo en la ventana activa de Windows")
                             } else {
-                                onShowSnackbar("⚠️ Error al pegar en la PC")
+                                onShowSnackbar("Error al pegar en la PC")
                             }
                         }
                     },

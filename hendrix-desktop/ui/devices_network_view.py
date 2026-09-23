@@ -5,11 +5,34 @@ from core.session_manager import session_manager
 from core.network_diagnostic import network_diagnostic
 from core.tunnel_manager import tunnel_manager
 from ui.pairing_card import PairingCard
+from ui.theme import (
+    COLOR_VOID_BLACK,
+    COLOR_VOID_SURFACE,
+    COLOR_VOID_SURFACE_ELEVATED,
+    COLOR_VOID_BORDER,
+    COLOR_NEON_LILAC,
+    COLOR_NEON_GREEN,
+    COLOR_NEON_AMBER,
+    COLOR_NEON_ROSE,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_TEXT_MUTED,
+    FONT_TITLE,
+    FONT_BODY,
+    FONT_BODY_BOLD,
+    FONT_BODY_ITALIC,
+    FONT_CAPTION,
+    create_neon_button,
+    create_secondary_button,
+    create_accent_button,
+    create_warning_button,
+    create_danger_button,
+)
 import time
 
 class DevicesNetworkView(tk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, background="#0B0F19")
+        super().__init__(parent, background=COLOR_VOID_BLACK)
         self._build_ui()
         session_manager.on_devices_updated = self._refresh_devices_threadsafe
 
@@ -18,9 +41,9 @@ class DevicesNetworkView(tk.Frame):
 
     def _build_ui(self):
         # Canvas scrollable para que todo quepa cómodamente
-        canvas = tk.Canvas(self, background="#0B0F19", highlightthickness=0)
+        canvas = tk.Canvas(self, background=COLOR_VOID_BLACK, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        self.scroll_content = tk.Frame(canvas, background="#0B0F19")
+        self.scroll_content = tk.Frame(canvas, background=COLOR_VOID_BLACK)
 
         self.scroll_content.bind(
             "<Configure>",
@@ -51,9 +74,9 @@ class DevicesNetworkView(tk.Frame):
 
         wan_title = ttk.Label(
             wan_card,
-            text="🌐 Acceso Remoto Global (WAN / Fuera de Casa)",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Acceso Remoto Global (WAN / Fuera de Casa)",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         wan_title.pack(anchor="w", padx=16, pady=(12, 4))
 
@@ -62,55 +85,59 @@ class DevicesNetworkView(tk.Frame):
 
         wan_desc = ttk.Label(
             wan_body,
-            text="Conecta tu dispositivo móvil fuera del hogar mediante túnel seguro:",
-            font=("Segoe UI", 9),
-            foreground="#94A3B8"
+            text="Conecta tu dispositivo móvil fuera del hogar mediante un túnel seguro:",
+            font=FONT_BODY,
+            foreground=COLOR_TEXT_SECONDARY
         )
         wan_desc.pack(anchor="w", pady=(0, 6))
 
         wan_input_row = ttk.Frame(wan_body, style="Card.TFrame")
         wan_input_row.pack(fill="x", pady=2)
 
+        entry_container = tk.Frame(
+            wan_input_row,
+            background=COLOR_VOID_SURFACE,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
+        )
+        entry_container.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
         self.tunnel_entry_var = tk.StringVar(value=getattr(config, "remote_tunnel_url", "") or "")
         self.tunnel_entry = tk.Entry(
-            wan_input_row,
+            entry_container,
             textvariable=self.tunnel_entry_var,
-            font=("Segoe UI", 9),
-            bg="#0F172A",
-            fg="#38BDF8",
-            insertbackground="#38BDF8",
+            font=FONT_BODY,
+            bg=COLOR_VOID_SURFACE,
+            fg=COLOR_TEXT_PRIMARY,
+            insertbackground=COLOR_NEON_LILAC,
             relief="flat"
         )
-        self.tunnel_entry.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=4)
+        self.tunnel_entry.pack(fill="x", padx=6, ipady=4)
 
-        save_tunnel_btn = tk.Button(
+        save_tunnel_btn = create_neon_button(
             wan_input_row,
             text="Guardar URL",
-            font=("Segoe UI", 8, "bold"),
-            bg="#0284C7",
-            fg="white",
-            relief="flat",
             command=self._save_tunnel_url,
             padx=10,
-            pady=3
+            pady=4
         )
         save_tunnel_btn.pack(side="right")
 
         self.wan_status_lbl = ttk.Label(
             wan_body,
-            text="⚪ Modo: Red Local WiFi únicamente" if not getattr(config, "remote_tunnel_url", None) else f"🟢 Túnel configurado: {config.remote_tunnel_url}",
-            font=("Segoe UI", 9, "italic"),
-            foreground="#10B981" if getattr(config, "remote_tunnel_url", None) else "#94A3B8"
+            text="Modo: Red Local WiFi únicamente" if not getattr(config, "remote_tunnel_url", None) else f"Túnel configurado: {config.remote_tunnel_url}",
+            font=FONT_BODY_ITALIC,
+            foreground=COLOR_NEON_GREEN if getattr(config, "remote_tunnel_url", None) else COLOR_TEXT_MUTED
         )
-        self.wan_status_lbl.pack(anchor="w", pady=(4, 0))
+        self.wan_status_lbl.pack(anchor="w", pady=(6, 0))
 
     def _save_tunnel_url(self):
         new_url = self.tunnel_entry_var.get().strip()
         tunnel_manager.set_custom_tunnel_url(new_url)
         if new_url:
-            self.wan_status_lbl.configure(text=f"🟢 Túnel configurado: {new_url}", foreground="#10B981")
+            self.wan_status_lbl.configure(text=f"Túnel configurado: {new_url}", foreground=COLOR_NEON_GREEN)
         else:
-            self.wan_status_lbl.configure(text="⚪ Modo: Red Local WiFi únicamente", foreground="#94A3B8")
+            self.wan_status_lbl.configure(text="Modo: Red Local WiFi únicamente", foreground=COLOR_TEXT_MUTED)
 
     def _build_devices_card(self):
         dev_card = ttk.Frame(self.scroll_content, style="Card.TFrame")
@@ -121,19 +148,15 @@ class DevicesNetworkView(tk.Frame):
 
         dev_title = ttk.Label(
             header_row,
-            text="📱 Dispositivos Móviles Emparejados",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Dispositivos Móviles Emparejados",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         dev_title.pack(side="left")
 
-        refresh_btn = tk.Button(
+        refresh_btn = create_secondary_button(
             header_row,
-            text="🔄 Actualizar",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Actualizar",
             command=self.refresh_devices,
             padx=8,
             pady=2
@@ -154,8 +177,8 @@ class DevicesNetworkView(tk.Frame):
             lbl = ttk.Label(
                 self.devices_container,
                 text="No hay dispositivos móviles emparejados actualmente.\nEscanea el código QR desde Hendrix Assistant en tu teléfono.",
-                font=("Segoe UI", 9, "italic"),
-                foreground="#94A3B8"
+                font=FONT_BODY_ITALIC,
+                foreground=COLOR_TEXT_MUTED
             )
             lbl.pack(anchor="w", pady=6)
             return
@@ -166,59 +189,68 @@ class DevicesNetworkView(tk.Frame):
             name = dev.get("name", "Móvil")
             ip = dev.get("ip", "Desconocida")
 
-            row = tk.Frame(self.devices_container, background="#0F172A", relief="flat")
+            row = tk.Frame(
+                self.devices_container,
+                background=COLOR_VOID_SURFACE,
+                highlightbackground=COLOR_VOID_BORDER,
+                highlightthickness=1
+            )
             row.pack(fill="x", pady=3, padx=0)
 
-            status_icon = "🟢" if is_online else "⚪"
             status_text = "En línea" if is_online else "Desconectado"
+            status_color = COLOR_NEON_GREEN if is_online else COLOR_TEXT_MUTED
 
-            info_box = tk.Frame(row, background="#0F172A")
+            info_box = tk.Frame(row, background=COLOR_VOID_SURFACE)
             info_box.pack(side="left", fill="x", expand=True, padx=10, pady=8)
 
+            title_row = tk.Frame(info_box, background=COLOR_VOID_SURFACE)
+            title_row.pack(anchor="w")
+
             title_lbl = tk.Label(
-                info_box,
-                text=f"{status_icon} {name}",
-                font=("Segoe UI", 9, "bold"),
-                foreground="#FFFFFF" if is_online else "#94A3B8",
-                background="#0F172A"
+                title_row,
+                text=name,
+                font=FONT_BODY_BOLD,
+                foreground=COLOR_TEXT_PRIMARY if is_online else COLOR_TEXT_SECONDARY,
+                background=COLOR_VOID_SURFACE
             )
-            title_lbl.pack(anchor="w")
+            title_lbl.pack(side="left")
+
+            badge_lbl = tk.Label(
+                title_row,
+                text=f" • {status_text}",
+                font=FONT_CAPTION,
+                foreground=status_color,
+                background=COLOR_VOID_SURFACE
+            )
+            badge_lbl.pack(side="left", padx=4)
 
             detail_lbl = tk.Label(
                 info_box,
-                text=f"IP: {ip} | Estado: {status_text} | Token: {token[:8]}...",
-                font=("Segoe UI", 8),
-                foreground="#64748B",
-                background="#0F172A"
+                text=f"IP: {ip} | Token: {token[:8]}...",
+                font=FONT_CAPTION,
+                foreground=COLOR_TEXT_MUTED,
+                background=COLOR_VOID_SURFACE
             )
             detail_lbl.pack(anchor="w")
 
-            btn_box = tk.Frame(row, background="#0F172A")
+            btn_box = tk.Frame(row, background=COLOR_VOID_SURFACE)
             btn_box.pack(side="right", padx=10)
 
             if is_online:
-                disc_btn = tk.Button(
+                disc_btn = create_warning_button(
                     btn_box,
                     text="Desconectar",
-                    font=("Segoe UI", 8),
-                    bg="#D97706",
-                    fg="white",
-                    relief="flat",
                     command=lambda t=token: self._disconnect_device(t),
-                    padx=6,
+                    padx=8,
                     pady=2
                 )
                 disc_btn.pack(side="left", padx=3)
 
-            rev_btn = tk.Button(
+            rev_btn = create_danger_button(
                 btn_box,
                 text="Olvidar",
-                font=("Segoe UI", 8),
-                bg="#EF4444",
-                fg="white",
-                relief="flat",
                 command=lambda t=token, n=name: self._revoke_device(t, n),
-                padx=6,
+                padx=8,
                 pady=2
             )
             rev_btn.pack(side="left", padx=3)
@@ -238,9 +270,9 @@ class DevicesNetworkView(tk.Frame):
 
         diag_title = ttk.Label(
             diag_card,
-            text="🛡️ Diagnóstico de Red & Firewall de Windows",
-            font=("Segoe UI", 11, "bold"),
-            foreground="#38BDF8"
+            text="Diagnóstico de Red & Firewall de Windows",
+            font=FONT_TITLE,
+            foreground=COLOR_NEON_LILAC
         )
         diag_title.pack(anchor="w", padx=16, pady=(12, 6))
 
@@ -249,45 +281,37 @@ class DevicesNetworkView(tk.Frame):
 
         self.port_status_lbl = ttk.Label(
             diag_body,
-            text="⏳ Comprobando puerto local...",
-            font=("Segoe UI", 9),
-            foreground="#E2E8F0"
+            text="Comprobando puerto local...",
+            font=FONT_BODY,
+            foreground=COLOR_TEXT_SECONDARY
         )
         self.port_status_lbl.pack(anchor="w", pady=2)
 
         self.firewall_status_lbl = ttk.Label(
             diag_body,
-            text="⏳ Comprobando Firewall de Windows...",
-            font=("Segoe UI", 9),
-            foreground="#E2E8F0"
+            text="Comprobando Firewall de Windows...",
+            font=FONT_BODY,
+            foreground=COLOR_TEXT_SECONDARY
         )
         self.firewall_status_lbl.pack(anchor="w", pady=2)
 
         action_row = ttk.Frame(diag_body, style="Card.TFrame")
         action_row.pack(fill="x", pady=(8, 0))
 
-        self.repair_fw_btn = tk.Button(
+        self.repair_fw_btn = create_accent_button(
             action_row,
-            text="🔧 Reparar / Abrir Regla en Firewall de Windows",
-            font=("Segoe UI", 9, "bold"),
-            bg="#8B5CF6",
-            fg="white",
-            relief="flat",
+            text="Reparar Regla en Firewall de Windows",
             command=self._repair_firewall,
             padx=12,
             pady=5
         )
         self.repair_fw_btn.pack(side="left", padx=(0, 8))
 
-        recheck_btn = tk.Button(
+        recheck_btn = create_secondary_button(
             action_row,
-            text="🔄 Re-analizar Red",
-            font=("Segoe UI", 8),
-            bg="#334155",
-            fg="white",
-            relief="flat",
+            text="Re-analizar Red",
             command=self.run_diagnostics,
-            padx=8,
+            padx=10,
             pady=5
         )
         recheck_btn.pack(side="left")
@@ -300,42 +324,42 @@ class DevicesNetworkView(tk.Frame):
         is_port_ok = network_diagnostic.check_port_listening(port)
         if is_port_ok:
             self.port_status_lbl.configure(
-                text=f"🟢 Puerto {port} TCP: En escucha activa (Loopback OK)",
-                foreground="#10B981"
+                text=f"Puerto {port} TCP: En escucha activa (Loopback OK)",
+                foreground=COLOR_NEON_GREEN
             )
         else:
             self.port_status_lbl.configure(
-                text=f"🔴 Puerto {port} TCP: No responde en loopback local",
-                foreground="#EF4444"
+                text=f"Puerto {port} TCP: No responde en loopback local",
+                foreground=COLOR_NEON_ROSE
             )
 
         # 2. Comprobar regla en Windows Defender Firewall
         fw_info = network_diagnostic.check_windows_firewall_rule()
         if fw_info.get("exists") and fw_info.get("enabled"):
             self.firewall_status_lbl.configure(
-                text="🟢 Firewall de Windows: Regla de entrada autorizada para Hendrix",
-                foreground="#10B981"
+                text="Firewall de Windows: Regla de entrada autorizada para Hendrix",
+                foreground=COLOR_NEON_GREEN
             )
         elif fw_info.get("exists"):
             self.firewall_status_lbl.configure(
-                text="🟡 Firewall de Windows: Regla encontrada pero deshabilitada",
-                foreground="#F59E0B"
+                text="Firewall de Windows: Regla encontrada pero deshabilitada",
+                foreground=COLOR_NEON_AMBER
             )
         else:
             self.firewall_status_lbl.configure(
-                text="⚠️ Firewall de Windows: Sin regla de entrada (Podría bloquear conexiones LAN)",
-                foreground="#EF4444"
+                text="Firewall de Windows: Sin regla de entrada (Podría bloquear conexiones LAN)",
+                foreground=COLOR_NEON_ROSE
             )
 
     def _repair_firewall(self):
         port = getattr(config, "port", 8899)
-        self.repair_fw_btn.configure(text="⏳ Creando regla con UAC...", state="disabled")
+        self.repair_fw_btn.configure(text="Creando regla con UAC...", state="disabled")
         self.update()
 
         def _worker():
             success, msg = network_diagnostic.repair_windows_firewall_rule(port)
             def _done():
-                self.repair_fw_btn.configure(text="🔧 Reparar / Abrir Regla en Firewall de Windows", state="normal")
+                self.repair_fw_btn.configure(text="Reparar Regla en Firewall de Windows", state="normal")
                 if success:
                     messagebox.showinfo("Firewall Configurado", msg)
                 else:
