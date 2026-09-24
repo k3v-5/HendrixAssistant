@@ -333,6 +333,16 @@ fun PcFloatingActionDock(
                         SpecialKeyButton("→") {
                             sendKeyOrHotkey(activeModifiers, "right", onSendAction)
                         }
+
+                        // Scroll de rueda de ratón PC
+                        SpecialKeyButton("Scroll ▲") {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onSendAction(PcInteractionAction(type = PcActionType.SCROLL, scrollDeltaY = 5f))
+                        }
+                        SpecialKeyButton("Scroll ▼") {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onSendAction(PcInteractionAction(type = PcActionType.SCROLL, scrollDeltaY = -5f))
+                        }
                     }
 
                     // Campo de entrada de texto directo en línea para enviar rápidamente

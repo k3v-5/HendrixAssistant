@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.pc.deck
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -242,6 +243,19 @@ fun PcControlDeckScreen(
     }
 
     val isModuleEnabled: (PcModuleId) -> Boolean = { id -> enabledModules.any { it.id == id } }
+
+    val anyDeckDialogVisible = showConnectDialog || showSelectorDialog || showUnlockDialog
+    BackHandler(enabled = anyDeckDialogVisible) {
+        showConnectDialog = false
+        showSelectorDialog = false
+        showUnlockDialog = false
+    }
+    BackHandler(enabled = !anyDeckDialogVisible && selectedTab != PcDeckTab.DECK) {
+        selectedTab = PcDeckTab.DECK
+    }
+    BackHandler(enabled = !anyDeckDialogVisible && selectedTab == PcDeckTab.DECK) {
+        onBack()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

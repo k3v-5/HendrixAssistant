@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.notes
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,6 +98,17 @@ fun NotesScreen(
     val regularNotes = filteredNotes.filter { !it.isPinned }
 
     var isSearchActive by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = selectedNoteForEdit != null) {
+        selectedNoteForEdit = null
+    }
+    BackHandler(enabled = selectedNoteForEdit == null && isCreatingNewNote) {
+        isCreatingNewNote = false
+    }
+    BackHandler(enabled = selectedNoteForEdit == null && !isCreatingNewNote && isSearchActive) {
+        isSearchActive = false
+        searchQuery = ""
+    }
 
     Scaffold(
         containerColor = VoidBlack,

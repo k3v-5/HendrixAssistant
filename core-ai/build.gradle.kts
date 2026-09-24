@@ -62,7 +62,8 @@ dependencies {
     implementation(libs.okhttp.logging)
 
     // Motor de Inferencia Nativo llama.cpp para Android (C++/JNI ARM64 y x86_64)
-    implementation(files("libs/llama-android.aar"))
+    compileOnly(files("libs/llama-android.aar"))
+    testImplementation(files("libs/llama-android.aar"))
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

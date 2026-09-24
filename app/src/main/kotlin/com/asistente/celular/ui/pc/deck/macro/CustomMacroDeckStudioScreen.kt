@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.pc.deck.macro
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -158,6 +159,16 @@ fun CustomMacroDeckStudioScreen(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val accentColor = Color(editColorHex)
+
+    val anyStudioDialogVisible = showControlEditorDialog || showResetConfirmDialog || showDeleteConfirmDialog
+    BackHandler(enabled = anyStudioDialogVisible) {
+        showControlEditorDialog = false
+        showResetConfirmDialog = false
+        showDeleteConfirmDialog = false
+    }
+    BackHandler(enabled = !anyStudioDialogVisible) {
+        onNavigateBack()
+    }
 
     Scaffold(
         topBar = {

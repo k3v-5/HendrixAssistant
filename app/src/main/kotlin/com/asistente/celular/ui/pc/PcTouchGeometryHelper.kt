@@ -145,4 +145,118 @@ object PcTouchGeometryHelper {
     fun calculateCentroid(p0: Offset, p1: Offset): Offset {
         return Offset((p0.x + p1.x) / 2f, (p0.y + p1.y) / 2f)
     }
+
+    /**
+     * Discrimina con precisión matemática si un gesto de dos dedos corresponde a un
+     * pellizco (zoom in / zoom out) o a un desplazamiento paralelo (scroll de rueda de ratón).
+     *
+     * @param distanceDelta Variación en la distancia entre ambos dedos (current - previous).
+     * @param currentDistance Distancia euclidiana actual entre los dos dedos.
+     * @param centroidDelta Desplazamiento del centroide (punto medio).
+     * @param pinchRatioThreshold Umbral relativo de cambio de distancia (por defecto 8%).
+     * @param scrollThresholdPx Desplazamiento mínimo del centroide en píxeles para iniciar scroll.
+     */
+    fun classifyTwoFingerGesture(
+        distanceDelta: Float,
+        currentDistance: Float,
+        centroidDelta: Offset,
+        pinchRatioThreshold: Float = 0.08f,
+        scrollThresholdPx: Float = 3.5f
+    ): TwoFingerGestureType {
+        val relativeDistanceChange = abs(distanceDelta) / currentDistance.coerceAtLeast(1f)
+        if (relativeDistanceChange > pinchRatioThreshold) {
+            return TwoFingerGestureType.PINCH_ZOOM
+        }
+        if (abs(centroidDelta.y) >= scrollThresholdPx || abs(centroidDelta.x) >= scrollThresholdPx) {
+            return TwoFingerGestureType.SCROLL
+        }
+        return TwoFingerGestureType.NONE
+    }
+
+    /**
+     * Transforma el arrastre vertical de pantalla (en píxeles) a unidades de scroll de ratón para la PC.
+     * En el modelo estándar de ratón:
+     * - Deslizar hacia arriba (dragAmountY < 0) genera delta positivo (Scroll Arriba / rueda adelante).
+     * - Deslizar hacia abajo (dragAmountY > 0) genera delta negativo (Scroll Abajo / rueda atrás).
+     *
+     * @param dragAmountY Desplazamiento táctil en el eje Y en píxeles.
+     * @param sensitivity Factor de escala y sensibilidad del scroll.
+     * @param naturalScroll Si es true, invierte la dirección emulando el scroll natural táctil.
+     */
+    fun calculateScrollDelta(
+        dragAmountY: Float,
+        sensitivity: Float = 0.08f,
+        naturalScroll: Boolean = false
+    ): Float {
+        val sign = if (naturalScroll) 1f else -1f
+        return dragAmountY * sensitivity * sign
+    }
+
+    /**
+     * Calcula qué porción normalizada [0.0..1.0] del monitor de la PC está actualmente visible
+     * dentro de los límites de la pantalla del celular para dibujar el recuadro del minimapa.
+     */
+    fun calculateVisibleViewportRatio(
+        containerW: Float,
+        containerH: Float,
+        imageScreenLeft: Float,
+        imageScreenTop: Float,
+        scaledW: Float,
+        scaledH: Float
+    ): ViewportRatioBounds {
+        val sW = scaledW.coerceAtLeast(1f)
+        val sH = scaledH.coerceAtLeast(1f)
+
+        val minX = ((0f - imageScreenLeft) / sW).coerceIn(0f, 1f)
+        val minY = ((0f - imageScreenTop) / sH).coerceIn(0f, 1f)
+        val maxX = ((containerW - imageScreenLeft) / sW).coerceIn(0f, 1f)
+        val maxY = ((containerH - imageScreenTop) / sH).coerceIn(0f, 1f)
+
+        return ViewportRatioBounds(
+            minX = minX,
+            minY = minY,
+            maxX = maxX.coerceAtLeast(minX + 0.02f),
+            maxY = maxY.coerceAtLeast(minY + 0.02f)
+        )
+    }
+
+    /**
+     * Convierte una posición objetivo normalizada [0.0..1.0] del monitor (por ejemplo, al tocar o arrastrar el minimapa)
+     * al desplazamiento de cámara (offset) necesario para centrar la vista en ese punto.
+     */
+    fun ratioToOffset(
+        targetRatioX: Float,
+        targetRatioY: Float,
+        scaledW: Float,
+        scaledH: Float
+    ): Offset {
+        val rawOffsetX = -scaledW * (targetRatioX.coerceIn(0f, 1f) - 0.5f)
+        val rawOffsetY = -scaledH * (targetRatioY.coerceIn(0f, 1f) - 0.5f)
+        return Offset(rawOffsetX, rawOffsetY)
+    }
 }
+
+/**
+ * Rango normalizado [0f..1f] de la ventana visual (viewport) visible en la pantalla del móvil.
+ */
+data class ViewportRatioBounds(
+    val minX: Float,
+    val minY: Float,
+    val maxX: Float,
+    val maxY: Float
+) {
+    val width: Float get() = (maxX - minX).coerceAtLeast(0.01f)
+    val height: Float get() = (maxY - minY).coerceAtLeast(0.01f)
+    val centerX: Float get() = (minX + maxX) / 2f
+    val centerY: Float get() = (minY + maxY) / 2f
+}
+
+/**
+ * Clasificación de la intención del gesto multitáctil de dos dedos.
+ */
+enum class TwoFingerGestureType {
+    PINCH_ZOOM,
+    SCROLL,
+    NONE
+}
+

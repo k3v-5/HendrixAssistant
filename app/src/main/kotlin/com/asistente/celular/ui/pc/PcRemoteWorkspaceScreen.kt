@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.pc
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,6 +91,15 @@ fun PcRemoteWorkspaceScreen(
 
     var dictationText by remember { mutableStateOf("") }
     var showDictationDialog by remember { mutableStateOf(false) }
+
+    val anyPcRemoteDialog = showConfigDialog || showDictationDialog
+    BackHandler(enabled = anyPcRemoteDialog) {
+        showConfigDialog = false
+        showDictationDialog = false
+    }
+    BackHandler(enabled = !anyPcRemoteDialog) {
+        onBack()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

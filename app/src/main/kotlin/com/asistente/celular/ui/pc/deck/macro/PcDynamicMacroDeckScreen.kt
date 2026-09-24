@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.pc.deck.macro
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -129,6 +130,10 @@ fun PcDynamicMacroDeckScreen(
     }
 
     val accentColor = Color(activeProfile.themeAccentColorHex)
+
+    BackHandler {
+        onNavigateBack()
+    }
 
     Scaffold(
         topBar = {

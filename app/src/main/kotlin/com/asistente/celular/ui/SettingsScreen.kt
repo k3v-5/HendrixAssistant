@@ -1,5 +1,6 @@
 package com.asistente.celular.ui
 
+import androidx.activity.compose.BackHandler
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -198,6 +199,13 @@ fun SettingsScreen(
         } else {
             expandedCategories + index
         }
+    }
+
+    BackHandler(enabled = showManualAddDialog) {
+        showManualAddDialog = false
+    }
+    BackHandler(enabled = !showManualAddDialog) {
+        onBack()
     }
 
     Scaffold(

@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.tasks
 
+import androidx.activity.compose.BackHandler
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.animation.AnimatedVisibility
@@ -110,6 +111,10 @@ fun TasksScreen(
     val filteredTasks = tasks.filter { it.listName == selectedList }
     val pendingTasks = filteredTasks.filter { !it.isCompleted }
     val completedTasks = filteredTasks.filter { it.isCompleted }
+
+    BackHandler(enabled = showAddDialog) {
+        showAddDialog = false
+    }
 
     Scaffold(
         containerColor = VoidBlack,

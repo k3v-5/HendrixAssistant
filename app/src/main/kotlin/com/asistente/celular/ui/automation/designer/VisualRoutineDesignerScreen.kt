@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.automation.designer
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
@@ -117,6 +118,10 @@ fun VisualRoutineDesignerScreen(
             routineTriggers = first.triggers
             routineActions = first.actions
         }
+    }
+
+    BackHandler {
+        onNavigateBack()
     }
 
     Scaffold(

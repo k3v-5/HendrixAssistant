@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -113,6 +114,15 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val inStandby = isDeskStandby || currentScreen == Screen.DeskStandby
+
+                BackHandler(enabled = inStandby) {
+                    viewModel.exitDeskStandby()
+                    currentScreenFlow.value = Screen.Assistant
+                }
+
+                BackHandler(enabled = !inStandby && currentScreen != Screen.Assistant) {
+                    currentScreenFlow.value = Screen.Assistant
+                }
 
                 androidx.compose.runtime.DisposableEffect(inStandby) {
                     if (inStandby) {

@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.driving
 
+import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -50,6 +51,10 @@ fun DrivingModeScreen(
     onExitClick: () -> Unit
 ) {
     val context = LocalContext.current
+
+    BackHandler {
+        onExitClick()
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),

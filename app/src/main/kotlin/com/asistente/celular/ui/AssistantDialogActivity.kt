@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import com.asistente.celular.nlu.ui.AssistantUiPayload
 import com.asistente.celular.ui.cards.AssistantInteractiveCard
@@ -234,6 +235,10 @@ fun FloatingAssistantBottomSheet(
     var resultOutput by remember { mutableStateOf<SkillOutput?>(null) }
     var statusText by remember { mutableStateOf("Escuchando…") }
     val scope = rememberCoroutineScope()
+
+    BackHandler {
+        onDismiss()
+    }
 
     fun startListenSession() {
         isListening = true

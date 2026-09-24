@@ -48,6 +48,7 @@ dependencies {
     implementation(project(":core-voice"))
     implementation(project(":core-ai"))
     implementation(project(":skills-builtin"))
+    implementation(files("../core-ai/libs/llama-android.aar"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

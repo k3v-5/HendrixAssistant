@@ -1,5 +1,6 @@
 package com.asistente.celular.ui.standby
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -91,6 +92,10 @@ fun DeskStandbyScreen(
     val scope = rememberCoroutineScope()
     val effectiveExit = onExit ?: onBack
     val effectiveMicClick = onWakeWordClick ?: onStartListening
+
+    BackHandler {
+        effectiveExit()
+    }
 
     // Reloj dinámico
     var currentTime by remember { mutableStateOf(Date()) }

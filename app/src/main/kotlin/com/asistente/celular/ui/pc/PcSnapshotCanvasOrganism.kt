@@ -28,12 +28,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Mouse
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.asistente.celular.ui.theme.NeonCyan
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -142,6 +144,9 @@ fun PcSnapshotCanvasOrganism(
     // Lupa de Precisión (Zoom Loupe)
     var isManualLoupeActive by remember { mutableStateOf(false) }
     var loupeTouchOffset by remember { mutableStateOf(Offset.Zero) }
+
+    // Posicionador y Selector de Zonas Ultrawide
+    var isMinimapVisible by remember { mutableStateOf(true) }
 
     // Decodificación asíncrona del snapshot WebP
     LaunchedEffect(snapshotBytes) {
@@ -267,6 +272,7 @@ fun PcSnapshotCanvasOrganism(
                 var lastTapTimestamp = 0L
                 var lastTapPosition = Offset.Zero
                 var lastMouseMoveSentTime = 0L
+                var lastScrollSentTime = 0L
 
                 awaitPointerEventScope {
                     while (true) {
@@ -501,31 +507,64 @@ fun PcSnapshotCanvasOrganism(
                                 val currentDistance = sqrt(diff.x * diff.x + diff.y * diff.y).coerceAtLeast(1f)
 
                                 if (previousDistance != null && previousCentroid != null) {
-                                    val zoomFactor = currentDistance / previousDistance!!
+                                    val distanceDelta = currentDistance - previousDistance!!
                                     val panDelta = currentCentroid - previousCentroid!!
 
-                                    val oldScale = scale
-                                    val newScale = (scale * zoomFactor).coerceIn(1f, 6f)
+                                    val gestureClassification = PcTouchGeometryHelper.classifyTwoFingerGesture(
+                                        distanceDelta = distanceDelta,
+                                        currentDistance = currentDistance,
+                                        centroidDelta = panDelta
+                                    )
 
-                                    if (newScale != oldScale || panDelta != Offset.Zero) {
-                                        val liveCW = containerSize.width.toFloat().coerceAtLeast(1f)
-                                        val liveCH = containerSize.height.toFloat().coerceAtLeast(1f)
+                                    val isScrollIntent = when (touchMode) {
+                                        PcTouchMode.TRACKPAD -> gestureClassification == TwoFingerGestureType.SCROLL
+                                        PcTouchMode.DIRECT_TOUCH -> (scale <= 1.05f && gestureClassification == TwoFingerGestureType.SCROLL)
+                                        PcTouchMode.NAVIGATE -> false
+                                    }
 
-                                        val factor = newScale / oldScale
-                                        val curCenterX = (liveCW / 2f) + offset.x
-                                        val curCenterY = (liveCH / 2f) + offset.y
+                                    if (isScrollIntent) {
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastScrollSentTime >= 32L) {
+                                            lastScrollSentTime = now
+                                            val scrollDelta = PcTouchGeometryHelper.calculateScrollDelta(panDelta.y, sensitivity = 0.08f)
+                                            if (kotlin.math.abs(scrollDelta) >= 0.15f) {
+                                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                                onSendAction(
+                                                    PcInteractionAction(
+                                                        type = PcActionType.SCROLL,
+                                                        xRatio = cursorRatioX,
+                                                        yRatio = cursorRatioY,
+                                                        scrollDeltaY = scrollDelta
+                                                    )
+                                                )
+                                                showToast(if (scrollDelta > 0) "Scroll ▲" else "Scroll ▼", 1)
+                                            }
+                                        }
+                                    } else {
+                                        val zoomFactor = currentDistance / previousDistance!!
+                                        val oldScale = scale
+                                        val newScale = (scale * zoomFactor).coerceIn(1f, 6f)
 
-                                        val newCenterX = currentCentroid.x + (curCenterX - currentCentroid.x) * factor + panDelta.x
-                                        val newCenterY = currentCentroid.y + (curCenterY - currentCentroid.y) * factor + panDelta.y
+                                        if (newScale != oldScale || panDelta != Offset.Zero) {
+                                            val liveCW = containerSize.width.toFloat().coerceAtLeast(1f)
+                                            val liveCH = containerSize.height.toFloat().coerceAtLeast(1f)
 
-                                        val rawOffset = Offset(
-                                            x = newCenterX - (liveCW / 2f),
-                                            y = newCenterY - (liveCH / 2f)
-                                        )
-                                        scale = newScale
-                                        offset = clampOffset(rawOffset, newScale)
+                                            val factor = newScale / oldScale
+                                            val curCenterX = (liveCW / 2f) + offset.x
+                                            val curCenterY = (liveCH / 2f) + offset.y
 
-                                        lastZoomTimestamp = System.currentTimeMillis()
+                                            val newCenterX = currentCentroid.x + (curCenterX - currentCentroid.x) * factor + panDelta.x
+                                            val newCenterY = currentCentroid.y + (curCenterY - currentCentroid.y) * factor + panDelta.y
+
+                                            val rawOffset = Offset(
+                                                x = newCenterX - (liveCW / 2f),
+                                                y = newCenterY - (liveCH / 2f)
+                                            )
+                                            scale = newScale
+                                            offset = clampOffset(rawOffset, newScale)
+
+                                            lastZoomTimestamp = System.currentTimeMillis()
+                                        }
                                     }
                                 }
 
@@ -794,6 +833,20 @@ fun PcSnapshotCanvasOrganism(
                     }
                 }
                 IconButton(
+                    onClick = {
+                        isMinimapVisible = !isMinimapVisible
+                        showToast(if (isMinimapVisible) "Posicionador visible" else "Posicionador oculto", 1)
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = "Alternar Selector / Zonas",
+                        tint = if (isMinimapVisible) NeonCyan else Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                IconButton(
                     onClick = onRequestRefresh,
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -805,6 +858,54 @@ fun PcSnapshotCanvasOrganism(
                     )
                 }
             }
+        }
+
+        // ==========================================
+        // MINIMAPA RADAR Y SELECTOR DE ZONAS ULTRAWIDE
+        // ==========================================
+        if (bmp != null && isMinimapVisible) {
+            val curCW = containerSize.width.toFloat().coerceAtLeast(1f)
+            val curCH = containerSize.height.toFloat().coerceAtLeast(1f)
+            val fit = getCurrentFitResult()
+            val viewportBounds = PcTouchGeometryHelper.calculateVisibleViewportRatio(
+                containerW = curCW,
+                containerH = curCH,
+                imageScreenLeft = fit.imageScreenLeft,
+                imageScreenTop = fit.imageScreenTop,
+                scaledW = fit.scaledW,
+                scaledH = fit.scaledH
+            )
+            val monitorAspect = bmp.width.toFloat() / bmp.height.toFloat().coerceAtLeast(1f)
+
+            PcViewportMinimap(
+                viewportBounds = viewportBounds,
+                aspectRatio = monitorAspect,
+                scale = scale,
+                onPanToRatio = { targetRatioX, targetRatioY ->
+                    val newScale = if (scale <= 1.05f) 2.5f else scale
+                    scale = newScale
+
+                    val targetFit = PcTouchGeometryHelper.calculateFitDimensions(
+                        containerW = curCW,
+                        containerH = curCH,
+                        bmpW = bmp.width.toFloat(),
+                        bmpH = bmp.height.toFloat(),
+                        scale = newScale,
+                        offset = Offset.Zero
+                    )
+                    val rawOffset = PcTouchGeometryHelper.ratioToOffset(
+                        targetRatioX = targetRatioX,
+                        targetRatioY = targetRatioY,
+                        scaledW = targetFit.scaledW,
+                        scaledH = targetFit.scaledH
+                    )
+                    offset = clampOffset(rawOffset, newScale)
+                    lastZoomTimestamp = System.currentTimeMillis()
+                },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 64.dp, start = 12.dp)
+            )
         }
 
         // ==========================================
@@ -903,6 +1004,28 @@ fun PcSnapshotCanvasOrganism(
                     )
                 }
             }
+        }
+
+        // ==========================================
+        // TIRA TÁCTIL LATERAL DE SCROLL VIRTUAL (RUEDA DE RATÓN)
+        // ==========================================
+        if (bmp != null) {
+            PcVirtualScrollStrip(
+                onScroll = { deltaY ->
+                    onSendAction(
+                        PcInteractionAction(
+                            type = PcActionType.SCROLL,
+                            xRatio = cursorRatioX,
+                            yRatio = cursorRatioY,
+                            scrollDeltaY = deltaY
+                        )
+                    )
+                    showToast(if (deltaY > 0) "Scroll ▲" else "Scroll ▼", 1)
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 4.dp)
+            )
         }
 
         // ==========================================

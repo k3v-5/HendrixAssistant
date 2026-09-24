@@ -1,6 +1,11 @@
 package com.asistente.celular.ui
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -42,6 +47,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,10 +63,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalView
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -128,6 +138,8 @@ fun AssistantScreen(
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val view = LocalView.current
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(state.interactions.size) {
         if (state.interactions.isNotEmpty()) {
@@ -407,6 +419,48 @@ fun AssistantScreen(
                                         else -> onStartListening()
                                     }
                                 }
+                            )
+                        }
+                    }
+                }
+
+                // Botón flotante ergonómico para desplazar al final (Scroll to Bottom)
+                val showScrollToBottom by remember {
+                    derivedStateOf {
+                        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        state.interactions.size > 2 && lastVisible < state.interactions.size - 1
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = showScrollToBottom,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp)
+                ) {
+                    Surface(
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(state.interactions.size - 1)
+                            }
+                        },
+                        shape = CircleShape,
+                        color = VoidSurfaceElevated.copy(alpha = 0.94f),
+                        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.7f)),
+                        shadowElevation = 8.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.size(42.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Desplazar al final",
+                                tint = NeonPurple,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
