@@ -81,6 +81,13 @@ fun PcRemoteWorkspaceScreen(
     val openWindows by coordinator?.openWindows?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
 
     var showConfigDialog by remember { mutableStateOf(false) }
+
+    // Si la conexión se restablece o reconecta exitosamente, quitar automáticamente el diálogo de ajustes/conexión
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            showConfigDialog = false
+        }
+    }
     var hostInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
     var portInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
     var airSyncPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.airSyncPort ?: 8900).toString()) }

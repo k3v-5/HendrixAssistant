@@ -30,6 +30,8 @@ class HmacSecurityValidator:
                 formatted_val = ""
             elif isinstance(val, bool):
                 formatted_val = "true" if val else "false"
+            elif isinstance(val, float) and val.is_integer():
+                formatted_val = str(int(val))
             else:
                 formatted_val = str(val)
             sb.append(f"{k}={formatted_val};")

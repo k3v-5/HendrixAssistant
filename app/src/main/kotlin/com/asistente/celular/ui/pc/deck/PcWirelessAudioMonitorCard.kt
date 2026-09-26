@@ -44,6 +44,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import com.asistente.celular.nlu.pc.PcWorkspaceBridge
 import com.asistente.celular.pc.PcRemoteCoordinator
 import kotlinx.coroutines.launch
@@ -90,9 +95,9 @@ fun PcWirelessAudioMonitorCard(
     }
 
     Surface(
-        color = Color(0xFF131D31),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF06B6D4).copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.4f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -106,13 +111,13 @@ fun PcWirelessAudioMonitorCard(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape),
+                            .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Headphones,
                             contentDescription = null,
-                            tint = Color(0xFF06B6D4),
+                            tint = NeonPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -127,16 +132,16 @@ fun PcWirelessAudioMonitorCard(
                         Text(
                             text = if (isStreaming) "En vivo (WASAPI Loopback • 24kHz PCM)" else "Transmisión en tiempo real de la PC",
                             fontSize = 11.sp,
-                            color = if (isStreaming) Color(0xFF67E8F9) else Color.Gray
+                            color = if (isStreaming) NeonLilac else Color.Gray
                         )
                     }
                 }
 
                 // Badge En Vivo / Pausa
                 Surface(
-                    color = if (isStreaming) Color(0xFFEF4444).copy(alpha = 0.2f) else Color(0xFF1E293B),
+                    color = if (isStreaming) Color(0xFFEF4444).copy(alpha = 0.2f) else VoidBlack,
                     shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, if (isStreaming) Color(0xFFEF4444) else Color(0xFF334155))
+                    border = BorderStroke(1.dp, if (isStreaming) Color(0xFFEF4444) else VoidBorder)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -171,7 +176,7 @@ fun PcWirelessAudioMonitorCard(
                         text = if (isStreaming) "${(rmsLevel * 100).toInt()}% RMS" else "0%",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (rmsLevel > 0.7f) Color(0xFFEF4444) else Color(0xFF06B6D4)
+                        color = if (rmsLevel > 0.7f) Color(0xFFEF4444) else NeonPurple
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
@@ -180,8 +185,8 @@ fun PcWirelessAudioMonitorCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp),
-                    color = if (rmsLevel > 0.75f) Color(0xFFEF4444) else Color(0xFF06B6D4),
-                    trackColor = Color(0xFF1E293B)
+                    color = if (rmsLevel > 0.75f) Color(0xFFEF4444) else NeonPurple,
+                    trackColor = VoidBlack
                 )
             }
 
@@ -208,9 +213,9 @@ fun PcWirelessAudioMonitorCard(
                     valueRange = 0.0f..1.0f,
                     modifier = Modifier.weight(1f),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF06B6D4),
-                        activeTrackColor = Color(0xFF06B6D4),
-                        inactiveTrackColor = Color(0xFF1E293B)
+                        thumbColor = NeonPurple,
+                        activeTrackColor = NeonPurple,
+                        inactiveTrackColor = VoidBorder
                     )
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -236,7 +241,7 @@ fun PcWirelessAudioMonitorCard(
                 onClick = { toggleAudioMonitoring() },
                 enabled = !isToggling,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isStreaming) Color(0xFFEF4444) else Color(0xFF06B6D4)
+                    containerColor = if (isStreaming) Color(0xFFEF4444) else NeonPurple
                 ),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth(),

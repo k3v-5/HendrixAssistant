@@ -147,7 +147,16 @@ class HmacSha256Signer(
 
             val sb = StringBuilder()
             for (key in sortedKeys) {
-                sb.append(key).append("=").append(payload.opt(key)?.toString() ?: "").append(";")
+                val value = payload.opt(key)
+                val str = when (value) {
+                    is Boolean -> value.toString()
+                    is Double -> if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+                    is Float -> if (value == value.toLong().toFloat()) value.toLong().toString() else value.toString()
+                    null -> ""
+                    JSONObject.NULL -> ""
+                    else -> value.toString()
+                }
+                sb.append(key).append("=").append(str).append(";")
             }
 
             val bodyDigest = computeSha256Hex(sb.toString())

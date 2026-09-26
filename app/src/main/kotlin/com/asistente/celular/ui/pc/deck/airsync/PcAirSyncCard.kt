@@ -61,6 +61,11 @@ import com.asistente.celular.nlu.pc.PcWorkspaceBridge
 import com.asistente.celular.nlu.pc.airsync.AirSyncSharedFile
 import com.asistente.celular.nlu.pc.airsync.AirSyncTransferState
 import com.asistente.celular.nlu.pc.airsync.AirSyncUploadOptions
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -158,9 +163,9 @@ fun PcAirSyncCard(
     }
 
     Surface(
-        color = Color(0xFF131E2A),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.35f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -174,13 +179,13 @@ fun PcAirSyncCard(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .background(Color(0xFF00E5FF).copy(alpha = 0.2f), CircleShape),
+                            .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Sync,
                             contentDescription = "AirSync",
-                            tint = Color(0xFF00E5FF),
+                            tint = NeonPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -194,7 +199,7 @@ fun PcAirSyncCard(
                         )
                         Text(
                             text = "Transferencia LAN bidireccional sin internet (Puerto 8900)",
-                            color = Color(0xFF80D8FF),
+                            color = NeonLilac,
                             fontSize = 11.sp
                         )
                     }
@@ -211,7 +216,7 @@ fun PcAirSyncCard(
                     modifier = Modifier.size(32.dp)
                 ) {
                     if (isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color(0xFF00E5FF), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = NeonPurple, strokeWidth = 2.dp)
                     } else {
                         Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = Color.LightGray)
                     }
@@ -222,9 +227,9 @@ fun PcAirSyncCard(
 
             // Lens-to-Workspace Action Section
             Surface(
-                color = Color(0xFF00E5FF).copy(alpha = 0.06f),
+                color = NeonPurple.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.25f)),
+                border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.30f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(10.dp)) {
@@ -232,7 +237,7 @@ fun PcAirSyncCard(
                         Icon(
                             imageVector = Icons.Default.Smartphone,
                             contentDescription = null,
-                            tint = Color(0xFF00E5FF),
+                            tint = NeonPurple,
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
@@ -240,7 +245,7 @@ fun PcAirSyncCard(
                             text = "LENS-TO-WORKSPACE (MÓVIL -> PC)",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00E5FF)
+                            color = NeonPurple
                         )
                     }
                     Text(
@@ -260,16 +265,16 @@ fun PcAirSyncCard(
                             enabled = !isUploading,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             if (isUploading) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.Black, strokeWidth = 2.dp)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = VoidBlack, strokeWidth = 2.dp)
                             } else {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(15.dp))
                             }
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Foto / Boceto", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Foto / Boceto", color = VoidBlack, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         OutlinedButton(
@@ -277,8 +282,8 @@ fun PcAirSyncCard(
                             enabled = !isUploading,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00E5FF)),
+                            border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonLilac),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(15.dp))
@@ -303,8 +308,8 @@ fun PcAirSyncCard(
                             checked = autoPasteEnabled,
                             onCheckedChange = { autoPasteEnabled = it },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0xFF00E5FF).copy(alpha = 0.4f)
+                                checkedThumbColor = NeonPurple,
+                                checkedTrackColor = NeonPurple.copy(alpha = 0.5f)
                             ),
                             modifier = Modifier.size(36.dp, 20.dp)
                         )
@@ -318,9 +323,9 @@ fun PcAirSyncCard(
             val activeTransfer = transfers.firstOrNull { it.state == AirSyncTransferState.IN_PROGRESS || it.state == AirSyncTransferState.PENDING }
             if (activeTransfer != null) {
                 Surface(
-                    color = Color(0xFF00E5FF).copy(alpha = 0.08f),
+                    color = NeonPurple.copy(alpha = 0.08f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
@@ -336,7 +341,7 @@ fun PcAirSyncCard(
                                 Icon(
                                     imageVector = Icons.Default.Download,
                                     contentDescription = null,
-                                    tint = Color(0xFF00E5FF),
+                                    tint = NeonPurple,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -352,7 +357,7 @@ fun PcAirSyncCard(
                             val speedMb = activeTransfer.speedBytesPerSec / (1024.0 * 1024.0)
                             Text(
                                 text = "${"%.1f".format(speedMb)} MB/s",
-                                color = Color(0xFF00E5FF),
+                                color = NeonLilac,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -363,7 +368,7 @@ fun PcAirSyncCard(
                         LinearProgressIndicator(
                             progress = activeTransfer.progressPercent,
                             modifier = Modifier.fillMaxWidth().height(6.dp),
-                            color = Color(0xFF00E5FF),
+                            color = NeonPurple,
                             trackColor = Color.DarkGray
                         )
 
@@ -478,18 +483,18 @@ private fun AirSyncFileRow(
             Button(
                 onClick = onDownload,
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.height(28.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.ArrowDownward,
                     contentDescription = "Descargar",
-                    tint = Color.Black,
+                    tint = VoidBlack,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Bajar", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Bajar", color = VoidBlack, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

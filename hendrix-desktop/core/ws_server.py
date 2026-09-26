@@ -263,7 +263,7 @@ async def handle_client(websocket):
                     if "_sig" in data or getattr(config, "require_signed_requests", False):
                         is_valid, reason = SecurityGuard.verify_action_signature(data, authenticated_token)
                         if not is_valid:
-                            if msg_type in ("SNAPSHOT_REQUEST", "TELEMETRY_REQUEST", "GET_OPEN_WINDOWS"):
+                            if msg_type in ("SNAPSHOT_REQUEST", "TELEMETRY_REQUEST", "GET_OPEN_WINDOWS", "INPUT_ACTION"):
                                 log_activity(f"⚠️ Alerta en firma de [{msg_type}]: {reason} (Permitido por sesión autenticada)")
                             else:
                                 log_activity(f"🛡️ Petición rechazada por seguridad [{msg_type}]: {reason}")
@@ -325,7 +325,7 @@ async def handle_client(websocket):
                 # 3. Inyección de acción física (ratón / teclado / atajos)
                 elif msg_type == "INPUT_ACTION":
                     action_type = data.get("actionType", "")
-                    success = input_controller.process_action(data)
+                    success = await asyncio.to_thread(input_controller.process_action, data)
                     # Omitir registro en consola para movimientos continuos del ratón para no saturar I/O
                     if action_type != "MOUSE_MOVE":
                         log_activity(f"🖱️ Acción inyectada: {action_type} -> {'Éxito' if success else 'Denegado'}")

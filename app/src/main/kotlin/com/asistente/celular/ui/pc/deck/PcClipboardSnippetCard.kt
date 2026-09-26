@@ -55,6 +55,9 @@ import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.PcWorkspaceBridge
 import com.asistente.celular.nlu.pc.clipboard.PcClipboardPayload
 import com.asistente.celular.nlu.pc.clipboard.PcSnippetItem
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,9 +82,9 @@ fun PcClipboardSnippetCard(
     }
 
     Surface(
-        color = Color(0xFF131D31),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.35f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {

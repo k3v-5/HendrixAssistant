@@ -72,19 +72,29 @@ class InputController:
             if action_type == "CLICK":
                 if target_x is not None and target_y is not None:
                     ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                pyautogui.click()
+                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
+                time.sleep(0.015)
+                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
                 return True
 
             elif action_type == "DOUBLE_CLICK":
                 if target_x is not None and target_y is not None:
                     ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                pyautogui.doubleClick()
+                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                time.sleep(0.015)
+                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                time.sleep(0.05)
+                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                time.sleep(0.015)
+                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
                 return True
 
             elif action_type == "RIGHT_CLICK":
                 if target_x is not None and target_y is not None:
                     ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                pyautogui.rightClick()
+                ctypes.windll.user32.mouse_event(0x0008, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTDOWN
+                time.sleep(0.015)
+                ctypes.windll.user32.mouse_event(0x0010, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTUP
                 return True
 
             elif action_type == "SCROLL":

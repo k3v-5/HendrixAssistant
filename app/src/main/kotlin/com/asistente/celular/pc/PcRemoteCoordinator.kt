@@ -829,8 +829,10 @@ class PcRemoteCoordinator(
             put("actionType", action.type.name)
             if (x != null) put("xRatio", x.toDouble())
             if (y != null) put("yRatio", y.toDouble())
-            put("scrollDeltaX", action.scrollDeltaX.toDouble())
-            put("scrollDeltaY", action.scrollDeltaY.toDouble())
+            if (action.type == PcActionType.SCROLL || action.scrollDeltaX != 0f || action.scrollDeltaY != 0f) {
+                put("scrollDeltaX", action.scrollDeltaX.toDouble())
+                put("scrollDeltaY", action.scrollDeltaY.toDouble())
+            }
             if (text != null) put("textPayload", text)
             if (action.keyCodes.isNotEmpty()) {
                 val arr = JSONArray()

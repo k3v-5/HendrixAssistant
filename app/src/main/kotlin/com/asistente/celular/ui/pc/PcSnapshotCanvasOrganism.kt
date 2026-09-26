@@ -290,8 +290,9 @@ fun PcSnapshotCanvasOrganism(
                                 val duration = now - singleTouchDownTime
 
                                 if (!isPinchGestureActive) {
-                                    // Si fue un toque rápido sin arrastre y no se disparó clic temporizado previo
-                                    if (singleTouchDownTime > 0L && !isDragging && !hasFiredLeftClick && !hasFiredRightClick && duration < 350L) {
+                                    val touchSlop = with(density) { 18.dp.toPx() }.coerceAtLeast(36f)
+                                    // Si fue un toque sin arrastre y no se disparó clic temporizado previo
+                                    if (singleTouchDownTime > 0L && !isDragging && !hasFiredLeftClick && !hasFiredRightClick && duration < 600L) {
                                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                                         val (normX, normY) = screenToPcRatio(singleTouchStartPos)
                                         cursorRatioX = normX
@@ -300,7 +301,7 @@ fun PcSnapshotCanvasOrganism(
                                         val tapDelta = singleTouchStartPos - lastTapPosition
                                         val tapDist = sqrt(tapDelta.x * tapDelta.x + tapDelta.y * tapDelta.y)
 
-                                        if (now - lastTapTimestamp < 320L && tapDist < 50f) {
+                                        if (now - lastTapTimestamp < 350L && tapDist < touchSlop * 1.5f) {
                                             // Doble Clic Rápido
                                             onSendAction(
                                                 PcInteractionAction(
@@ -355,6 +356,7 @@ fun PcSnapshotCanvasOrganism(
                                     activePointers[0].consume()
                                 } else {
                                     val pointer = activePointers[0]
+                                    val touchSlop = with(density) { 18.dp.toPx() }.coerceAtLeast(36f)
                                     previousCentroid = null
                                     previousDistance = null
 
@@ -372,54 +374,29 @@ fun PcSnapshotCanvasOrganism(
                                             cursorRatioY = normY
                                         }
 
-                                        // Iniciar temporizador de clic sostenido (2s Clic Izq / 4s Clic Der)
+                                        // Iniciar temporizador de clic derecho sostenido (600ms)
                                         holdJob?.cancel()
                                         holdJob = coroutineScope.launch {
                                             holdAnchor = pointer.position
                                             holdProgress = 0f
-                                            holdPhase = 1
+                                            holdPhase = 2
                                             isHoldingVisual = true
 
                                             val startTime = System.currentTimeMillis()
-
-                                            // Fase 1: 0 a 2000 ms (Progreso Cian)
                                             while (true) {
                                                 val elapsed = System.currentTimeMillis() - startTime
-                                                if (elapsed >= 2000L) break
-                                                holdProgress = (elapsed / 2000f).coerceIn(0f, 1f)
+                                                if (elapsed >= 600L) break
+                                                holdProgress = (elapsed / 600f).coerceIn(0f, 1f)
                                                 delay(16)
                                             }
 
-                                            // Hito 2.0s alcanzado: Clic Izquierdo
-                                            holdProgress = 1f
-                                            hasFiredLeftClick = true
-                                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                                            val (normX, normY) = screenToPcRatio(holdAnchor)
-                                            cursorRatioX = normX
-                                            cursorRatioY = normY
-                                            onSendAction(
-                                                PcInteractionAction(
-                                                    type = PcActionType.CLICK,
-                                                    xRatio = normX,
-                                                    yRatio = normY
-                                                )
-                                            )
-                                            showToast("Clic Primario (2s)", 1)
-
-                                            // Fase 2: 2000 a 4000 ms (Progreso Ámbar)
-                                            holdPhase = 2
-                                            val phase2StartTime = System.currentTimeMillis()
-                                            while (true) {
-                                                val elapsed = System.currentTimeMillis() - phase2StartTime
-                                                if (elapsed >= 2000L) break
-                                                holdProgress = (elapsed / 2000f).coerceIn(0f, 1f)
-                                                delay(16)
-                                            }
-
-                                            // Hito 4.0s alcanzado: Clic Derecho
+                                            // Hito 600ms alcanzado: Clic Derecho (Contexto)
                                             holdProgress = 1f
                                             hasFiredRightClick = true
                                             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            val (normX, normY) = screenToPcRatio(holdAnchor)
+                                            cursorRatioX = normX
+                                            cursorRatioY = normY
                                             onSendAction(
                                                 PcInteractionAction(
                                                     type = PcActionType.RIGHT_CLICK,
@@ -427,8 +404,8 @@ fun PcSnapshotCanvasOrganism(
                                                     yRatio = normY
                                                 )
                                             )
-                                            showToast("Clic Secundario (4s)", 2)
-                                            delay(350)
+                                            showToast("Clic Secundario (Contexto)", 2)
+                                            delay(250)
                                             isHoldingVisual = false
                                         }
                                     } else {
@@ -436,7 +413,7 @@ fun PcSnapshotCanvasOrganism(
                                         val moveDelta = pointer.position - singleTouchStartPos
                                         val moveDist = sqrt(moveDelta.x * moveDelta.x + moveDelta.y * moveDelta.y)
 
-                                        if (!isDragging && moveDist > 22f) {
+                                        if (!isDragging && moveDist > touchSlop) {
                                             // Movimiento mayor al umbral de arrastre: cancelar temporizador
                                             isDragging = true
                                             holdJob?.cancel()

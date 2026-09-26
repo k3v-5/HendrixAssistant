@@ -47,6 +47,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -90,9 +96,9 @@ fun PcProjectBrowserCard(
     }
 
     Surface(
-        color = Color(0xFF131D31),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF06B6D4).copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.35f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -106,13 +112,13 @@ fun PcProjectBrowserCard(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape),
+                            .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.FolderOpen,
                             contentDescription = null,
-                            tint = Color(0xFF06B6D4),
+                            tint = NeonPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -127,7 +133,7 @@ fun PcProjectBrowserCard(
                         Text(
                             text = "Abre sesiones de Ableton, FL, Blender, Premiere con 1 toque",
                             fontSize = 11.sp,
-                            color = Color.Gray
+                            color = NeonLilac
                         )
                     }
                 }
@@ -139,13 +145,13 @@ fun PcProjectBrowserCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = Color(0xFF06B6D4)
+                            color = NeonPurple
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refrescar proyectos",
-                            tint = Color(0xFF06B6D4),
+                            tint = NeonPurple,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -163,7 +169,7 @@ fun PcProjectBrowserCard(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = null,
-                        tint = Color(0xFF06B6D4),
+                        tint = NeonPurple,
                         modifier = Modifier.size(18.dp)
                     )
                 },
@@ -173,9 +179,9 @@ fun PcProjectBrowserCard(
                             onClick = { refreshProjects() },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
                         ) {
-                            Text("Filtrar", fontSize = 10.sp, color = Color.Black)
+                            Text("Filtrar", fontSize = 10.sp, color = VoidBlack)
                         }
                     }
                 },
@@ -184,10 +190,10 @@ fun PcProjectBrowserCard(
                     .fillMaxWidth()
                     .height(52.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF06B6D4),
-                    unfocusedBorderColor = Color(0xFF334155),
-                    focusedContainerColor = Color(0xFF0F172A),
-                    unfocusedContainerColor = Color(0xFF0F172A),
+                    focusedBorderColor = NeonPurple,
+                    unfocusedBorderColor = VoidBorder,
+                    focusedContainerColor = VoidBlack,
+                    unfocusedContainerColor = VoidBlack,
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White
                 ),
@@ -208,8 +214,8 @@ fun PcProjectBrowserCard(
                     onClick = { selectedCategory = null },
                     label = { Text("Todos", fontSize = 11.sp) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFF06B6D4),
-                        selectedLabelColor = Color.Black
+                        selectedContainerColor = NeonPurple,
+                        selectedLabelColor = VoidBlack
                     )
                 )
 
@@ -231,7 +237,7 @@ fun PcProjectBrowserCard(
                                 Icon(
                                     imageVector = catIcon,
                                     contentDescription = null,
-                                    tint = if (selectedCategory == cat) Color.Black else Color(0xFF06B6D4),
+                                    tint = if (selectedCategory == cat) VoidBlack else NeonLilac,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -239,8 +245,8 @@ fun PcProjectBrowserCard(
                             }
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF06B6D4),
-                            selectedLabelColor = Color.Black
+                            selectedContainerColor = NeonPurple,
+                            selectedLabelColor = VoidBlack
                         )
                     )
                 }
@@ -307,7 +313,7 @@ private fun ProjectItemRow(
         PcProjectCategory.THREE_D_VFX -> Color(0xFFF59E0B)
         PcProjectCategory.VIDEO_DESIGN -> Color(0xFFEC4899)
         PcProjectCategory.CODE_DEV -> Color(0xFF10B981)
-        PcProjectCategory.OTHER -> Color(0xFF06B6D4)
+        PcProjectCategory.OTHER -> NeonPurple
     }
 
     val dateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
@@ -316,7 +322,7 @@ private fun ProjectItemRow(
     }
 
     Surface(
-        color = Color(0xFF1E293B).copy(alpha = 0.7f),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, categoryColor.copy(alpha = 0.25f)),
         modifier = Modifier.fillMaxWidth()

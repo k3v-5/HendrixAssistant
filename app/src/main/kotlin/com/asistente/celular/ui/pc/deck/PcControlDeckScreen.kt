@@ -123,6 +123,7 @@ import com.asistente.celular.ui.theme.NeonAmber
 import com.asistente.celular.ui.theme.NeonCyan
 import com.asistente.celular.ui.theme.NeonGreen
 import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
 import com.asistente.celular.ui.theme.NeonRed
 import com.asistente.celular.ui.theme.TextMuted
 import com.asistente.celular.ui.theme.TextPrimary
@@ -182,6 +183,13 @@ fun PcControlDeckScreen(
     var showMacroDeckScreen by remember { mutableStateOf(false) }
     var showRoutineDesignerScreen by remember { mutableStateOf(false) }
     var showConnectDialog by remember { mutableStateOf(false) }
+
+    // Si la conexión se restablece o reconecta exitosamente, quitar automáticamente el modal de conexión
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            showConnectDialog = false
+        }
+    }
     val coordinator = pcBridge as? com.asistente.celular.pc.PcRemoteCoordinator
     val savedConfig by coordinator?.endpointConfig?.collectAsState() ?: remember { mutableStateOf(null) }
     val openWindows by coordinator?.openWindows?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
@@ -199,6 +207,12 @@ fun PcControlDeckScreen(
     }
     val otaUpdateInfo by otaCoordinator.updateInfo.collectAsState()
     val otaDownloadState by otaCoordinator.downloadState.collectAsState()
+
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            otaCoordinator.checkForUpdates()
+        }
+    }
 
     val effectiveRoutineRepo = remember(routineRepository) {
         routineRepository ?: com.asistente.celular.data.JsonAutomatedRoutineRepository(context, scope)
@@ -398,8 +412,8 @@ fun PcControlDeckScreen(
                 // Banner proactivo si hay una nueva compilación OTA disponible en la PC
                 if (otaUpdateInfo?.available == true) {
                     Surface(
-                        color = NeonCyan.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.4f)),
+                        color = NeonPurple.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.4f)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -412,13 +426,13 @@ fun PcControlDeckScreen(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .background(NeonCyan.copy(alpha = 0.2f), CircleShape),
+                                    .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.SystemUpdateAlt,
                                     contentDescription = null,
-                                    tint = NeonCyan,
+                                    tint = NeonPurple,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -434,7 +448,7 @@ fun PcControlDeckScreen(
                                 Text(
                                     text = "${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Lista para instalar",
                                     fontSize = 11.sp,
-                                    color = Color.LightGray
+                                    color = NeonLilac
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -444,7 +458,7 @@ fun PcControlDeckScreen(
                                         text = "${(state.progress * 100).toInt()}%",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = NeonCyan
+                                        color = NeonPurple
                                     )
                                 }
                                 is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
@@ -465,7 +479,7 @@ fun PcControlDeckScreen(
                                                 otaCoordinator.downloadAndInstall(otaUpdateInfo!!)
                                             }
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                        colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
@@ -524,6 +538,9 @@ fun PcControlDeckScreen(
                         activeDeliverable = activeDeliverable,
                         isModuleEnabled = isModuleEnabled,
                         pcBridge = pcBridge,
+                        otaCoordinator = otaCoordinator,
+                        otaUpdateInfo = otaUpdateInfo,
+                        otaDownloadState = otaDownloadState,
                         onDismissDeliverable = { activeDeliverable = null },
                         onManageModules = { showSelectorDialog = true },
                         onShowSnackbar = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } }
@@ -1591,6 +1608,9 @@ private fun AirSyncTabContent(
     activeDeliverable: PcDropzoneFile?,
     isModuleEnabled: (PcModuleId) -> Boolean,
     pcBridge: PcWorkspaceBridge,
+    otaCoordinator: com.asistente.celular.pc.ota.PcOtaUpdateCoordinator? = null,
+    otaUpdateInfo: com.asistente.celular.nlu.pc.ota.PcAppUpdateInfo? = null,
+    otaDownloadState: com.asistente.celular.nlu.pc.ota.OtaDownloadState = com.asistente.celular.nlu.pc.ota.OtaDownloadState.Idle,
     onDismissDeliverable: () -> Unit,
     onManageModules: () -> Unit,
     onShowSnackbar: (String) -> Unit
@@ -1615,6 +1635,16 @@ private fun AirSyncTabContent(
         contentPadding = PaddingValues(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Tarjeta de actualización de APK OTA visible en el apartado de Archivos
+        item {
+            PcOtaUpdateCard(
+                otaCoordinator = otaCoordinator,
+                otaUpdateInfo = otaUpdateInfo,
+                otaDownloadState = otaDownloadState,
+                onShowSnackbar = onShowSnackbar
+            )
+        }
+
         activeDeliverable?.let { file ->
             item {
                 PcDropzoneDeliverableCard(
@@ -1838,195 +1868,12 @@ private fun TelemetryTabContent(
 
         // Tarjeta de Actualizaciones de App (OTA Local)
         item {
-            val otaInfo = otaUpdateInfo
-            val otaState = otaDownloadState
-
-            Surface(
-                color = VoidSurface,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, VoidBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.SystemUpdateAlt, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Actualizaciones de App (OTA Local)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                scope.launch {
-                                    onShowSnackbar("Buscando nueva versión en la PC...")
-                                    val res = otaCoordinator?.checkForUpdates()
-                                    if (res != null && res.available) {
-                                        onShowSnackbar("¡Nueva compilación encontrada en la PC!")
-                                    } else {
-                                        onShowSnackbar("Tu app ya está al día con la PC.")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = NeonCyan, modifier = Modifier.size(16.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (otaInfo != null && otaInfo.available) {
-                        val mbSize = otaInfo.apkSizeBytes.toFloat() / (1024f * 1024f)
-                        Text(
-                            text = "¡Hay una nueva compilación de desarrollo lista en tu PC!",
-                            fontSize = 12.sp,
-                            color = NeonCyan,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Tamaño: ${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Archivo: ${otaInfo.fileName}",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        when (val state = otaState) {
-                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text("Descargando desde la PC...", fontSize = 11.sp, color = TextSecondary)
-                                        Text("${(state.progress * 100).toInt()}%", fontSize = 11.sp, color = NeonCyan, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { state.progress },
-                                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                                        color = NeonCyan,
-                                        trackColor = VoidBlack
-                                    )
-                                }
-                            }
-                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
-                                Button(
-                                    onClick = { otaCoordinator?.triggerInstall(state.apkFile) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Instalar Actualización Ahora", fontWeight = FontWeight.Bold, color = VoidBlack)
-                                    }
-                                }
-                            }
-                            is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Error -> {
-                                Text(
-                                    text = "Error: ${state.message}",
-                                    fontSize = 11.sp,
-                                    color = NeonRed
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            otaCoordinator?.downloadAndInstall(otaInfo)
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Reintentar Descarga", color = VoidBlack)
-                                }
-                            }
-                            else -> {
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            onShowSnackbar("Iniciando descarga OTA de ${otaInfo.fileName}...")
-                                            otaCoordinator?.downloadAndInstall(otaInfo)
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Descargar e Instalar de Inmediato", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = VoidBlack)
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Default.Lightbulb, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(12.dp))
-                            Text(
-                                text = "Si Play Protect muestra una advertencia, pulsa en 'Más detalles' e 'Instalar de todas formas'.",
-                                fontSize = 10.sp,
-                                color = NeonAmber
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = "Tu aplicación móvil está sincronizada con la última versión de desarrollo de tu PC.",
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    onShowSnackbar("Comprobando compilaciones en PC...")
-                                    val res = otaCoordinator?.checkForUpdates()
-                                    if (res != null && res.available) {
-                                        onShowSnackbar("¡Nueva compilación encontrada en la PC!")
-                                    } else {
-                                        onShowSnackbar("No hay nuevas compilaciones. Ya tienes la última versión.")
-                                    }
-                                }
-                            },
-                            border = BorderStroke(1.dp, VoidBorder),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Buscar Actualizaciones en la PC", fontSize = 12.sp, color = TextPrimary)
-                            }
-                        }
-                    }
-                }
-            }
+            PcOtaUpdateCard(
+                otaCoordinator = otaCoordinator,
+                otaUpdateInfo = otaUpdateInfo,
+                otaDownloadState = otaDownloadState,
+                onShowSnackbar = onShowSnackbar
+            )
         }
         if (isModuleEnabled(PcModuleId.HARDWARE_WATCHDOG)) {
             item {
@@ -2104,13 +1951,13 @@ private fun EmptyTabPlaceholder(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(NeonCyan.copy(alpha = 0.15f)),
+                    .background(NeonPurple.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = NeonCyan,
+                    tint = NeonPurple,
                     modifier = Modifier.size(32.dp)
                 )
             }
@@ -2124,10 +1971,229 @@ private fun EmptyTabPlaceholder(
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = onAction,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text("Gestionar Módulos", color = VoidBlack, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun PcOtaUpdateCard(
+    otaCoordinator: com.asistente.celular.pc.ota.PcOtaUpdateCoordinator?,
+    otaUpdateInfo: com.asistente.celular.nlu.pc.ota.PcAppUpdateInfo?,
+    otaDownloadState: com.asistente.celular.nlu.pc.ota.OtaDownloadState,
+    onShowSnackbar: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    val otaInfo = otaUpdateInfo
+    val otaState = otaDownloadState
+
+    Surface(
+        color = VoidSurfaceElevated,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.35f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.SystemUpdateAlt,
+                            contentDescription = null,
+                            tint = NeonPurple,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Actualizaciones de App (OTA Local)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Distribución directa PC -> Móvil vía LAN (Puerto 8901)",
+                            fontSize = 11.sp,
+                            color = NeonLilac
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            onShowSnackbar("Buscando nueva compilación en la PC...")
+                            val res = otaCoordinator?.checkForUpdates()
+                            if (res != null && res.available) {
+                                onShowSnackbar("¡Nueva compilación encontrada en la PC!")
+                            } else {
+                                onShowSnackbar("Tu app ya está al día con la PC.")
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refrescar", tint = NeonPurple, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (otaInfo != null && otaInfo.available) {
+                val mbSize = otaInfo.apkSizeBytes.toFloat() / (1024f * 1024f)
+                Text(
+                    text = "¡Hay una nueva compilación de desarrollo lista en tu PC!",
+                    fontSize = 12.sp,
+                    color = NeonLilac,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tamaño: ${String.format(java.util.Locale.US, "%.1f", mbSize)} MB • Archivo: ${otaInfo.fileName}",
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                when (val state = otaState) {
+                    is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Downloading -> {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Descargando desde la PC...", fontSize = 11.sp, color = TextSecondary)
+                                Text("${(state.progress * 100).toInt()}%", fontSize = 11.sp, color = NeonPurple, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { state.progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                                color = NeonPurple,
+                                trackColor = VoidBlack
+                            )
+                        }
+                    }
+                    is com.asistente.celular.nlu.pc.ota.OtaDownloadState.ReadyToInstall -> {
+                        Button(
+                            onClick = { otaCoordinator?.triggerInstall(state.apkFile) },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Instalar Actualización Ahora", fontWeight = FontWeight.Bold, color = VoidBlack)
+                            }
+                        }
+                    }
+                    is com.asistente.celular.nlu.pc.ota.OtaDownloadState.Error -> {
+                        Text(
+                            text = "Error: ${state.message}",
+                            fontSize = 11.sp,
+                            color = NeonRed
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    otaCoordinator?.downloadAndInstall(otaInfo)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Reintentar Descarga", color = VoidBlack)
+                        }
+                    }
+                    else -> {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    onShowSnackbar("Iniciando descarga OTA de ${otaInfo.fileName}...")
+                                    otaCoordinator?.downloadAndInstall(otaInfo)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Descargar e Instalar de Inmediato", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = VoidBlack)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(12.dp))
+                    Text(
+                        text = "Si Play Protect muestra una advertencia, pulsa en 'Más detalles' e 'Instalar de todas formas'.",
+                        fontSize = 10.sp,
+                        color = NeonAmber
+                    )
+                }
+            } else {
+                Text(
+                    text = "Tu aplicación móvil está sincronizada con la última versión de desarrollo de tu PC.",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            onShowSnackbar("Comprobando compilaciones en PC...")
+                            val res = otaCoordinator?.checkForUpdates()
+                            if (res != null && res.available) {
+                                onShowSnackbar("¡Nueva compilación encontrada en la PC!")
+                            } else {
+                                onShowSnackbar("No hay nuevas compilaciones. Ya tienes la última versión.")
+                            }
+                        }
+                    },
+                    border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Buscar Actualizaciones en la PC", fontSize = 12.sp, color = NeonLilac)
+                    }
+                }
             }
         }
     }

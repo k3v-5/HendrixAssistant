@@ -55,6 +55,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.dropzone.PcDropzoneFile
 import com.asistente.celular.service.DropzoneNotificationHelper
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 
 /**
  * Tarjeta interactiva de alta fidelidad que muestra los entregables recién generados
@@ -99,11 +101,11 @@ fun PcDropzoneDeliverableCard(
                 .border(
                     width = 1.dp,
                     brush = Brush.horizontalGradient(
-                        listOf(accentColor.copy(alpha = 0.6f), Color(0xFF3B82F6).copy(alpha = 0.3f))
+                        listOf(accentColor.copy(alpha = 0.6f), NeonPurple.copy(alpha = 0.35f))
                     ),
                     shape = RoundedCornerShape(16.dp)
                 ),
-            color = Color(0xFF131D31),
+            color = VoidSurfaceElevated,
             tonalElevation = 4.dp
         ) {
             Column(
