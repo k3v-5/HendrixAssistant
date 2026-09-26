@@ -20,6 +20,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
@@ -36,12 +41,14 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SystemUpdateAlt
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.asistente.celular.nlu.pc.module.PcModuleCategory
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Computer
@@ -502,6 +509,9 @@ fun PcControlDeckScreen(
                         activeDeliverable = activeDeliverable,
                         pcBridge = pcBridge,
                         telemetry = telemetry,
+                        enabledModules = enabledModules,
+                        isModuleEnabled = isModuleEnabled,
+                        routineRepository = effectiveRoutineRepo,
                         onOpenMacroDeck = { showMacroDeckScreen = true },
                         onOpenDesigner = { showRoutineDesignerScreen = true },
                         onManageModules = { showSelectorDialog = true },
@@ -540,6 +550,9 @@ fun PcControlDeckScreen(
         PcModuleSelectorDialog(
             allModules = allModules,
             onToggleModule = { id -> moduleManager.toggleModule(id) },
+            onEnableAll = { moduleManager.enableAllModules() },
+            onDisableAll = { moduleManager.disableAllModules() },
+            onResetDefaults = { moduleManager.resetToDefaults() },
             onDismiss = { showSelectorDialog = false }
         )
     }
@@ -1025,6 +1038,9 @@ private fun DeckMacrosTabContent(
     activeDeliverable: PcDropzoneFile?,
     pcBridge: PcWorkspaceBridge,
     telemetry: com.asistente.celular.nlu.pc.PcSystemTelemetry?,
+    enabledModules: List<com.asistente.celular.nlu.pc.module.PcModuleDefinition>,
+    isModuleEnabled: (PcModuleId) -> Boolean,
+    routineRepository: com.asistente.celular.data.JsonAutomatedRoutineRepository?,
     onOpenMacroDeck: () -> Unit,
     onOpenDesigner: () -> Unit,
     onManageModules: () -> Unit,
@@ -1032,12 +1048,19 @@ private fun DeckMacrosTabContent(
     onShowSnackbar: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    var selectedCategory by remember { mutableStateOf<PcModuleCategory?>(null) }
+
+    val filteredModules = remember(enabledModules, selectedCategory) {
+        if (selectedCategory == null) enabledModules
+        else enabledModules.filter { it.category == selectedCategory }
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 14.dp),
-        contentPadding = PaddingValues(vertical = 12.dp),
+        contentPadding = PaddingValues(top = 10.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Notificación de archivo entregable si existe
@@ -1051,34 +1074,145 @@ private fun DeckMacrosTabContent(
             }
         }
 
-        // 1. Acciones Rápidas del Sistema
+        // 1. Barra de Control Principal del Quick Deck (Header con Launcher a MacroDeck, Módulos y Estado)
         item {
             Surface(
                 color = VoidSurface,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(1.dp, VoidBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .background(NeonCyan.copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Bolt, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(NeonCyan.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Quick Command Deck",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (isConnected) "Conectado • ${telemetry?.hostname ?: "PC"} (${telemetry?.roundTripLatencyMs ?: 0}ms)" else "Desconectado de PC",
+                                    fontSize = 11.sp,
+                                    color = if (isConnected) NeonGreen else NeonRed
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Acciones del Sistema",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+
+                        // Botón Gestionar Módulos con badge de activos
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onManageModules()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = NeonLilac.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, NeonLilac.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                            ) {
+                                Icon(Icons.Default.Extension, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "${enabledModules.size} suites",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = NeonLilac
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // Lanzadores secundarios: Macro Deck con perfiles y Diseñador de Rutinas
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onOpenMacroDeck()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Macro Deck Full", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onOpenDesigner()
+                            },
+                            border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Brush, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Diseñar Rutina", fontSize = 12.sp, color = NeonGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Acciones Rápidas del Sistema & Control de Medios
+        item {
+            Surface(
+                color = VoidSurface,
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, VoidBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    // Acciones de Sistema
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Acciones del Sistema",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Windows OS",
+                            fontSize = 10.sp,
+                            color = TextMuted
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1126,37 +1260,21 @@ private fun DeckMacrosTabContent(
                             )
                         }
                     }
-                }
-            }
-        }
 
-        // 2. Control de Volumen & Multimedia
-        item {
-            Surface(
-                color = VoidSurface,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, VoidBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Multimedia & Volumen
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .background(NeonLilac.copy(alpha = 0.15f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(16.dp))
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Multimedia & Audio",
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
@@ -1169,203 +1287,261 @@ private fun DeckMacrosTabContent(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    pcBridge.executeQuickCommand("volume_down")
-                                    onShowSnackbar("Volumen -")
-                                }
-                            },
-                            border = BorderStroke(1.dp, VoidBorder),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VolumeDown, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Bajar", fontSize = 12.sp, color = TextPrimary)
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    pcBridge.executeQuickCommand("volume_mute")
-                                    onShowSnackbar("Silenciar")
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = VoidSurfaceElevated),
-                            border = BorderStroke(1.dp, VoidBorder),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VolumeOff, contentDescription = null, tint = NeonAmber, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Mute", fontSize = 12.sp, color = NeonAmber)
-                            }
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    pcBridge.executeQuickCommand("volume_up")
-                                    onShowSnackbar("Volumen +")
-                                }
-                            },
-                            border = BorderStroke(1.dp, VoidBorder),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Subir", fontSize = 12.sp, color = TextPrimary)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Controles de Reproducción
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
+                        // Anterior
+                        Surface(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_prev")
                                     onShowSnackbar("Anterior")
                                 }
                             },
-                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
+                            color = VoidSurfaceElevated,
+                            border = BorderStroke(1.dp, VoidBorder),
+                            modifier = Modifier.weight(1f).height(40.dp)
                         ) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.SkipPrevious, contentDescription = "Anterior", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                            }
                         }
 
-                        Button(
+                        // Play / Pause
+                        Surface(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_play_pause")
                                     onShowSnackbar("Play / Pausa")
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1.5f)
+                            color = NeonCyan,
+                            modifier = Modifier.weight(1.4f).height(40.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Play / Pausa", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                            Box(contentAlignment = Alignment.Center) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Play/Pausa", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
+                                }
                             }
                         }
 
-                        OutlinedButton(
+                        // Siguiente
+                        Surface(
                             onClick = {
                                 scope.launch {
                                     pcBridge.executeQuickCommand("media_next")
                                     onShowSnackbar("Siguiente")
                                 }
                             },
-                            border = BorderStroke(1.dp, VoidBorder),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
+                            color = VoidSurfaceElevated,
+                            border = BorderStroke(1.dp, VoidBorder),
+                            modifier = Modifier.weight(1f).height(40.dp)
                         ) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.SkipNext, contentDescription = "Siguiente", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        // Mute
+                        Surface(
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("volume_mute")
+                                    onShowSnackbar("Mute conmutado")
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = VoidSurfaceElevated,
+                            border = BorderStroke(1.dp, VoidBorder),
+                            modifier = Modifier.weight(1f).height(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.AutoMirrored.Filled.VolumeOff, contentDescription = "Mute", tint = NeonAmber, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
                 }
             }
         }
 
-        // 3. Macros & Automatización
+        // 3. Selector de Categorías de Módulos (Filtro Horizontal)
         item {
-            Surface(
-                color = VoidSurface,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, VoidBorder),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .background(NeonGreen.copy(alpha = 0.15f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Tune, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+                FilterChip(
+                    selected = selectedCategory == null,
+                    onClick = { selectedCategory = null },
+                    label = { Text("Todos (${enabledModules.size})", fontSize = 11.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = NeonCyan.copy(alpha = 0.2f),
+                        selectedLabelColor = NeonCyan,
+                        containerColor = VoidSurface,
+                        labelColor = TextSecondary
+                    ),
+                    border = BorderStroke(1.dp, if (selectedCategory == null) NeonCyan else VoidBorder),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                PcModuleCategory.values().forEach { cat ->
+                    val isSelected = selectedCategory == cat
+                    val count = enabledModules.count { it.category == cat }
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedCategory = if (isSelected) null else cat },
+                        label = { Text("${cat.iconEmoji} ${cat.displayName} ($count)", fontSize = 11.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = NeonLilac.copy(alpha = 0.25f),
+                            selectedLabelColor = NeonLilac,
+                            containerColor = VoidSurface,
+                            labelColor = TextSecondary
+                        ),
+                        border = BorderStroke(1.dp, if (isSelected) NeonLilac else VoidBorder),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            }
+        }
+
+        // 4. Módulos y Suites Activos en el Deck
+        if (filteredModules.isEmpty()) {
+            item {
+                Surface(
+                    color = VoidSurface,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, VoidBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = "Macros y Herramientas",
-                            fontSize = 14.sp,
+                            text = if (selectedCategory != null) "No tienes módulos activos de ${selectedCategory?.displayName}" else "No hay módulos activos en tu Deck",
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontSize = 13.sp,
+                            color = TextPrimary,
+                            textAlign = TextAlign.Center
                         )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Activa Unreal Engine, Blender, DAWs o tus suites favoritas para verlas aquí.",
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                         Button(
-                            onClick = onOpenMacroDeck,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onManageModules()
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Tune, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Macro Deck", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = VoidBlack)
-                            }
+                            Icon(Icons.Default.Extension, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Gestionar Suites & Módulos", color = VoidBlack, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-
-                        OutlinedButton(
-                            onClick = onOpenDesigner,
-                            border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(vertical = 10.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Brush, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Diseñar Rutina", fontSize = 12.sp, color = NeonGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            filteredModules.forEach { module ->
+                when (module.id) {
+                    PcModuleId.CUSTOM_PLUGINS -> {
+                        item(key = module.id.name) {
+                            PcCustomPluginsCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.AUDIO_MIXER -> {
+                        item(key = module.id.name) {
+                            PcAudioMixerCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.STUDIO_SCENES -> {
+                        item(key = module.id.name) {
+                            PcStudioScenesCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.AUTOMATED_ROUTINES -> {
+                        if (routineRepository != null) {
+                            item(key = module.id.name) {
+                                PcAutomatedRoutinesCard(
+                                    pcBridge = pcBridge,
+                                    routineRepository = routineRepository,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onOpenDesigner = onOpenDesigner,
+                                    onShowSnackbar = onShowSnackbar
+                                )
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedButton(
-                        onClick = onManageModules,
-                        border = BorderStroke(1.dp, VoidBorder),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Extension, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Gestionar Módulos (Blender, DAW, Adobe)", fontSize = 12.sp, color = TextSecondary)
+                    PcModuleId.PROJECT_BROWSER -> {
+                        item(key = module.id.name) {
+                            PcProjectBrowserCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.WIRELESS_AUDIO_MONITOR -> {
+                        item(key = module.id.name) {
+                            PcWirelessAudioMonitorCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.CLIPBOARD_MANAGER -> {
+                        item(key = module.id.name) {
+                            PcClipboardSnippetCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    // Módulos de software con comandos macro (Unreal Engine 5, Blender 3D, Adobe Suite, Ableton Live, FL Studio, Web Browsers, etc.)
+                    else -> {
+                        item(key = module.id.name) {
+                            PcModuleCardMolecule(
+                                module = module,
+                                onExecuteMacro = { moduleId, actionId ->
+                                    scope.launch {
+                                        val res = pcBridge.executeModuleAction(
+                                            PcModuleActionRequest(moduleId = moduleId, actionId = actionId)
+                                        )
+                                        onShowSnackbar(if (res.success) res.message else "Error: ${res.message}")
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -1406,87 +1582,6 @@ private fun QuickActionButton(
                 maxLines = 1,
                 fontWeight = FontWeight.Medium
             )
-        }
-    }
-}
-
-@Composable
-private fun StudioTabContent(
-    isModuleEnabled: (PcModuleId) -> Boolean,
-    enabledModules: List<com.asistente.celular.nlu.pc.module.PcModuleDefinition>,
-    pcBridge: PcWorkspaceBridge,
-    onManageModules: () -> Unit,
-    onShowSnackbar: (String) -> Unit
-) {
-    val scope = rememberCoroutineScope()
-
-    val studioModulesActive = isModuleEnabled(PcModuleId.PROJECT_BROWSER) ||
-            isModuleEnabled(PcModuleId.AUDIO_MIXER) ||
-            isModuleEnabled(PcModuleId.WIRELESS_AUDIO_MONITOR) ||
-            isModuleEnabled(PcModuleId.ABLETON_LIVE) ||
-            isModuleEnabled(PcModuleId.FL_STUDIO)
-
-    if (!studioModulesActive) {
-        EmptyTabPlaceholder(
-            icon = Icons.Default.MusicNote,
-            title = "No hay módulos de Estudio activos",
-            onAction = onManageModules
-        )
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp),
-        contentPadding = PaddingValues(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (isModuleEnabled(PcModuleId.PROJECT_BROWSER)) {
-            item {
-                PcProjectBrowserCard(
-                    pcBridge = pcBridge,
-                    modifier = Modifier.fillMaxWidth(),
-                    onShowSnackbar = onShowSnackbar
-                )
-            }
-        }
-
-        if (isModuleEnabled(PcModuleId.AUDIO_MIXER)) {
-            item {
-                PcAudioMixerCard(
-                    pcBridge = pcBridge,
-                    modifier = Modifier.fillMaxWidth(),
-                    onShowSnackbar = onShowSnackbar
-                )
-            }
-        }
-
-        if (isModuleEnabled(PcModuleId.WIRELESS_AUDIO_MONITOR)) {
-            item {
-                PcWirelessAudioMonitorCard(
-                    pcBridge = pcBridge,
-                    modifier = Modifier.fillMaxWidth(),
-                    onShowSnackbar = onShowSnackbar
-                )
-            }
-        }
-
-        val dawModules = enabledModules.filter { it.id in listOf(PcModuleId.ABLETON_LIVE, PcModuleId.FL_STUDIO) }
-        dawModules.forEach { module ->
-            item(key = module.id.name) {
-                PcModuleCardMolecule(
-                    module = module,
-                    onExecuteMacro = { moduleId, actionId ->
-                        scope.launch {
-                            val res = pcBridge.executeModuleAction(
-                                PcModuleActionRequest(moduleId = moduleId, actionId = actionId)
-                            )
-                            onShowSnackbar(if (res.success) res.message else "Error: ${res.message}")
-                        }
-                    }
-                )
-            }
         }
     }
 }

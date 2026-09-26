@@ -175,6 +175,32 @@ class PcAutomatedRoutineSkillTest {
     }
 
     @Test
+    fun testAutoGenerateRoutineFromVoice() = runBlocking {
+        val repo = MockAutomatedRoutineRepository()
+        val skill = PcAutomatedRoutineSkill(repo)
+
+        val input = "Cada vez que abra Unreal, cierra los navegadores y pon el ventilador al máximo"
+        val score = skill.score(dummyContext, input)
+        assertTrue(score.isMatch)
+
+        val output = skill.execute(dummyContext, input, score)
+        assertTrue(output.success)
+        assertTrue(output.speech.contains("He creado la rutina"))
+        assertTrue(output.speech.contains("UNREAL"))
+
+        val payload = output.payload as? com.asistente.celular.nlu.ui.AutomatedRoutineCreatedUiPayload
+        org.junit.Assert.assertNotNull(payload)
+        assertTrue(payload?.triggerSummary?.contains("UNREAL") == true)
+        assertEquals(2, payload?.actionsSummary?.size)
+
+        // Verificar que quedó persistida en el repo
+        val saved = repo.routines.value.find { it.id == payload?.routineId }
+        org.junit.Assert.assertNotNull(saved)
+        assertEquals(1, saved?.triggers?.size)
+        assertEquals(2, saved?.actions?.size)
+    }
+
+    @Test
     fun testUnknownRoutine() = runBlocking {
         val repo = MockAutomatedRoutineRepository()
         val skill = PcAutomatedRoutineSkill(repo)

@@ -19,6 +19,27 @@ from ui.app_window import AppWindow
 
 server_loop = None
 
+def free_port_if_occupied(port: int):
+    try:
+        import psutil
+        import os
+        current_pid = os.getpid()
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr and conn.laddr.port == port and conn.status == "LISTEN":
+                pid = conn.pid
+                if pid and pid != current_pid:
+                    try:
+                        proc = psutil.Process(pid)
+                        proc_name = proc.name().lower()
+                        if "python" in proc_name:
+                            print(f"[Hendrix] 🔄 Liberando puerto {port} ocupado por instancia previa (PID {pid} - {proc_name})...")
+                            proc.kill()
+                            proc.wait(timeout=2.0)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
 def start_background_server():
     global server_loop
     server_loop = asyncio.new_event_loop()
@@ -31,6 +52,9 @@ def start_background_server():
         ws_server.log_activity(f"❌ Error crítico en WebSocket: {e}")
 
 def main():
+    # Asegurar que el puerto WebSocket no esté ocupado por un zombi previo
+    free_port_if_occupied(config.port)
+
     # Iniciar servidor WebSocket en hilo secundario de fondo
     server_thread = threading.Thread(target=start_background_server, daemon=True)
     server_thread.start()

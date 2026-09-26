@@ -176,7 +176,19 @@ class PcRemoteCoordinator(
     private val airSyncClient = AirSyncClient()
     private var airSyncPort: Int = 8900
 
+    private val requestSigner: com.asistente.celular.nlu.security.RemoteRequestSigner =
+        com.asistente.celular.nlu.security.HmacSha256Signer()
+
+    fun sendSignedPayload(payload: JSONObject, ws: WebSocket? = activeWebSocket): Boolean {
+        val socket = ws ?: return false
+        if (authToken.isNotBlank()) {
+            requestSigner.sign(payload, authToken)
+        }
+        return socket.send(payload.toString())
+    }
+
     init {
+        authToken = _endpointConfig.value.deviceToken
         airSyncPort = _endpointConfig.value.airSyncPort
         com.asistente.celular.pc.alert.PcNotificationActionReceiver.activeBridge = this
         // Inicializar con telemetría base por defecto para pruebas y arranque limpio
@@ -460,6 +472,12 @@ class PcRemoteCoordinator(
             }
 
             when (type) {
+                "SECURITY_ERROR" -> {
+                    val error = json.optString("error", "UNKNOWN")
+                    val message = json.optString("message", "")
+                    val action = json.optString("action", "")
+                    Log.w(TAG, "🛡️ Alerta de Seguridad recibida del Desktop: [$action] $error - $message")
+                }
                 "TELEMETRY_DATA" -> {
                     val tJson = json.optJSONObject("telemetry")
                     if (tJson != null) {
@@ -680,6 +698,12 @@ class PcRemoteCoordinator(
                         hostname = hostName,
                         transportType = _activeTransport.value
                     )
+
+                    // Solicitar snapshot inicial de inmediato para que la pantalla esté disponible al instante
+                    scope.launch(Dispatchers.IO) {
+                        delay(250)
+                        requestSnapshot()
+                    }
                 }
                 "FOREGROUND_APP_CHANGED" -> {
                     val proc = json.optString("processName", "")
@@ -754,7 +778,7 @@ class PcRemoteCoordinator(
             put("type", "SET_MODE")
             put("mode", mode.name)
         }
-        ws.send(msg.toString())
+        sendSignedPayload(msg, ws)
     }
 
     override suspend fun requestSnapshot(cropToActiveWindow: Boolean): ByteArray? = withContext(Dispatchers.IO) {
@@ -780,7 +804,7 @@ class PcRemoteCoordinator(
                 put("cropToActiveWindow", cropToActiveWindow)
                 put("quality", _endpointConfig.value.snapshotQuality)
             }
-            ws.send(req.toString())
+            sendSignedPayload(req, ws)
         }
 
         val result = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) {
@@ -816,7 +840,7 @@ class PcRemoteCoordinator(
             put("timestamp", action.timestampEpoch)
         }
 
-        val sent = ws.send(req.toString())
+        val sent = sendSignedPayload(req, ws)
 
         // En modo Snapshot Interactivo, SOLO acciones que alteran el contenido de la pantalla (clics, teclas, scroll)
         // solicitan refresco visual. MOUSE_MOVE nunca solicita un snapshot para no saturar la red ni crear lag.
@@ -848,7 +872,7 @@ class PcRemoteCoordinator(
             put("type", "QUICK_COMMAND")
             put("command", command)
         }
-        val sent = ws.send(req.toString())
+        val sent = sendSignedPayload(req, ws)
         delay(200)
         queryTelemetry()
         sent
@@ -894,7 +918,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("goalPrompt", goalPrompt)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -938,7 +962,7 @@ class PcRemoteCoordinator(
             put("type", "RPA_EXECUTE")
             put("planId", planId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
     }
 
     override suspend fun queryTelemetry(): PcSystemTelemetry? = withContext(Dispatchers.IO) {
@@ -946,7 +970,7 @@ class PcRemoteCoordinator(
         val req = JSONObject().apply {
             put("type", "TELEMETRY_REQUEST")
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         _telemetry.value
     }
 
@@ -979,7 +1003,7 @@ class PcRemoteCoordinator(
             put("type", "AG_LIST_PROJECTS")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1043,7 +1067,7 @@ class PcRemoteCoordinator(
                 put("projectId", projectId)
             }
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1099,7 +1123,7 @@ class PcRemoteCoordinator(
             if (conversationId != null) put("conversationId", conversationId)
             if (prompt != null) put("prompt", prompt)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
@@ -1131,7 +1155,7 @@ class PcRemoteCoordinator(
                 put("saveCurrentFirst", request.saveCurrentFirst)
             }
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1176,7 +1200,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("dawType", dawType.name)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1233,7 +1257,7 @@ class PcRemoteCoordinator(
             }
             put("params", paramsObj)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1264,7 +1288,7 @@ class PcRemoteCoordinator(
             put("type", "DROPZONE_GET_INFO")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val infoObj = resp?.optJSONObject("info") ?: return@withContext null
@@ -1314,7 +1338,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("path", path)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", true) ?: false
@@ -1348,7 +1372,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("pin", pin)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val success = resp?.optBoolean("success", false) ?: false
@@ -1368,7 +1392,7 @@ class PcRemoteCoordinator(
             put("type", "CLIPBOARD_GET")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null && resp.optString("status") == "ok") {
@@ -1400,7 +1424,7 @@ class PcRemoteCoordinator(
             put("text", text)
             put("pasteImmediately", pasteImmediately)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null && resp.optString("status") == "ok") {
@@ -1426,7 +1450,7 @@ class PcRemoteCoordinator(
             put("type", "AUDIO_MIXER_GET")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1469,7 +1493,7 @@ class PcRemoteCoordinator(
             put("volumePercent", volumePercent)
             put("isMaster", false)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         true
     }
 
@@ -1483,7 +1507,7 @@ class PcRemoteCoordinator(
             put("isMuted", isMuted)
             put("isMaster", false)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         true
     }
 
@@ -1496,7 +1520,7 @@ class PcRemoteCoordinator(
             put("isMaster", true)
             put("volumePercent", volumePercent)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         _telemetry.value = _telemetry.value?.copy(masterVolumePercent = volumePercent)
         true
     }
@@ -1510,7 +1534,7 @@ class PcRemoteCoordinator(
             put("isMaster", true)
             put("isMuted", isMuted)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         _telemetry.value = _telemetry.value?.copy(isVolumeMuted = isMuted)
         true
     }
@@ -1540,7 +1564,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("sceneId", sceneId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(30000L) { deferred.await() }
         if (resp != null) {
@@ -1579,7 +1603,7 @@ class PcRemoteCoordinator(
             if (category != null) put("category", category.name)
             if (!query.isNullOrBlank()) put("query", query)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1622,7 +1646,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("projectPath", projectPath)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
@@ -1638,7 +1662,7 @@ class PcRemoteCoordinator(
             put("type", "HARDWARE_TELEMETRY_GET")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1677,7 +1701,7 @@ class PcRemoteCoordinator(
             put("processName", processName)
             put("autoSuspend", autoSuspend)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
@@ -1763,7 +1787,7 @@ class PcRemoteCoordinator(
             put("type", "PLUGINS_QUERY")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -1839,7 +1863,7 @@ class PcRemoteCoordinator(
             params.forEach { (k, v) -> paramsObj.put(k, v) }
             put("params", paramsObj)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(10000L) { deferred.await() }
         if (resp != null) {
@@ -1878,7 +1902,7 @@ class PcRemoteCoordinator(
             put("sampleRate", sampleRate)
             put("channels", 1)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         audioStreamPlayer.start(sampleRate = sampleRate)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
@@ -1900,7 +1924,7 @@ class PcRemoteCoordinator(
             put("type", "AUDIO_STREAM_STOP")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", true) ?: true
@@ -1934,7 +1958,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("category", category)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
@@ -1980,7 +2004,7 @@ class PcRemoteCoordinator(
             put("type", "WORKSPACE_CONTEXT_GET")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() } ?: return@withContext null
         val cObj = resp.optJSONObject("context") ?: return@withContext null
@@ -2066,7 +2090,7 @@ class PcRemoteCoordinator(
             put("type", "AIRSYNC_LIST_FILES")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         if (resp != null) {
@@ -2109,7 +2133,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("filePath", filePath)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val ok = resp?.optString("status") == "ok"
@@ -2198,7 +2222,7 @@ class PcRemoteCoordinator(
             put("command", command)
             put("errorMessage", errorMessage)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", true) ?: true
@@ -2215,7 +2239,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("processName", processName)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
     }
@@ -2231,7 +2255,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("action", action)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
     }
@@ -2246,7 +2270,7 @@ class PcRemoteCoordinator(
             put("type", "PC_HARDWARE_HEALTH")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val tObj = resp?.optJSONObject("telemetry")
         if (tObj != null) {
@@ -2279,7 +2303,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("vaultData", vaultJson)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
     }
@@ -2294,7 +2318,7 @@ class PcRemoteCoordinator(
             put("type", "VAULT_BACKUP_LIST")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val arr = resp?.optJSONArray("backups") ?: org.json.JSONArray()
         val list = mutableListOf<String>()
@@ -2316,7 +2340,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             if (filename != null) put("filename", filename)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val vObj = resp?.opt("vault")
         vObj?.toString()
@@ -2332,7 +2356,7 @@ class PcRemoteCoordinator(
             put("type", "GET_OPEN_WINDOWS")
             put("requestId", reqId)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val wArr = resp?.optJSONArray("windows") ?: org.json.JSONArray()
         val list = mutableListOf<PcWindowInfo>()
@@ -2365,7 +2389,7 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("hwnd", hwnd)
         }
-        ws.send(req.toString())
+        sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(2500L) { deferred.await() }
         val success = resp?.optBoolean("success", true) ?: true
 

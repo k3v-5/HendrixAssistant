@@ -319,5 +319,64 @@ data class DawControlUiPayload(
     val confirmationDialogTitle: String? = null
 ) : AssistantUiPayload
 
+data class AiTrafficAuditUiPayload(
+    val totalRequests: Long,
+    val localRequests: Long,
+    val cloudRequests: Long,
+    val localRatioPercentage: Double,
+    val totalTokens: Long,
+    val totalBytes: Long,
+    val piiProtectedCount: Int,
+    val recentRecordsSummary: List<String> = emptyList()
+) : AssistantUiPayload
+
+data class TimerStatusUiPayload(
+    val timerId: String,
+    val label: String,
+    val totalDurationSeconds: Long,
+    val remainingSeconds: Long,
+    val state: com.asistente.celular.nlu.timer.TimerState,
+    val isRinging: Boolean = false
+) : AssistantUiPayload
+
+data class ScreenCopilotGuideUiPayload(
+    val activeWindow: String?,
+    val guidanceTitle: String,
+    val guidanceSteps: List<String>,
+    val targetAreaDescription: String? = null,
+    val recommendedShortcut: String? = null,
+    val screenshotBytes: ByteArray? = null
+) : AssistantUiPayload
+
+data class WebSearchResultItem(
+    val title: String,
+    val snippet: String,
+    val url: String,
+    val sourceName: String
+)
+
+data class WebSearchUiPayload(
+    val query: String,
+    val spokenAnswer: String,
+    val detailedAnswerMarkdown: String,
+    val sources: List<WebSearchResultItem> = emptyList()
+) : AssistantUiPayload
+
+data class AutomatedRoutineCreatedUiPayload(
+    val routineId: String,
+    val routineName: String,
+    val triggerSummary: String,
+    val actionsSummary: List<String>,
+    val isEnabled: Boolean = true
+) : AssistantUiPayload
+
+data class EpisodicProjectUiPayload(
+    val appName: String,
+    val projectName: String,
+    val lastActiveFormatted: String,
+    val filePath: String? = null,
+    val sessionNotes: List<String> = emptyList()
+) : AssistantUiPayload
+
 
 

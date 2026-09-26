@@ -14,10 +14,11 @@ import kotlinx.coroutines.flow.asStateFlow
  * Permite al usuario activar o desactivar qué suites de software desea tener
  * visibles en su Centro de Control y Quick Command Deck.
  */
-class PcModuleManager(context: Context) {
+class PcModuleManager(private val prefs: SharedPreferences) {
 
-    private val prefs: SharedPreferences =
+    constructor(context: Context) : this(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    )
 
     private val _modules = MutableStateFlow<List<PcModuleDefinition>>(emptyList())
     val modules: StateFlow<List<PcModuleDefinition>> = _modules.asStateFlow()
@@ -29,7 +30,7 @@ class PcModuleManager(context: Context) {
         loadModules()
     }
 
-    private fun loadModules() {
+    fun loadModules() {
         val all = PcModuleRegistry.ALL_MODULES.map { def ->
             val key = "module_enabled_${def.id.name}"
             val isEnabled = prefs.getBoolean(key, def.isEnabledByDefault)
@@ -45,7 +46,7 @@ class PcModuleManager(context: Context) {
     }
 
     fun setModuleEnabled(id: PcModuleId, enabled: Boolean) {
-        prefs.edit().putBoolean("module_enabled_${id.name}", enabled).apply()
+        prefs.edit().putBoolean("module_enabled_${id.name}", enabled).commit()
         loadModules()
     }
 
@@ -54,7 +55,34 @@ class PcModuleManager(context: Context) {
         setModuleEnabled(id, !current)
     }
 
+    fun enableAllModules() {
+        val editor = prefs.edit()
+        PcModuleRegistry.ALL_MODULES.forEach { def ->
+            editor.putBoolean("module_enabled_${def.id.name}", true)
+        }
+        editor.commit()
+        loadModules()
+    }
+
+    fun disableAllModules() {
+        val editor = prefs.edit()
+        PcModuleRegistry.ALL_MODULES.forEach { def ->
+            editor.putBoolean("module_enabled_${def.id.name}", false)
+        }
+        editor.commit()
+        loadModules()
+    }
+
+    fun resetToDefaults() {
+        val editor = prefs.edit()
+        PcModuleRegistry.ALL_MODULES.forEach { def ->
+            editor.remove("module_enabled_${def.id.name}")
+        }
+        editor.commit()
+        loadModules()
+    }
+
     companion object {
-        private const val PREFS_NAME = "hendrix_pc_modules_prefs"
+        const val PREFS_NAME = "hendrix_pc_modules_prefs"
     }
 }

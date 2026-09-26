@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,10 +28,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.module.PcModuleDefinition
 import com.asistente.celular.nlu.pc.module.PcModuleId
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 
 /**
- * Molécula de interfaz que agrupa el panel táctil de control para un módulo o plugin de PC.
- * Renderiza la cabecera temática del software y su rejilla de comandos macro de baja latencia.
+ * Molécula de interfaz OLED de alta fidelidad que agrupa el panel táctil de control
+ * para un módulo o software de PC (ej. Unreal Engine, Blender, Ableton Live, Adobe Suite).
+ * Renderiza la cabecera temática del software y su rejilla de comandos macro de latencia ultrabaja.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -44,12 +47,11 @@ fun PcModuleCardMolecule(
 ) {
     val accentColor = Color(module.accentColorHex)
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-        ),
-        shape = RoundedCornerShape(18.dp),
+    Surface(
+        color = VoidSurface,
+        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.2.dp, accentColor.copy(alpha = 0.35f)),
+        tonalElevation = 4.dp,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -62,24 +64,27 @@ fun PcModuleCardMolecule(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .background(accentColor.copy(alpha = 0.2f), CircleShape),
+                            .size(40.dp)
+                            .background(accentColor.copy(alpha = 0.18f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(text = module.iconEmoji, fontSize = 20.sp)
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = module.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = TextPrimary
+                            )
+                        }
                         Text(
-                            text = module.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = module.category.displayName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${module.category.displayName} • ${module.description}",
+                            fontSize = 10.sp,
+                            color = TextSecondary,
+                            maxLines = 1
                         )
                     }
                 }
@@ -93,13 +98,13 @@ fun PcModuleCardMolecule(
                     Text(
                         text = "Activo",
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = accentColor
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Rejilla de comandos rápidos
             FlowRow(

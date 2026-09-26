@@ -24,7 +24,7 @@ class PcScreenCopilotSkillTest {
         override val previousOutput: SkillOutput? = null
     }
 
-    private class MockScreenCopilotBridge(
+    private open class MockScreenCopilotBridge(
         var shouldSucceed: Boolean = true
     ) : PcWorkspaceBridge {
         var lastPromptReceived: String? = null
@@ -85,6 +85,13 @@ class PcScreenCopilotSkillTest {
         assertTrue(skill.score(dummyContext, "revisa la pantalla de la pc").isMatch)
         assertTrue(skill.score(dummyContext, "que dice la terminal de la pc").isMatch)
 
+        // Action Guidance Patterns
+        assertTrue(skill.score(dummyContext, "mira lo que tengo en pantalla y dime qué botón debo presionar para exportar la textura").isMatch)
+        assertTrue(skill.score(dummyContext, "mira mi pantalla y dime qué botón debo presionar").isMatch)
+        assertTrue(skill.score(dummyContext, "mira la pantalla y dime dónde hago click").isMatch)
+        assertTrue(skill.score(dummyContext, "qué botón debo presionar para guardar").isMatch)
+        assertTrue(skill.score(dummyContext, "dónde hago clic para compilar el proyecto").isMatch)
+
         // Negative cases
         assertFalse(skill.score(dummyContext, "pon una alarma a las 8").isMatch)
         assertFalse(skill.score(dummyContext, "como esta el clima hoy").isMatch)
@@ -102,6 +109,45 @@ class PcScreenCopilotSkillTest {
         assertTrue(output.speech.contains("Visual Studio Code"))
         assertTrue(output.speech.contains("línea 45"))
         assertTrue(output.displayText?.contains("Code.exe - HendrixAssistant") == true)
+    }
+
+    @Test
+    fun testActionGuidanceInteractiveFlow() = runBlocking {
+        val customBridge = object : MockScreenCopilotBridge(shouldSucceed = true) {
+            override suspend fun analyzeScreenWithAi(
+                prompt: String,
+                cropToActiveWindow: Boolean
+            ): PcScreenAnalysisResult {
+                lastPromptReceived = prompt
+                lastCropSetting = cropToActiveWindow
+                return PcScreenAnalysisResult(
+                    success = true,
+                    analysisMarkdown = "Para exportar la textura en Unreal Engine:\n1. Haz clic en el menú File en la barra superior.\n2. Selecciona Export Selected.\nTambién puedes usar el atajo Ctrl+E en la esquina superior izquierda.",
+                    detectedWindow = "UnrealEditor.exe - MyLevel",
+                    suggestedActions = listOf("Haz clic en el menú File", "Selecciona Export Selected"),
+                    rawImageBytes = byteArrayOf(4, 5, 6)
+                )
+            }
+        }
+
+        val skill = PcScreenCopilotSkill(customBridge)
+        val input = "mira lo que tengo en pantalla y dime qué botón debo presionar para exportar la textura"
+        val score = skill.score(dummyContext, input)
+        assertTrue(score.isMatch)
+
+        val output = skill.execute(dummyContext, input, score)
+        assertTrue(output.success)
+
+        val payload = output.payload as? com.asistente.celular.nlu.ui.ScreenCopilotGuideUiPayload
+        org.junit.Assert.assertNotNull(payload)
+        assertEquals("UnrealEditor.exe - MyLevel", payload?.activeWindow)
+        assertTrue(payload?.guidanceTitle?.contains("exportar la textura") == true)
+        assertEquals(2, payload?.guidanceSteps?.size)
+        assertEquals("CTRL+E", payload?.recommendedShortcut)
+        org.junit.Assert.assertArrayEquals(byteArrayOf(4, 5, 6), payload?.screenshotBytes)
+
+        assertTrue(output.speech.contains("exportar la textura"))
+        assertTrue(output.speech.contains("CTRL+E") || output.speech.contains("Ctrl+E", ignoreCase = true))
     }
 
     @Test

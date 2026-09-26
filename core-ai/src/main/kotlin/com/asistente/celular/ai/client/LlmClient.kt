@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit
 open class LlmClient(
     private val localModelManager: com.asistente.celular.ai.local.LocalModelManager? = null,
     private val localInferenceEngine: com.asistente.celular.ai.local.LocalInferenceEngine? = null,
+    val trafficAuditor: com.asistente.celular.ai.audit.AiTrafficAuditor? = null,
+    val piiScrubber: com.asistente.celular.ai.audit.PiiScrubber? = null,
     private val configProvider: () -> LlmConfig
 ) {
     private val httpClient = OkHttpClient.Builder()
@@ -36,25 +38,75 @@ open class LlmClient(
      */
     suspend fun generateResponse(prompt: String, overrideConfig: LlmConfig? = null): Result<String> = withContext(Dispatchers.IO) {
         val config = overrideConfig ?: configProvider()
+        val startTime = System.currentTimeMillis()
+        val scrubResult = piiScrubber?.inspectAndScrub(prompt)
+        val sanitizedPrompt = scrubResult?.scrubbedText ?: prompt
+        val promptBytes = sanitizedPrompt.toByteArray(Charsets.UTF_8).size.toLong()
+        val estimatedPromptTokens = (sanitizedPrompt.length / 4).coerceAtLeast(1)
+
+        val destination = when (config.provider) {
+            AiProvider.GEMINI -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_GEMINI
+            AiProvider.OPENAI -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_OPENAI
+            AiProvider.GROQ -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_GROQ
+            AiProvider.OLLAMA -> com.asistente.celular.ai.audit.AiDestinationType.LOCAL_LAN_OLLAMA
+            AiProvider.LOCAL_SLM -> com.asistente.celular.ai.audit.AiDestinationType.LOCAL_NPU_SLM
+        }
 
         return@withContext try {
             val responseText = when (config.provider) {
-                AiProvider.GEMINI -> callGemini(prompt, config)
+                AiProvider.GEMINI -> callGemini(sanitizedPrompt, config)
                 AiProvider.OPENAI -> callOpenAiCompatible(
                     endpoint = "https://api.openai.com/v1/chat/completions",
-                    prompt = prompt,
+                    prompt = sanitizedPrompt,
                     config = config
                 )
                 AiProvider.GROQ -> callOpenAiCompatible(
                     endpoint = "https://api.groq.com/openai/v1/chat/completions",
-                    prompt = prompt,
+                    prompt = sanitizedPrompt,
                     config = config
                 )
-                AiProvider.OLLAMA -> callOllama(prompt, config)
-                AiProvider.LOCAL_SLM -> executeLocalSlm(prompt, config)
+                AiProvider.OLLAMA -> callOllama(sanitizedPrompt, config)
+                AiProvider.LOCAL_SLM -> executeLocalSlm(sanitizedPrompt, config)
             }
+            val latency = System.currentTimeMillis() - startTime
+            val responseBytes = responseText.toByteArray(Charsets.UTF_8).size.toLong()
+            val estimatedResponseTokens = (responseText.length / 4).coerceAtLeast(1)
+
+            trafficAuditor?.recordEvent(
+                com.asistente.celular.ai.audit.AiTrafficRecord(
+                    destination = destination,
+                    modelName = config.modelName,
+                    promptBytes = promptBytes,
+                    estimatedPromptTokens = estimatedPromptTokens,
+                    responseBytes = responseBytes,
+                    estimatedResponseTokens = estimatedResponseTokens,
+                    latencyMs = latency,
+                    isFullyLocal = destination.isLocal,
+                    piiDetectedCount = scrubResult?.detectedCount ?: 0,
+                    piiScrubbed = (scrubResult?.detectedCount ?: 0) > 0,
+                    success = true
+                )
+            )
+
             Result.success(responseText)
         } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            trafficAuditor?.recordEvent(
+                com.asistente.celular.ai.audit.AiTrafficRecord(
+                    destination = destination,
+                    modelName = config.modelName,
+                    promptBytes = promptBytes,
+                    estimatedPromptTokens = estimatedPromptTokens,
+                    responseBytes = 0L,
+                    estimatedResponseTokens = 0,
+                    latencyMs = latency,
+                    isFullyLocal = destination.isLocal,
+                    piiDetectedCount = scrubResult?.detectedCount ?: 0,
+                    piiScrubbed = (scrubResult?.detectedCount ?: 0) > 0,
+                    success = false,
+                    errorMessage = e.message
+                )
+            )
             Log.e(TAG, "Error llamando a proveedor IA [${config.provider}]: ${e.message}", e)
             Result.failure(e)
         }
@@ -88,25 +140,75 @@ open class LlmClient(
         overrideConfig: LlmConfig? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val config = overrideConfig ?: configProvider()
+        val startTime = System.currentTimeMillis()
+        val scrubResult = piiScrubber?.inspectAndScrub(prompt)
+        val sanitizedPrompt = scrubResult?.scrubbedText ?: prompt
+        val promptBytes = (sanitizedPrompt.toByteArray(Charsets.UTF_8).size + imageBytes.size).toLong()
+        val estimatedPromptTokens = (sanitizedPrompt.length / 4).coerceAtLeast(1) + 258 // Estimado visión tokens
+
+        val destination = when (config.provider) {
+            AiProvider.GEMINI -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_GEMINI
+            AiProvider.OPENAI -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_OPENAI
+            AiProvider.GROQ -> com.asistente.celular.ai.audit.AiDestinationType.CLOUD_GROQ
+            AiProvider.OLLAMA -> com.asistente.celular.ai.audit.AiDestinationType.LOCAL_LAN_OLLAMA
+            AiProvider.LOCAL_SLM -> com.asistente.celular.ai.audit.AiDestinationType.LOCAL_NPU_SLM
+        }
 
         return@withContext try {
             val responseText = when (config.provider) {
-                AiProvider.GEMINI -> callGeminiMultimodal(prompt, imageBytes, mimeType, config)
+                AiProvider.GEMINI -> callGeminiMultimodal(sanitizedPrompt, imageBytes, mimeType, config)
                 AiProvider.OPENAI, AiProvider.GROQ -> callOpenAiMultimodal(
                     endpoint = if (config.provider == AiProvider.OPENAI)
                         "https://api.openai.com/v1/chat/completions"
                     else
                         "https://api.groq.com/openai/v1/chat/completions",
-                    prompt = prompt,
+                    prompt = sanitizedPrompt,
                     imageBytes = imageBytes,
                     mimeType = mimeType,
                     config = config
                 )
-                AiProvider.OLLAMA -> callOllama(prompt, config)
-                AiProvider.LOCAL_SLM -> executeLocalSlm(prompt, config)
+                AiProvider.OLLAMA -> callOllama(sanitizedPrompt, config)
+                AiProvider.LOCAL_SLM -> executeLocalSlm(sanitizedPrompt, config)
             }
+            val latency = System.currentTimeMillis() - startTime
+            val responseBytes = responseText.toByteArray(Charsets.UTF_8).size.toLong()
+            val estimatedResponseTokens = (responseText.length / 4).coerceAtLeast(1)
+
+            trafficAuditor?.recordEvent(
+                com.asistente.celular.ai.audit.AiTrafficRecord(
+                    destination = destination,
+                    modelName = config.modelName,
+                    promptBytes = promptBytes,
+                    estimatedPromptTokens = estimatedPromptTokens,
+                    responseBytes = responseBytes,
+                    estimatedResponseTokens = estimatedResponseTokens,
+                    latencyMs = latency,
+                    isFullyLocal = destination.isLocal,
+                    piiDetectedCount = scrubResult?.detectedCount ?: 0,
+                    piiScrubbed = (scrubResult?.detectedCount ?: 0) > 0,
+                    success = true
+                )
+            )
+
             Result.success(responseText)
         } catch (e: Exception) {
+            val latency = System.currentTimeMillis() - startTime
+            trafficAuditor?.recordEvent(
+                com.asistente.celular.ai.audit.AiTrafficRecord(
+                    destination = destination,
+                    modelName = config.modelName,
+                    promptBytes = promptBytes,
+                    estimatedPromptTokens = estimatedPromptTokens,
+                    responseBytes = 0L,
+                    estimatedResponseTokens = 0,
+                    latencyMs = latency,
+                    isFullyLocal = destination.isLocal,
+                    piiDetectedCount = scrubResult?.detectedCount ?: 0,
+                    piiScrubbed = (scrubResult?.detectedCount ?: 0) > 0,
+                    success = false,
+                    errorMessage = e.message
+                )
+            )
             Log.e(TAG, "Error en llamada multimodal [${config.provider}]: ${e.message}", e)
             Result.failure(e)
         }

@@ -3,6 +3,8 @@ package com.asistente.celular.skills.pc
 import com.asistente.celular.nlu.automation.AutomatedRoutine
 import com.asistente.celular.nlu.automation.AutomatedRoutineAction
 import com.asistente.celular.nlu.automation.AutomatedRoutineRepository
+import com.asistente.celular.nlu.automation.AutomatedRoutineTrigger
+import com.asistente.celular.nlu.automation.NaturalLanguageRoutineParser
 import com.asistente.celular.nlu.construct.Construct
 import com.asistente.celular.nlu.construct.MatchContext
 import com.asistente.celular.nlu.construct.OptionalConstruct
@@ -15,9 +17,11 @@ import com.asistente.celular.nlu.skill.SkillContext
 import com.asistente.celular.nlu.skill.SkillInfo
 import com.asistente.celular.nlu.skill.SkillOutput
 import com.asistente.celular.nlu.skill.StandardRecognizerSkill
+import com.asistente.celular.nlu.ui.AutomatedRoutineCreatedUiPayload
 
 /**
- * Habilidad NLU para consultar, activar, desactivar o ejecutar rutinas de automatización "Zero-Touch".
+ * Habilidad NLU para consultar, activar, desactivar, ejecutar y auto-generar al vuelo
+ * rutinas de automatización "Zero-Touch" en la PC y el móvil.
  */
 class PcAutomatedRoutineSkill(
     private val routineRepository: AutomatedRoutineRepository? = null,
@@ -27,22 +31,34 @@ class PcAutomatedRoutineSkill(
     info = SkillInfo(
         id = "pc_automated_routine_skill",
         name = "Rutinas de Automatización Zero-Touch",
-        description = "Ejecuta, consulta o activa rutinas automatizadas encadenadas en la PC y el móvil."
+        description = "Ejecuta, auto-genera por voz, consulta o activa rutinas automatizadas encadenadas en la PC y el móvil."
     ),
     specificity = Specificity.HIGH
 ) {
 
     override val patterns: List<Construct> = listOf(
         SequenceConstruct(
-            WordConstruct("ejecuta", "ejecutar", "inicia", "iniciar", "corre", "correr", "activa", "activar", "desactiva", "desactivar", "rutina", "rutinas"),
-            OptionalConstruct(WordConstruct("la", "las", "el", "mis")),
-            WordConstruct("rutina", "rutinas", "automatizacion", "automatizaciones"),
+            WordConstruct("cada", "cuando", "siempre", "crea", "creame", "crear", "ejecuta", "ejecutar", "inicia", "iniciar", "corre", "correr", "activa", "activar", "desactiva", "desactivar", "rutina", "rutinas"),
+            OptionalConstruct(WordConstruct("vez", "la", "las", "el", "mis", "que", "una")),
+            WordConstruct("rutina", "rutinas", "automatizacion", "automatizaciones", "que", "abra", "conecte"),
             OptionalConstruct(WordConstruct("de", "en", "para"))
         )
     )
 
     override fun score(context: SkillContext, input: String): SkillScore {
         val lower = MatchContext.normalize(input)
+
+        // Creación de rutinas en lenguaje natural ("cada vez que...", "cuando...", "crea una rutina...")
+        if (lower.startsWith("cada vez que") ||
+            lower.startsWith("cuando abra") ||
+            lower.startsWith("cuando me conecte") ||
+            lower.startsWith("crea una rutina") ||
+            lower.startsWith("creame una rutina") ||
+            lower.startsWith("crear rutina") ||
+            lower.contains("crea una automatizacion")
+        ) {
+            return SkillScore(confidence = 1.0f, specificity = Specificity.HIGH)
+        }
 
         if (lower.contains("rutina") || lower.contains("rutinas") || lower.contains("automatizacion")) {
             if (lower.contains("ejecuta") || lower.contains("inicia") || lower.contains("corre") ||
@@ -76,6 +92,35 @@ class PcAutomatedRoutineSkill(
 
         val lower = input.lowercase().trim()
         val allRoutines = repo.routines.value.ifEmpty { repo.engine.getRoutines() }
+
+        // Caso 0: Creación automática de rutina al vuelo
+        if (lower.startsWith("cada vez que") ||
+            lower.startsWith("cuando") ||
+            lower.contains("crea una rutina") ||
+            lower.contains("creame una rutina") ||
+            lower.contains("crear rutina") ||
+            lower.contains("crea una automatizacion")
+        ) {
+            val created = NaturalLanguageRoutineParser.parse(input)
+            if (created != null) {
+                repo.saveRoutine(created)
+                val triggerDesc = summarizeTrigger(created.triggers.firstOrNull())
+                val actionsDesc = summarizeActions(created.actions)
+                val payload = AutomatedRoutineCreatedUiPayload(
+                    routineId = created.id,
+                    routineName = created.name,
+                    triggerSummary = triggerDesc,
+                    actionsSummary = actionsDesc,
+                    isEnabled = true
+                )
+                val speech = "He creado la rutina '${created.name}'. Se ejecutará automáticamente cuando $triggerDesc."
+                return SkillOutput(
+                    speech = speech,
+                    displayText = "⚡ ${created.iconEmoji} Rutina Creada: ${created.name}\nDisparador: $triggerDesc",
+                    payload = payload
+                )
+            }
+        }
 
         // Caso 1: Listar rutinas
         if (lower.contains("listar") || lower.contains("cuales") || lower.contains("que rutinas") || lower.contains("mis rutinas")) {
@@ -166,5 +211,47 @@ class PcAutomatedRoutineSkill(
             displayText = "⚡ ${targetRoutine.iconEmoji} ${targetRoutine.name} ejecutada",
             payload = if (triggeredStandby) "ACTION_DESK_STANDBY" else null
         )
+    }
+
+    private fun summarizeTrigger(trigger: AutomatedRoutineTrigger?): String {
+        return when (trigger) {
+            is AutomatedRoutineTrigger.PcEventTrigger -> {
+                if (trigger.eventType.startsWith("FOREGROUND_APP:")) {
+                    "se abra ${trigger.eventType.substringAfter("FOREGROUND_APP:").uppercase()} en la PC"
+                } else {
+                    "ocurra el evento ${trigger.eventType} en la PC"
+                }
+            }
+            is AutomatedRoutineTrigger.WifiSsidTrigger -> {
+                "te conectes al Wi-Fi '${trigger.ssid}'"
+            }
+            is AutomatedRoutineTrigger.GeofenceTrigger -> {
+                "entres en la zona '${trigger.zoneName}'"
+            }
+            is AutomatedRoutineTrigger.ChargingTrigger -> {
+                "conectes el cargador del móvil"
+            }
+            is AutomatedRoutineTrigger.ScheduleTrigger -> {
+                "sean las ${trigger.timeString}"
+            }
+            is AutomatedRoutineTrigger.VoicePhraseTrigger -> {
+                "digas '${trigger.phrases.firstOrNull()}'"
+            }
+            null -> "se active"
+        }
+    }
+
+    private fun summarizeActions(actions: List<AutomatedRoutineAction>): List<String> {
+        return actions.map { action ->
+            when (action) {
+                is AutomatedRoutineAction.AssistantCommandAction -> action.commandText
+                is AutomatedRoutineAction.PcPluginAction -> "Ajustar ventilador al 100%"
+                is AutomatedRoutineAction.PcQuickCommandAction -> "Comando PC: ${action.command}"
+                is AutomatedRoutineAction.PcStudioSceneAction -> "Cargar escena '${action.sceneId}'"
+                is AutomatedRoutineAction.EnterDeskStandbyAction -> "Activar Desk Standby"
+                is AutomatedRoutineAction.SpeakTtsAction -> "Avisar por voz: ${action.text}"
+                is AutomatedRoutineAction.DelayAction -> "Esperar ${action.delayMillis}ms"
+            }
+        }
     }
 }

@@ -47,6 +47,8 @@ class AssistantVoiceService : Service() {
     private var ttsEngine: AndroidNativeTtsEngine? = null
     private var evaluator: SkillEvaluator? = null
     val noiseCalibrator = com.asistente.celular.voice.acoustic.NoiseCalibrator()
+    private val earconEngine: com.asistente.celular.voice.earcon.EarconEngine =
+        com.asistente.celular.voice.earcon.ToneGeneratorEarconEngine(serviceScope)
 
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -102,6 +104,7 @@ class AssistantVoiceService : Service() {
             isFlipToMuteEnabled = settingsRepo.isFlipToMuteEnabled,
             onShakeDetected = {
                 hapticManager.vibrateStartListening()
+                earconEngine.playEarcon(com.asistente.celular.voice.earcon.EarconType.WAKE_WORD_PING)
                 if (settingsRepo.isOverlayEnabled && overlayCoordinator.canDrawOverlays()) {
                     overlayCoordinator.showOverlay(
                         onExpandToApp = {
@@ -155,8 +158,9 @@ class AssistantVoiceService : Service() {
 
         wakeWordEngine?.startListeningWithEvent { event ->
             Log.i(TAG, "Evento de voz detectado en servicio: keyword='${event.keyword}', command='${event.command}'")
-            // Feedback táctil inmediato: el usuario sabe que fue escuchado al instante
+            // Feedback táctil y auditivo inmediato: el usuario sabe que fue escuchado al instante
             hapticManager.vibrateStartListening()
+            earconEngine.playEarcon(com.asistente.celular.voice.earcon.EarconType.WAKE_WORD_PING)
 
             if (settingsRepo.isOverlayEnabled && overlayCoordinator.canDrawOverlays()) {
                 overlayCoordinator.showOverlay(

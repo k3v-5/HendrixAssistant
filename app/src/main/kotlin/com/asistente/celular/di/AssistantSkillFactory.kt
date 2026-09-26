@@ -105,6 +105,7 @@ import com.asistente.celular.skills.documents.DocumentChatSkill
 import com.asistente.celular.skills.soundscape.SoundscapeSkill
 import com.asistente.celular.skills.voicecraft.VoiceCraftSkill
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Factoría unificada de dependencias para el subsistema de habilidades y contexto de Hendrix.
@@ -149,6 +150,10 @@ class AssistantSkillFactory(
     val cameraDirectorCoordinator = VoiceCameraDirectorCoordinator(context)
     val healthTelemetryCoordinator = LocalHealthTelemetryCoordinator(context)
     val plannerCoordinator = LocalAutonomousPlannerCoordinator(context)
+    val aiTrafficAuditor: com.asistente.celular.ai.audit.AiTrafficAuditor =
+        com.asistente.celular.ai.audit.InMemoryAiTrafficAuditor()
+    val piiScrubber: com.asistente.celular.ai.audit.PiiScrubber =
+        com.asistente.celular.ai.audit.RegexPiiScrubber()
 
     // Coordinadores de grado comercial (Automotive, Wear, Meeting, MultiModel, DocumentChat, Soundscape, VoiceCraft)
     val automotiveCoordinator = HendrixCarAppCoordinator(context)
@@ -160,6 +165,31 @@ class AssistantSkillFactory(
     val voiceCraftCoordinator = LocalVoiceCraftStudioCoordinator(context)
     val pcRemoteCoordinator = com.asistente.celular.pc.PcRemoteCoordinator(context, scope)
     var onEnterDeskStandby: (() -> Unit)? = null
+
+    // Motor de Earcons acústicos y temporizadores nativos de respuesta refleja
+    val earconEngine: com.asistente.celular.voice.earcon.EarconEngine =
+        com.asistente.celular.voice.earcon.ToneGeneratorEarconEngine(scope)
+    val timerCoordinator: com.asistente.celular.nlu.timer.TimerCoordinator =
+        com.asistente.celular.timer.DefaultTimerCoordinator(context, earconEngine, scope)
+
+    // Investigación Web en Tiempo Real y Memoria Episódica Persistente
+    val webSearchEngine: com.asistente.celular.nlu.search.WebSearchEngine =
+        com.asistente.celular.ai.search.DefaultWebSearchEngine()
+    val episodicMemoryRepository: com.asistente.celular.nlu.memory.episodic.EpisodicMemoryRepository =
+        com.asistente.celular.data.JsonEpisodicMemoryRepository(context, scope)
+
+    init {
+        scope.launch {
+            pcRemoteCoordinator.foregroundApp.collect { appExe ->
+                if (appExe.isNotBlank()) {
+                    val entry = com.asistente.celular.nlu.memory.episodic.CreativeProjectTitleParser.parseWindowTitle(appExe, appExe)
+                    if (entry != null) {
+                        episodicMemoryRepository.recordSession(entry)
+                    }
+                }
+            }
+        }
+    }
 
     val personalContextProvider: PersonalContextProvider = DefaultPersonalContextProvider(
         taskRepository = taskRepository,
@@ -182,7 +212,7 @@ class AssistantSkillFactory(
             DeviceControlSkill(),
             DeepMediaSkill(),
             FlashlightSkill(flashlightController),
-            TimerSkill(),
+            TimerSkill(timerCoordinator),
             AlarmSkill(),
             AppLauncherSkill(),
             CurrentTimeSkill(),
@@ -252,7 +282,10 @@ class AssistantSkillFactory(
             com.asistente.celular.skills.pc.DeskStandbySkill(
                 onActivateStandby = { onEnterDeskStandby?.invoke() }
             ),
-            com.asistente.celular.skills.memory.PersonalSearchSkill(personalRagCoordinator)
+            com.asistente.celular.skills.security.AiPrivacyTrafficSkill(aiTrafficAuditor),
+            com.asistente.celular.skills.memory.PersonalSearchSkill(personalRagCoordinator),
+            com.asistente.celular.skills.search.LiveWebSearchSkill(webSearchEngine),
+            com.asistente.celular.skills.memory.EpisodicMemorySkill(episodicMemoryRepository, pcRemoteCoordinator)
         )
     }
 
@@ -268,6 +301,8 @@ class AssistantSkillFactory(
         val llmClient = LlmClient(
             localModelManager = localModelManager,
             localInferenceEngine = localInferenceEngine,
+            trafficAuditor = aiTrafficAuditor,
+            piiScrubber = piiScrubber,
             configProvider = configProvider
         )
         pcRemoteCoordinator.llmClientProvider = { llmClient }

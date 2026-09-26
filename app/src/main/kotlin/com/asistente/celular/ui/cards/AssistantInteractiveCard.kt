@@ -155,6 +155,12 @@ import com.asistente.celular.nlu.ui.PcWorkspaceUiPayload
 import com.asistente.celular.nlu.ui.PcTaskApprovalUiPayload
 import com.asistente.celular.nlu.ui.AntigravityNavigatorUiPayload
 import com.asistente.celular.nlu.ui.DawControlUiPayload
+import com.asistente.celular.nlu.ui.AiTrafficAuditUiPayload
+import com.asistente.celular.nlu.ui.TimerStatusUiPayload
+import com.asistente.celular.nlu.ui.ScreenCopilotGuideUiPayload
+import com.asistente.celular.nlu.ui.WebSearchUiPayload
+import com.asistente.celular.nlu.ui.AutomatedRoutineCreatedUiPayload
+import com.asistente.celular.nlu.ui.EpisodicProjectUiPayload
 import kotlin.math.roundToInt
 
 
@@ -217,6 +223,12 @@ fun AssistantInteractiveCard(
             is PcTaskApprovalUiPayload -> PcTaskApprovalCard(payload, onExecuteCommand)
             is AntigravityNavigatorUiPayload -> AntigravityNavigatorCard(payload, onExecuteCommand)
             is DawControlUiPayload -> DawControlCard(payload, onExecuteCommand)
+            is AiTrafficAuditUiPayload -> AiTrafficAuditCard(payload, onExecuteCommand)
+            is TimerStatusUiPayload -> TimerStatusCard(payload, onExecuteCommand)
+            is ScreenCopilotGuideUiPayload -> ScreenCopilotGuideCard(payload, onExecuteCommand)
+            is WebSearchUiPayload -> WebSearchCard(payload, onExecuteCommand)
+            is AutomatedRoutineCreatedUiPayload -> AutomatedRoutineCreatedCard(payload, onExecuteCommand)
+            is EpisodicProjectUiPayload -> EpisodicProjectCard(payload, onExecuteCommand)
         }
 
     }
@@ -2799,5 +2811,634 @@ fun PcTaskApprovalCard(
         onCancel = { onExecuteCommand("cancelar plan de pc") }
     )
 }
+
+/**
+ * Tarjeta interactiva para la Auditoría Local de Privacidad y Monitor de Tráfico de IA.
+ * Renderiza métricas de soberanía local, ratio offline vs nube, entidades PII protegidas y transacciones.
+ */
+@Composable
+fun AiTrafficAuditCard(
+    payload: AiTrafficAuditUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF0F172A)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Cabecera
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(Color(0xFF10B981).copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = "Privacidad IA",
+                        tint = Color(0xFF10B981),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Soberanía de Datos & IA",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Monitor local de privacidad en tiempo real",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Barra de progreso de soberanía
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ratio de Ejecución Local",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFFCBD5E1)
+                )
+                Text(
+                    text = "${payload.localRatioPercentage}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (payload.localRatioPercentage >= 70.0) Color(0xFF10B981) else Color(0xFFF59E0B)
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { (payload.localRatioPercentage / 100.0).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = if (payload.localRatioPercentage >= 70.0) Color(0xFF10B981) else Color(0xFFF59E0B),
+                trackColor = Color(0xFF1E293B)
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Fila de estadísticas
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AuditMetricChip(
+                    title = "Locales",
+                    value = "${payload.localRequests}",
+                    subtext = "NPU / Device",
+                    modifier = Modifier.weight(1f),
+                    accentColor = Color(0xFF10B981)
+                )
+                AuditMetricChip(
+                    title = "Nube",
+                    value = "${payload.cloudRequests}",
+                    subtext = "Gemini / API",
+                    modifier = Modifier.weight(1f),
+                    accentColor = Color(0xFF06B6D4)
+                )
+                AuditMetricChip(
+                    title = "PII Sanitizados",
+                    value = "${payload.piiProtectedCount}",
+                    subtext = "Protegidos",
+                    modifier = Modifier.weight(1f),
+                    accentColor = Color(0xFFA855F7)
+                )
+            }
+
+            if (payload.recentRecordsSummary.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Últimas Transacciones:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF94A3B8)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                payload.recentRecordsSummary.forEach { summaryText ->
+                    Text(
+                        text = "• $summaryText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE2E8F0),
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Botón para limpiar
+            OutlinedButton(
+                onClick = { onExecuteCommand("limpiar auditoría de IA") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFF94A3B8)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(text = "Limpiar Registro de Auditoría", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuditMetricChip(
+    title: String,
+    value: String,
+    subtext: String,
+    modifier: Modifier = Modifier,
+    accentColor: Color
+) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFF1E293B), RoundedCornerShape(12.dp))
+            .border(1.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .padding(8.dp)
+    ) {
+        Column {
+            Text(text = title, style = MaterialTheme.typography.labelSmall, color = Color(0xFF94A3B8))
+            Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = accentColor)
+            Text(text = subtext, style = MaterialTheme.typography.labelSmall, color = Color(0xFF64748B))
+        }
+    }
+}
+
+@Composable
+fun TimerStatusCard(
+    payload: TimerStatusUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    val total = if (payload.totalDurationSeconds > 0) payload.totalDurationSeconds else 1L
+    val progress = (payload.remainingSeconds.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+    val mins = payload.remainingSeconds / 60
+    val secs = payload.remainingSeconds % 60
+    val timeFormatted = String.format("%02d:%02d", mins, secs)
+
+    val stateColor = when {
+        payload.isRinging -> Color(0xFFEF4444)
+        payload.state == com.asistente.celular.nlu.timer.TimerState.PAUSED -> Color(0xFFF59E0B)
+        else -> Color(0xFF06B6D4)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, stateColor.copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Timer,
+                        contentDescription = null,
+                        tint = stateColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = payload.label.ifBlank { "Temporizador" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .background(stateColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = when {
+                            payload.isRinging -> "¡ALERTA!"
+                            payload.state == com.asistente.celular.nlu.timer.TimerState.PAUSED -> "PAUSADO"
+                            else -> "CORRIENDO"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = stateColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Display grande de tiempo
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = timeFormatted,
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Black,
+                    color = stateColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                color = stateColor,
+                trackColor = Color(0xFF334155),
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botones de acción rápida
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (payload.isRinging) {
+                    Button(
+                        onClick = { onExecuteCommand("apaga la alarma") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Detener Alarma", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    if (payload.state == com.asistente.celular.nlu.timer.TimerState.RUNNING) {
+                        OutlinedButton(
+                            onClick = { onExecuteCommand("pausa el temporizador") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B))
+                        ) {
+                            Icon(Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Pausar")
+                        }
+                    } else {
+                        Button(
+                            onClick = { onExecuteCommand("reanuda el temporizador") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reanudar")
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { onExecuteCommand("cancela el temporizador") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF64748B)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8))
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Cancelar")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScreenCopilotGuideCard(
+    payload: ScreenCopilotGuideUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B132B)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF8B5CF6).copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "👁️", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AI Screen Copilot",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                val activeWin = payload.activeWindow
+                if (!activeWin.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = activeWin.take(24),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFA78BFA)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = payload.guidanceTitle,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFE2E8F0)
+            )
+
+            if (!payload.targetAreaDescription.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1B4B), RoundedCornerShape(10.dp))
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = "📍 Ubicación: ${payload.targetAreaDescription}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFC7D2FE)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Pasos guiados
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                payload.guidanceSteps.forEachIndexed { idx, step ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .background(Color(0xFF8B5CF6), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${idx + 1}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = step,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+                }
+            }
+
+            if (!payload.recommendedShortcut.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = { onExecuteCommand("presiona ${payload.recommendedShortcut} en la pc") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                ) {
+                    Text("Ejecutar Atajo: ${payload.recommendedShortcut}", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WebSearchCard(
+    payload: WebSearchUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🌐", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Investigación en Internet",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = payload.spokenAnswer,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFFE2E8F0)
+            )
+
+            if (payload.sources.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Fuentes consultadas:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF94A3B8)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    payload.sources.take(3).forEach { src ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = src.title.take(35),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF38BDF8)
+                            )
+                            Text(
+                                text = src.sourceName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AutomatedRoutineCreatedCard(
+    payload: AutomatedRoutineCreatedUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "⚡", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = payload.routineName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text("ACTIVA", style = MaterialTheme.typography.labelSmall, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Disparador: ${payload.triggerSummary}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFA7F3D0)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                payload.actionsSummary.forEach { act ->
+                    Text(text = "• $act", style = MaterialTheme.typography.bodySmall, color = Color(0xFFCBD5E1))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Button(
+                onClick = { onExecuteCommand("ejecutar rutina ${payload.routineName}") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+            ) {
+                Text("Probar Rutina Ahora", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun EpisodicProjectCard(
+    payload: EpisodicProjectUiPayload,
+    onExecuteCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFEC4899).copy(alpha = 0.6f))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "🎨", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = payload.appName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Text(
+                    text = payload.lastActiveFormatted,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFF472B6)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Proyecto: ${payload.projectName}",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFCE7F3)
+            )
+
+            val path = payload.filePath
+            if (!path.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = path,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Button(
+                onClick = { onExecuteCommand("abrir proyecto ${payload.projectName} en la pc") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEC4899))
+            ) {
+                Text("Reanudar Proyecto en PC", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 
 

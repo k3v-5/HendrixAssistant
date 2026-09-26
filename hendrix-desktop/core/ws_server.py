@@ -246,6 +246,7 @@ async def handle_client(websocket):
     client_ip = websocket.remote_address[0]
     log_activity(f"Nueva conexión entrante desde {client_ip}")
     active_websockets.add(websocket)
+    authenticated_token = None
 
     try:
         async for message in websocket:
@@ -256,6 +257,23 @@ async def handle_client(websocket):
                     continue
 
                 msg_type = data.get("type", "")
+
+                # Verificación criptográfica HMAC-SHA256 y Anti-Replay si está autenticado
+                if authenticated_token and msg_type != "HELLO_PAIR":
+                    if "_sig" in data or getattr(config, "require_signed_requests", False):
+                        is_valid, reason = SecurityGuard.verify_action_signature(data, authenticated_token)
+                        if not is_valid:
+                            if msg_type in ("SNAPSHOT_REQUEST", "TELEMETRY_REQUEST", "GET_OPEN_WINDOWS"):
+                                log_activity(f"⚠️ Alerta en firma de [{msg_type}]: {reason} (Permitido por sesión autenticada)")
+                            else:
+                                log_activity(f"🛡️ Petición rechazada por seguridad [{msg_type}]: {reason}")
+                                await websocket.send(json.dumps({
+                                    "type": "SECURITY_ERROR",
+                                    "action": msg_type,
+                                    "error": "UNAUTHORIZED_SIGNATURE",
+                                    "message": reason
+                                }))
+                                continue
 
                 # 1. Emparejamiento inicial
                 if msg_type == "HELLO_PAIR":
@@ -271,6 +289,7 @@ async def handle_client(websocket):
                         websocket=websocket
                     )
                     if auth_token:
+                        authenticated_token = auth_token
                         log_activity(f"✅ Dispositivo emparejado con éxito: {dev_name}")
                         ack = {
                             "type": "HELLO_ACK",
@@ -292,6 +311,7 @@ async def handle_client(websocket):
                 # 2. Solicitud de Snapshot WebP
                 elif msg_type == "SNAPSHOT_REQUEST":
                     if not SecurityGuard.can_capture_screen():
+                        log_activity("⚠️ Captura de pantalla deshabilitada en ajustes (allow_screen_capture=false)")
                         continue
                     crop_to_active = data.get("cropToActiveWindow", False)
                     quality = data.get("quality", 75)

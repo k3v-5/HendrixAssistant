@@ -36,12 +36,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -99,6 +102,17 @@ fun PcRemoteWorkspaceScreen(
     }
     BackHandler(enabled = !anyPcRemoteDialog) {
         onBack()
+    }
+
+    // Transmisión continua fluida de pantalla mientras la pantalla esté activa y conectada
+    LaunchedEffect(isConnected, isFocusWindowActive) {
+        if (isConnected) {
+            pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+            while (isActive) {
+                delay(1000L)
+                pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+            }
+        }
     }
 
     Scaffold(

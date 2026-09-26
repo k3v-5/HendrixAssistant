@@ -121,6 +121,12 @@ class AssistantDialogActivity : ComponentActivity() {
         val factory = com.asistente.celular.di.AssistantSkillFactory(this, lifecycleScope)
         val activeLlmConfig = settingsRepo.loadLlmConfig()
 
+        val earconEngine = factory.earconEngine
+        val followUpCoordinator = com.asistente.celular.ui.followup.AssistantFollowUpCoordinator(
+            scope = lifecycleScope,
+            earconEngine = earconEngine
+        )
+
         var lastOutput: SkillOutput? = null
 
         val skillContext = object : SkillContext {
@@ -145,9 +151,12 @@ class AssistantDialogActivity : ComponentActivity() {
             AsistenteTheme {
                 FloatingAssistantBottomSheet(
                     initialCommand = initialCommand,
+                    followUpCoordinator = followUpCoordinator,
+                    isSpeakingProvider = { ttsEngine.isSpeaking },
                     onDismiss = { finish() },
                     onStartListening = { onStart, onPartial, onFinal, onError ->
                         hapticManager.vibrateStartListening()
+                        earconEngine.playEarcon(com.asistente.celular.voice.earcon.EarconType.WAKE_WORD_PING)
                         sttEngine.startListening(onPartial, onFinal, onError)
                     },
                     onStopListening = { sttEngine.stopListening() },
@@ -157,24 +166,12 @@ class AssistantDialogActivity : ComponentActivity() {
                             lastOutput = output
                             if (output.success) {
                                 hapticManager.vibrateSuccess()
+                                earconEngine.playEarcon(com.asistente.celular.voice.earcon.EarconType.SUCCESS_CONFIRMATION)
                             } else {
                                 hapticManager.vibrateError()
+                                earconEngine.playEarcon(com.asistente.celular.voice.earcon.EarconType.ERROR_ALERT)
                             }
                             onDone(output)
-
-                            // Si la habilidad requiere reabrir el micrófono (multi-turno), mantener la actividad abierta
-                            if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
-                                // No cerramos la actividad flotante
-                            } else if (output.payload is AssistantUiPayload) {
-                                // Dejar la actividad flotante abierta para que el usuario interactúe con los controles táctiles
-                            } else {
-                                // Esperar a que termine de hablar antes de cerrar
-                                while (ttsEngine.isSpeaking) {
-                                    delay(150)
-                                }
-                                delay(1000)
-                                finish()
-                            }
                         }
                     },
                     onRequestBrightnessPermission = {
@@ -187,6 +184,7 @@ class AssistantDialogActivity : ComponentActivity() {
                         }
                     },
                     onStopSpeech = {
+                        followUpCoordinator.cancel()
                         ttsEngine.stop()
                         finish()
                     }
@@ -222,6 +220,8 @@ class AssistantDialogActivity : ComponentActivity() {
 @Composable
 fun FloatingAssistantBottomSheet(
     initialCommand: String? = null,
+    followUpCoordinator: com.asistente.celular.ui.followup.AssistantFollowUpCoordinator? = null,
+    isSpeakingProvider: (() -> Boolean)? = null,
     onDismiss: () -> Unit,
     onStartListening: (onStart: () -> Unit, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (Throwable) -> Unit) -> Unit,
     onStopListening: () -> Unit,
@@ -237,10 +237,51 @@ fun FloatingAssistantBottomSheet(
     val scope = rememberCoroutineScope()
 
     BackHandler {
+        followUpCoordinator?.cancel()
         onDismiss()
     }
 
-    fun startListenSession() {
+    var startListenSession: () -> Unit = {}
+
+    fun handleCompletion(cmd: String, output: SkillOutput) {
+        isProcessing = false
+        resultOutput = output
+        statusText = if (output.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
+
+        if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
+            scope.launch {
+                delay(500)
+                startListenSession()
+            }
+        } else if (output.payload is AssistantUiPayload) {
+            // Dejar la actividad flotante abierta para que el usuario interactúe con los controles táctiles
+        } else if (followUpCoordinator != null && !followUpCoordinator.isClosingPhrase(cmd)) {
+            scope.launch {
+                while (isSpeakingProvider?.invoke() == true) {
+                    delay(120)
+                }
+                statusText = "Te escucho (Modo Continuación)…"
+                followUpCoordinator.startFollowUpWindow(
+                    onListenAgain = {
+                        startListenSession()
+                    },
+                    onDismiss = {
+                        onDismiss()
+                    }
+                )
+            }
+        } else {
+            scope.launch {
+                while (isSpeakingProvider?.invoke() == true) {
+                    delay(120)
+                }
+                delay(800)
+                onDismiss()
+            }
+        }
+    }
+
+    startListenSession = {
         isListening = true
         statusText = "Escuchando…"
         onStartListening(
@@ -252,15 +293,7 @@ fun FloatingAssistantBottomSheet(
                 isProcessing = true
                 statusText = "Analizando…"
                 onProcessCommand(final) { output ->
-                    isProcessing = false
-                    resultOutput = output
-                    statusText = if (output.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
-                    if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
-                        scope.launch {
-                            delay(500)
-                            startListenSession()
-                        }
-                    }
+                    handleCompletion(final, output)
                 }
             },
             { error ->
@@ -287,15 +320,7 @@ fun FloatingAssistantBottomSheet(
             isProcessing = true
             statusText = "Analizando…"
             onProcessCommand(initialCommand) { output ->
-                isProcessing = false
-                resultOutput = output
-                statusText = if (output.handledByAi) "Hendrix (IA)" else "Hendrix (Local)"
-                if (output.interactionPlan is com.asistente.celular.nlu.skill.InteractionPlan.ReopenMicrophone) {
-                    scope.launch {
-                        delay(500)
-                        startListenSession()
-                    }
-                }
+                handleCompletion(initialCommand, output)
             }
         } else {
             startListenSession()
