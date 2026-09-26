@@ -152,6 +152,7 @@ object PcModuleRegistry {
         description = "Suite integral de modelado, animación, renderizado y efectos visuales 3D.",
         accentColorHex = 0xFFEA580C,
         quickMacros = listOf(
+            PcQuickMacro("LAUNCH_BLENDER", "Lanzar Blender", "🚀", null, 0xFFEA580C),
             PcQuickMacro("RENDER_IMAGE", "Render Imagen", "🖼️", "F12", 0xFF10B981),
             PcQuickMacro("RENDER_ANIM", "Render Video", "🎞️", "Ctrl+F12", 0xFFEF4444),
             PcQuickMacro("TOGGLE_SHADING", "Sombreado", "🔮", "Z", 0xFF8B5CF6),
@@ -172,6 +173,7 @@ object PcModuleRegistry {
         description = "Motor de videojuegos y gráficos fotorrealistas en tiempo real de Epic Games.",
         accentColorHex = 0xFF0284C7,
         quickMacros = listOf(
+            PcQuickMacro("LAUNCH_UNREAL", "Lanzar UE5", "🚀", null, 0xFF0284C7),
             PcQuickMacro("PLAY_IN_EDITOR", "Play (PIE)", "▶️", "Alt+P", 0xFF10B981),
             PcQuickMacro("SIMULATE", "Simular", "⚙️", "Alt+S", 0xFFF59E0B),
             PcQuickMacro("STOP_SIMULATION", "Detener", "⏹️", "Esc", 0xFFEF4444),

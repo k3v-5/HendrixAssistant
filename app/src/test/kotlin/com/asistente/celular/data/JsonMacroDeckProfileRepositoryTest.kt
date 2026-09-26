@@ -50,6 +50,7 @@ class JsonMacroDeckProfileRepositoryTest {
         assertEquals(MacroDeckProfileRegistry.ALL_PROFILES.size, initialProfiles.size)
         assertNotNull(repo.getProfileById("profile_blender"))
         assertNotNull(repo.getProfileById("profile_code"))
+        assertNotNull(repo.getProfileById("profile_unreal"))
     }
 
     @Test
@@ -58,29 +59,29 @@ class JsonMacroDeckProfileRepositoryTest {
         repo.initJob.join()
 
         val customProfile = MacroDeckProfile(
-            id = "profile_unreal",
-            name = "Unreal Engine 5",
-            iconEmoji = "🎮",
-            targetProcessRegex = "(?i).*unrealeditor.*",
-            headerSubtitle = "Superficie de Control de Nivel y Luces",
-            themeAccentColorHex = 0xFF00E5FF,
+            id = "profile_godot",
+            name = "Godot Engine 4",
+            iconEmoji = "🤖",
+            targetProcessRegex = "(?i).*godot.*",
+            headerSubtitle = "Superficie de Control de Nivel y Escenas",
+            themeAccentColorHex = 0xFF478CBF,
             controls = listOf(
                 MacroDeckControl.MacroButton(
-                    id = "ue_play",
-                    label = "Play PIE",
+                    id = "gd_play",
+                    label = "Play Escena",
                     iconEmoji = "▶️",
-                    colorHex = 0xFF00E5FF,
-                    action = MacroDeckAction.ShortcutAction("Alt+P", "Play in Editor")
+                    colorHex = 0xFF478CBF,
+                    action = MacroDeckAction.ShortcutAction("F5", "Play Project")
                 ),
                 MacroDeckControl.MacroFader(
-                    id = "ue_exposure",
-                    label = "Exposición",
-                    iconEmoji = "☀️",
+                    id = "gd_zoom",
+                    label = "Zoom 2D",
+                    iconEmoji = "🔍",
                     colorHex = 0xFFF59E0B,
-                    targetParameter = "ev_bias",
-                    minValue = -4f,
+                    targetParameter = "zoom",
+                    minValue = 0.1f,
                     maxValue = 4f,
-                    initialValue = 0f
+                    initialValue = 1f
                 )
             )
         )
@@ -89,11 +90,11 @@ class JsonMacroDeckProfileRepositoryTest {
 
         val updatedProfiles = repo.profiles.value
         assertEquals(MacroDeckProfileRegistry.ALL_PROFILES.size + 1, updatedProfiles.size)
-        assertEquals("Unreal Engine 5", repo.getProfileById("profile_unreal")?.name)
+        assertEquals("Godot Engine 4", repo.getProfileById("profile_godot")?.name)
 
         // Comprobar coincidencia dinámica de proceso
-        val matched = repo.findProfileForProcess("C:\\Unreal\\Binaries\\UnrealEditor.exe")
-        assertEquals("profile_unreal", matched.id)
+        val matched = repo.findProfileForProcess("C:\\Godot\\Godot_v4.2.exe")
+        assertEquals("profile_godot", matched.id)
         assertEquals(2, matched.controls.size)
     }
 

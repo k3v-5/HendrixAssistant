@@ -119,6 +119,10 @@ class PcModuleControlSkill(
             lower.contains("blender") -> {
                 moduleId = PcModuleId.BLENDER
                 when {
+                    lower.contains("lanza") || lower.contains("lanzar") || lower.contains("abre") || lower.contains("abrir") || lower.contains("inicia") || lower.contains("iniciar") || lower.contains("ejecuta") -> {
+                        actionId = "LAUNCH_BLENDER"
+                        speechText = "Iniciando Blender 3D en la PC."
+                    }
                     lower.contains("animacion") || lower.contains("video") -> {
                         actionId = "RENDER_ANIM"
                         speechText = "Renderizado de animación iniciado en Blender."
@@ -150,6 +154,10 @@ class PcModuleControlSkill(
             lower.contains("unreal") -> {
                 moduleId = PcModuleId.UNREAL_ENGINE
                 when {
+                    lower.contains("lanza") || lower.contains("lanzar") || lower.contains("abre") || lower.contains("abrir") || lower.contains("inicia") || lower.contains("iniciar") || lower.contains("ejecuta") -> {
+                        actionId = "LAUNCH_UNREAL"
+                        speechText = "Iniciando Unreal Engine 5 en la PC."
+                    }
                     lower.contains("simular") -> {
                         actionId = "SIMULATE"
                         speechText = "Iniciando simulación en Unreal Engine."

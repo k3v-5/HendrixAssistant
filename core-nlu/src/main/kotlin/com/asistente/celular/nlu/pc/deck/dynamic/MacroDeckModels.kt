@@ -142,6 +142,25 @@ object MacroDeckProfileRegistry {
         )
     )
 
+    val UNREAL_ENGINE_PROFILE = MacroDeckProfile(
+        id = "profile_unreal",
+        name = "Unreal Engine 5",
+        iconEmoji = "🎮",
+        targetProcessRegex = "(?i).*(unrealeditor|unrealengine).*",
+        headerSubtitle = "Superficie de Control de Nivel y Simulación UE5",
+        themeAccentColorHex = 0xFF0284C7,
+        controls = listOf(
+            MacroDeckControl.MacroButton("ue_launch", "Lanzar UE5", "🚀", 0xFF0284C7, MacroDeckAction.QuickCommandAction("launch:unreal")),
+            MacroDeckControl.MacroButton("ue_play", "Play (PIE)", "▶️", 0xFF10B981, MacroDeckAction.ShortcutAction("Alt+P", "Play In Editor")),
+            MacroDeckControl.MacroButton("ue_simulate", "Simular", "⚙️", 0xFFF59E0B, MacroDeckAction.ShortcutAction("Alt+S", "Simular")),
+            MacroDeckControl.MacroButton("ue_stop", "Detener", "⏹️", 0xFFEF4444, MacroDeckAction.ShortcutAction("Esc", "Detener")),
+            MacroDeckControl.MacroButton("ue_content", "Content Drawer", "📁", 0xFF3B82F6, MacroDeckAction.ShortcutAction("Ctrl+Space", "Content Drawer")),
+            MacroDeckControl.MacroButton("ue_save_all", "Guardar Todo", "💾", 0xFF6366F1, MacroDeckAction.ShortcutAction("Ctrl+Shift+S", "Guardar Todo")),
+            MacroDeckControl.MacroButton("ue_build", "Compilar", "🏗️", 0xFF8B5CF6, MacroDeckAction.ShortcutAction("Ctrl+Shift+;", "Compilar Nivel")),
+            MacroDeckControl.MacroButton("ue_focus", "Enfocar Actor", "🎯", 0xFF06B6D4, MacroDeckAction.ShortcutAction("F", "Enfocar"))
+        )
+    )
+
     val DEFAULT_DESKTOP_PROFILE = MacroDeckProfile(
         id = "profile_default",
         name = "Escritorio General",
@@ -150,6 +169,7 @@ object MacroDeckProfileRegistry {
         headerSubtitle = "Centro de Productividad de Windows",
         themeAccentColorHex = 0xFF6366F1,
         controls = listOf(
+            MacroDeckControl.MacroButton("sys_launch_unreal", "Lanzar Unreal", "🎮", 0xFF0284C7, MacroDeckAction.QuickCommandAction("launch:unreal"), subtitle = "UE5"),
             MacroDeckControl.MacroButton("sys_vol_mute", "Silenciar", "🔇", 0xFFEF4444, MacroDeckAction.QuickCommandAction("volume_mute")),
             MacroDeckControl.MacroButton("sys_play_pause", "Media Play", "⏯️", 0xFF10B981, MacroDeckAction.QuickCommandAction("media_play_pause")),
             MacroDeckControl.MacroButton("sys_next_track", "Siguiente", "⏭️", 0xFF3B82F6, MacroDeckAction.QuickCommandAction("media_next")),
@@ -159,6 +179,7 @@ object MacroDeckProfileRegistry {
     )
 
     val ALL_PROFILES = listOf(
+        UNREAL_ENGINE_PROFILE,
         BLENDER_PROFILE,
         ABLETON_PROFILE,
         VIDEO_EDIT_PROFILE,

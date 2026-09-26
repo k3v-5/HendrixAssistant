@@ -3,6 +3,8 @@ import time
 import subprocess
 import ctypes
 import pyautogui
+import json
+from typing import Optional
 from core.security_guard import SecurityGuard
 
 KNOWN_APPS = {
@@ -22,8 +24,53 @@ KNOWN_APPS = {
     "powershell": "powershell",
     "cmd": "cmd",
     "steam": "steam",
-    "explorador": "explorer"
+    "explorador": "explorer",
+    "blender": "blender",
+    "unreal": "unreal",
+    "unreal engine": "unreal",
+    "unreal engine 5": "unreal",
+    "ue5": "unreal",
+    "epic games": "epic games"
 }
+
+
+def find_unreal_engine_path() -> Optional[str]:
+    """
+    Localiza de manera inteligente el ejecutable UnrealEditor.exe inspeccionando
+    los manifiestos de Epic Games y las rutas habituales de instalación en Windows.
+    """
+    # 1. Inspeccionar manifiestos de Epic Games Launcher
+    manifest_dir = r"C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests"
+    if os.path.isdir(manifest_dir):
+        try:
+            for item_file in os.listdir(manifest_dir):
+                if item_file.endswith(".item"):
+                    full_item = os.path.join(manifest_dir, item_file)
+                    try:
+                        with open(full_item, "r", encoding="utf-8") as fp:
+                            data = json.load(fp)
+                            if data.get("DisplayName") == "Unreal Engine" or "engines/ue5" in data.get("AppCategories", []):
+                                install_loc = data.get("InstallLocation", "")
+                                launch_exe = data.get("LaunchExecutable", "Engine/Binaries/Win64/UnrealEditor.exe")
+                                candidate = os.path.normpath(os.path.join(install_loc, launch_exe))
+                                if os.path.isfile(candidate):
+                                    return candidate
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+    # 2. Búsqueda en rutas estándar a través de los discos disponibles
+    for drive in ["E", "D", "C", "F"]:
+        for version in ["5.8", "5.7", "5.6", "5.5", "5.4", "5.3", "5.2", "5.1", "5.0"]:
+            p1 = rf"{drive}:\UE\UE_{version}\Engine\Binaries\Win64\UnrealEditor.exe"
+            if os.path.isfile(p1):
+                return p1
+            p2 = rf"{drive}:\Program Files\Epic Games\UE_{version}\Engine\Binaries\Win64\UnrealEditor.exe"
+            if os.path.isfile(p2):
+                return p2
+
+    return None
 
 class UiaManager:
     def execute_quick_command(self, command: str) -> bool:
@@ -76,7 +123,43 @@ class UiaManager:
         return False
 
     def launch_app(self, app_query: str) -> bool:
-        app_target = KNOWN_APPS.get(app_query.lower(), app_query)
+        clean_query = app_query.lower().strip()
+
+        # Caso especial: Unreal Engine
+        if clean_query in ["unreal", "unreal engine", "unreal engine 5", "ue5"]:
+            ue_path = find_unreal_engine_path()
+            if ue_path and os.path.isfile(ue_path):
+                try:
+                    subprocess.Popen([ue_path])
+                    return True
+                except Exception:
+                    pass
+            # Intentar protocolo de Epic Games Launcher
+            try:
+                os.startfile("com.epicgames.launcher://apps/UE_5.8?action=launch&silent=true")
+                return True
+            except Exception:
+                try:
+                    os.startfile("com.epicgames.launcher://")
+                    return True
+                except Exception:
+                    pass
+
+        # Caso especial: Blender
+        if clean_query in ["blender", "blender 3d"]:
+            for drive in ["C", "D", "E", "F"]:
+                bp = rf"{drive}:\Program Files\Blender Foundation"
+                if os.path.isdir(bp):
+                    for folder in os.listdir(bp):
+                        b_exe = os.path.join(bp, folder, "blender.exe")
+                        if os.path.isfile(b_exe):
+                            try:
+                                subprocess.Popen([b_exe])
+                                return True
+                            except Exception:
+                                pass
+
+        app_target = KNOWN_APPS.get(clean_query, app_query)
         try:
             os.startfile(app_target)
             return True

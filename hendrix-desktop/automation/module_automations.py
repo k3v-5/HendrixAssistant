@@ -169,8 +169,18 @@ class BlenderController(BaseModuleController):
         )
 
     def execute(self, action: str) -> Dict[str, Any]:
-        self.focus_window()
         action = action.upper()
+
+        if action in ["LAUNCH", "LAUNCH_BLENDER", "LAUNCH_APP", "OPEN"]:
+            if self.focus_window():
+                return {"success": True, "message": "Blender 3D enfocado en primer plano"}
+            from automation.uia_manager import UiaManager
+            success = UiaManager().launch_app("blender")
+            if success:
+                return {"success": True, "message": "Iniciando Blender 3D en la PC"}
+            return {"success": False, "message": "No se pudo iniciar Blender 3D"}
+
+        self.focus_window()
 
         if action == "RENDER_IMAGE":
             pyautogui.press("f12")
@@ -212,8 +222,18 @@ class UnrealEngineController(BaseModuleController):
         )
 
     def execute(self, action: str) -> Dict[str, Any]:
-        self.focus_window()
         action = action.upper()
+
+        if action in ["LAUNCH", "LAUNCH_UNREAL", "LAUNCH_APP", "OPEN"]:
+            if self.focus_window():
+                return {"success": True, "message": "Unreal Engine enfocado en primer plano"}
+            from automation.uia_manager import UiaManager
+            success = UiaManager().launch_app("unreal")
+            if success:
+                return {"success": True, "message": "Iniciando Unreal Engine 5 en la PC"}
+            return {"success": False, "message": "No se pudo localizar el ejecutable de Unreal Engine 5"}
+
+        self.focus_window()
 
         if action == "PLAY_IN_EDITOR":
             pyautogui.hotkey("alt", "p")

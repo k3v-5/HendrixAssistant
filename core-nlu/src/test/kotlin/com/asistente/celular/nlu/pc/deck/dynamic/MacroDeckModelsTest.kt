@@ -23,10 +23,24 @@ class MacroDeckModelsTest {
         val dev = MacroDeckProfileRegistry.DEV_PROFILE
         assertEquals("profile_code", dev.id)
         assertTrue(dev.controls.isNotEmpty())
+
+        val unreal = MacroDeckProfileRegistry.UNREAL_ENGINE_PROFILE
+        assertEquals("profile_unreal", unreal.id)
+        assertTrue(unreal.controls.isNotEmpty())
     }
 
     @Test
     fun testFindProfileForProcess() {
+        assertEquals(
+            MacroDeckProfileRegistry.UNREAL_ENGINE_PROFILE.id,
+            MacroDeckProfileRegistry.findProfileForProcess("unrealeditor.exe").id
+        )
+
+        assertEquals(
+            MacroDeckProfileRegistry.UNREAL_ENGINE_PROFILE.id,
+            MacroDeckProfileRegistry.findProfileForProcess("E:\\UE\\UE_5.8\\Engine\\Binaries\\Win64\\UnrealEditor.exe").id
+        )
+
         assertEquals(
             MacroDeckProfileRegistry.BLENDER_PROFILE.id,
             MacroDeckProfileRegistry.findProfileForProcess("blender.exe").id

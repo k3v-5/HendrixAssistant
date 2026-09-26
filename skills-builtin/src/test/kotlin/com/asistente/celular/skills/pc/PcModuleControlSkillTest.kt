@@ -132,13 +132,17 @@ class PcModuleControlSkillTest {
 
         // 2. Simular
         val scoreSim = skill.score(dummyContext, "simular en unreal")
-        skill.execute(dummyContext, "simular en unreal", scoreSim)
-        assertEquals("SIMULATE", bridge.lastModuleRequest?.actionId)
-
         // 3. Detener
         val scoreStop = skill.score(dummyContext, "deten la simulacion en unreal")
         skill.execute(dummyContext, "deten la simulacion en unreal", scoreStop)
         assertEquals("STOP_SIMULATION", bridge.lastModuleRequest?.actionId)
+
+        // 4. Lanzar Unreal Engine
+        val scoreLaunch = skill.score(dummyContext, "lanza unreal")
+        val outLaunch = skill.execute(dummyContext, "lanza unreal", scoreLaunch)
+        assertEquals(PcModuleId.UNREAL_ENGINE, bridge.lastModuleRequest?.moduleId)
+        assertEquals("LAUNCH_UNREAL", bridge.lastModuleRequest?.actionId)
+        assertTrue(outLaunch.speech.contains("Unreal Engine 5"))
     }
 
     @Test

@@ -1280,6 +1280,82 @@ private fun DeckMacrosTabContent(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    // Lanzadores Rápidos de Software (Unreal Engine, Blender, VS Code, Terminal)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Lanzar en PC",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Acceso Rápido",
+                            fontSize = 10.sp,
+                            color = TextMuted
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        QuickAppLaunchButton(
+                            emoji = "🎮",
+                            label = "Lanzar Unreal",
+                            accentColor = Color(0xFF0284C7),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("launch:unreal")
+                                    onShowSnackbar("Iniciando Unreal Engine en la PC...")
+                                }
+                            }
+                        )
+                        QuickAppLaunchButton(
+                            emoji = "🧊",
+                            label = "Blender",
+                            accentColor = Color(0xFFEA580C),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("launch:blender")
+                                    onShowSnackbar("Iniciando Blender en la PC...")
+                                }
+                            }
+                        )
+                        QuickAppLaunchButton(
+                            emoji = "💻",
+                            label = "VS Code",
+                            accentColor = Color(0xFF38BDF8),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("launch:code")
+                                    onShowSnackbar("Iniciando VS Code...")
+                                }
+                            }
+                        )
+                        QuickAppLaunchButton(
+                            emoji = "📟",
+                            label = "Terminal",
+                            accentColor = Color(0xFF10B981),
+                            onClick = {
+                                scope.launch {
+                                    pcBridge.executeQuickCommand("launch:wt")
+                                    onShowSnackbar("Iniciando Terminal...")
+                                }
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     // Multimedia & Volumen
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1598,6 +1674,38 @@ private fun QuickActionButton(
                 color = TextSecondary,
                 maxLines = 1,
                 fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickAppLaunchButton(
+    emoji: String,
+    label: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = VoidSurfaceElevated,
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = emoji, fontSize = 15.sp)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = TextPrimary,
+                maxLines = 1,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
