@@ -11,6 +11,7 @@ from ui.theme import (
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
     COLOR_TEXT_MUTED,
+    FONT_FAMILY,
     FONT_TITLE,
     FONT_BODY,
     FONT_BODY_BOLD,
@@ -83,7 +84,8 @@ class PluginsManagerView(tk.Frame):
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        canvas.create_window((0, 0), window=self.scroll_content, anchor="nw", width=620)
+        self.canvas_window = canvas.create_window((0, 0), window=self.scroll_content, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(self.canvas_window, width=max(400, e.width - 12)))
         canvas.configure(yscrollcommand=scrollbar.set)
 
         canvas.pack(side="left", fill="both", expand=True, padx=(16, 4), pady=(0, 12))
@@ -97,67 +99,107 @@ class PluginsManagerView(tk.Frame):
 
         plugins = list(plugin_engine.plugins.values())
         if not plugins:
-            empty_lbl = ttk.Label(
+            empty_frame = tk.Frame(
                 self.scroll_content,
-                text="No se detectaron plugins en la carpeta 'plugins/'.\nCrea un archivo 'plugin_*.py' siguiendo la documentación.",
-                font=FONT_BODY_ITALIC,
-                foreground=COLOR_TEXT_MUTED
+                background=COLOR_VOID_SURFACE_ELEVATED,
+                highlightbackground=COLOR_VOID_BORDER,
+                highlightthickness=1,
+                padx=16,
+                pady=16
             )
-            empty_lbl.pack(anchor="w", pady=12)
+            empty_frame.pack(fill="x", pady=12)
+
+            empty_title = tk.Label(
+                empty_frame,
+                text="No se detectaron plugins en la carpeta 'plugins/'",
+                font=FONT_BODY_BOLD,
+                foreground=COLOR_TEXT_PRIMARY,
+                background=COLOR_VOID_SURFACE_ELEVATED
+            )
+            empty_title.pack(anchor="w")
+
+            empty_lbl = tk.Label(
+                empty_frame,
+                text="Agrega scripts en Python (ej. 'plugin_mi_script.py') que hereden de HendrixPlugin para extender el asistente.",
+                font=FONT_BODY,
+                foreground=COLOR_TEXT_SECONDARY,
+                background=COLOR_VOID_SURFACE_ELEVATED
+            )
+            empty_lbl.pack(anchor="w", pady=(4, 0))
             return
 
         for plugin in plugins:
             self._render_plugin_card(plugin)
 
     def _render_plugin_card(self, plugin):
-        card = ttk.Frame(self.scroll_content, style="Card.TFrame")
+        card = tk.Frame(
+            self.scroll_content,
+            background=COLOR_VOID_SURFACE_ELEVATED,
+            highlightbackground=COLOR_VOID_BORDER,
+            highlightthickness=1
+        )
         card.pack(fill="x", pady=(0, 10))
 
-        header = ttk.Frame(card, style="Card.TFrame")
+        header = tk.Frame(card, background=COLOR_VOID_SURFACE_ELEVATED)
         header.pack(fill="x", padx=14, pady=(10, 4))
 
-        # Pill identificador o icono estilizado
-        icon_text = getattr(plugin, "icon_emoji", "") or "Plugin"
+        # Icono o emoji representativo
+        icon_text = getattr(plugin, "icon_emoji", "") or "⚡"
         icon_lbl = tk.Label(
             header,
             text=icon_text,
-            font=FONT_BODY_BOLD,
+            font=(FONT_FAMILY, 14),
             foreground=COLOR_NEON_LILAC,
             background=COLOR_VOID_SURFACE_ELEVATED
         )
-        icon_lbl.pack(side="left", padx=(0, 8))
+        icon_lbl.pack(side="left", padx=(0, 10))
 
-        info_box = ttk.Frame(header, style="Card.TFrame")
+        info_box = tk.Frame(header, background=COLOR_VOID_SURFACE_ELEVATED)
         info_box.pack(side="left", fill="x", expand=True)
 
+        name_row = tk.Frame(info_box, background=COLOR_VOID_SURFACE_ELEVATED)
+        name_row.pack(anchor="w", fill="x")
+
         name_lbl = tk.Label(
-            info_box,
-            text=f"{plugin.name} (v{plugin.version})",
+            name_row,
+            text=plugin.name,
             font=FONT_BODY_BOLD,
             foreground=COLOR_TEXT_PRIMARY,
             background=COLOR_VOID_SURFACE_ELEVATED
         )
-        name_lbl.pack(anchor="w")
+        name_lbl.pack(side="left")
+
+        ver_lbl = tk.Label(
+            name_row,
+            text=f"v{plugin.version}",
+            font=FONT_CAPTION,
+            foreground=COLOR_NEON_LILAC,
+            background=COLOR_VOID_SURFACE,
+            padx=5,
+            pady=1
+        )
+        ver_lbl.pack(side="left", padx=(6, 0))
 
         author_lbl = tk.Label(
             info_box,
-            text=f"Por: {plugin.author} | Categoría: {plugin.category}",
+            text=f"Por: {plugin.author}  •  Categoría: {plugin.category}",
             font=FONT_CAPTION,
             foreground=COLOR_TEXT_MUTED,
             background=COLOR_VOID_SURFACE_ELEVATED
         )
-        author_lbl.pack(anchor="w")
+        author_lbl.pack(anchor="w", pady=(2, 0))
 
-        desc_lbl = tk.Label(
-            card,
-            text=plugin.description,
-            font=FONT_BODY,
-            foreground=COLOR_TEXT_SECONDARY,
-            background=COLOR_VOID_SURFACE_ELEVATED,
-            wraplength=580,
-            justify="left"
-        )
-        desc_lbl.pack(anchor="w", padx=14, pady=(0, 8))
+        if plugin.description:
+            desc_lbl = tk.Label(
+                card,
+                text=plugin.description,
+                font=FONT_BODY,
+                foreground=COLOR_TEXT_SECONDARY,
+                background=COLOR_VOID_SURFACE_ELEVATED,
+                wraplength=700,
+                justify="left"
+            )
+            desc_lbl.pack(anchor="w", padx=14, pady=(2, 8))
 
         # Acciones expuestas por el plugin
         actions = plugin.get_actions()

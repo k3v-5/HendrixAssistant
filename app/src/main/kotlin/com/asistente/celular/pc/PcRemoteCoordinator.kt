@@ -1814,16 +1814,22 @@ class PcRemoteCoordinator(
                             )
                         )
                     }
+                    val rawLabel = a.optString("label").takeIf { it.isNotBlank() }
+                        ?: a.optString("name").takeIf { it.isNotBlank() }
+                        ?: a.optString("id", "Acción")
                     actionsList.add(
                         PcPluginAction(
                             id = a.optString("id", ""),
-                            label = a.optString("label", ""),
+                            label = rawLabel,
                             description = a.optString("description", ""),
                             dangerous = a.optBoolean("dangerous", false),
                             params = paramsList
                         )
                     )
                 }
+                val rawIcon = p.optString("iconEmoji").takeIf { it.isNotBlank() }
+                    ?: p.optString("icon").takeIf { it.isNotBlank() }
+                    ?: "code"
                 list.add(
                     PcPluginDefinition(
                         id = p.optString("id", ""),
@@ -1831,7 +1837,7 @@ class PcRemoteCoordinator(
                         version = p.optString("version", "1.0.0"),
                         description = p.optString("description", ""),
                         author = p.optString("author", ""),
-                        icon = p.optString("icon", "code"),
+                        icon = rawIcon,
                         actions = actionsList
                     )
                 )

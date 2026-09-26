@@ -19,7 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,13 +40,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.PcWorkspaceBridge
 import com.asistente.celular.nlu.pc.plugin.PcPluginAction
 import com.asistente.celular.nlu.pc.plugin.PcPluginActionResult
 import com.asistente.celular.nlu.pc.plugin.PcPluginDefinition
+import com.asistente.celular.ui.theme.NeonGreen
+import com.asistente.celular.ui.theme.NeonLilac
+import com.asistente.celular.ui.theme.NeonPurple
+import com.asistente.celular.ui.theme.NeonRed
+import com.asistente.celular.ui.theme.TextMuted
+import com.asistente.celular.ui.theme.TextPrimary
+import com.asistente.celular.ui.theme.TextSecondary
+import com.asistente.celular.ui.theme.VoidBlack
+import com.asistente.celular.ui.theme.VoidBorder
+import com.asistente.celular.ui.theme.VoidSurface
+import com.asistente.celular.ui.theme.VoidSurfaceElevated
 import kotlinx.coroutines.launch
 
 @Composable
@@ -77,9 +92,9 @@ fun PcCustomPluginsCard(
     }
 
     Surface(
-        color = Color(0xFF131D31),
+        color = VoidSurfaceElevated,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.35f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -92,14 +107,14 @@ fun PcCustomPluginsCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(Color(0xFF8B5CF6).copy(alpha = 0.2f), CircleShape),
+                            .size(34.dp)
+                            .background(NeonPurple.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Extension,
                             contentDescription = null,
-                            tint = Color(0xFF8B5CF6),
+                            tint = NeonPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -109,12 +124,13 @@ fun PcCustomPluginsCard(
                             text = "Plugins & Scripts de Usuario",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = TextPrimary
                         )
                         Text(
-                            text = "${plugins.size} plugins activos en hendrix-desktop/plugins/",
+                            text = if (plugins.isEmpty()) "Sin scripts activos en plugins/"
+                            else "${plugins.size} script${if (plugins.size == 1) "" else "s"} activo${if (plugins.size == 1) "" else "s"} • Hot-Reload",
                             fontSize = 11.sp,
-                            color = Color(0xFFC4B5FD)
+                            color = NeonLilac
                         )
                     }
                 }
@@ -127,13 +143,13 @@ fun PcCustomPluginsCard(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = Color(0xFF8B5CF6)
+                            color = NeonPurple
                         )
                     } else {
                         Icon(
                             Icons.Default.Refresh,
                             contentDescription = "Recargar plugins",
-                            tint = Color.Gray,
+                            tint = NeonPurple,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -144,22 +160,23 @@ fun PcCustomPluginsCard(
 
             if (plugins.isEmpty() && !isLoading) {
                 Surface(
-                    color = Color(0xFF1E293B).copy(alpha = 0.6f),
-                    shape = RoundedCornerShape(10.dp),
+                    color = VoidSurface,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, VoidBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = "No hay plugins detectados en la PC.",
+                            text = "No hay plugins detectados en la PC",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = TextPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Copia tus scripts en Python (ej. plugin_mi_tarea.py) dentro de la carpeta hendrix-desktop/plugins/ para ejecutarlos desde aquí o por voz.",
+                            text = "Agrega archivos en Python (ej. plugin_mi_tarea.py) dentro de la carpeta hendrix-desktop/plugins/ para ejecutarlos desde aquí o por comandos de voz.",
                             fontSize = 11.sp,
-                            color = Color.Gray
+                            color = TextSecondary
                         )
                     }
                 }
@@ -177,9 +194,9 @@ fun PcCustomPluginsCard(
                                         val res = pcBridge.executeCustomPluginAction(plugin.id, action.id)
                                         lastResult = res
                                         if (res.success) {
-                                            onShowSnackbar("${action.label}: ${res.message} (${res.elapsedMs}ms)")
+                                            onShowSnackbar("${action.label.ifBlank { action.id }}: ${res.message} (${res.elapsedMs}ms)")
                                         } else {
-                                            onShowSnackbar("${action.label}: ${res.message}")
+                                            onShowSnackbar("${action.label.ifBlank { action.id }}: ${res.message}")
                                         }
                                     } catch (e: Exception) {
                                         onShowSnackbar("Error al ejecutar plugin: ${e.localizedMessage}")
@@ -193,13 +210,13 @@ fun PcCustomPluginsCard(
                 }
             }
 
-            // Último resultado de ejecución
+            // Consola / Último resultado de ejecución
             lastResult?.let { res ->
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    color = if (res.success) Color(0xFF0F172A) else Color(0xFF7F1D1D).copy(alpha = 0.3f),
+                    color = VoidBlack,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (res.success) Color(0xFF10B981).copy(alpha = 0.4f) else Color(0xFFEF4444)),
+                    border = BorderStroke(1.dp, if (res.success) NeonGreen.copy(alpha = 0.45f) else NeonRed.copy(alpha = 0.45f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
@@ -212,15 +229,15 @@ fun PcCustomPluginsCard(
                                 Icon(
                                     imageVector = if (res.success) Icons.Default.CheckCircle else Icons.Default.Warning,
                                     contentDescription = null,
-                                    tint = if (res.success) Color(0xFF34D399) else Color(0xFFF87171),
+                                    tint = if (res.success) NeonGreen else NeonRed,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (res.success) "Ejecución exitosa (${res.elapsedMs}ms)" else "Error en ejecución",
+                                    text = if (res.success) "Ejecutado con éxito (${res.elapsedMs}ms)" else "Fallo en ejecución",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (res.success) Color(0xFF34D399) else Color(0xFFF87171)
+                                    color = if (res.success) NeonGreen else NeonRed
                                 )
                             }
                             IconButton(
@@ -230,24 +247,37 @@ fun PcCustomPluginsCard(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Cerrar",
-                                    tint = Color.Gray,
+                                    tint = TextMuted,
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = res.message,
                             fontSize = 11.sp,
-                            color = Color.White
+                            color = TextPrimary
                         )
                         if (res.output.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = res.output,
-                                fontSize = 10.sp,
-                                color = Color.LightGray,
-                                maxLines = 4
-                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                color = VoidSurface,
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(6.dp), verticalAlignment = Alignment.Top) {
+                                    Icon(Icons.Default.Terminal, contentDescription = null, tint = TextMuted, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = res.output,
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextSecondary,
+                                        maxLines = 6,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -263,86 +293,155 @@ private fun PluginItemView(
     onExecute: (PcPluginAction) -> Unit
 ) {
     Surface(
-        color = Color(0xFF1E293B),
-        shape = RoundedCornerShape(10.dp),
+        color = VoidSurface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, VoidBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Cabecera del plugin: Icono/Emoji + Nombre + Versión + Autor
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = plugin.name,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(4.dp)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    val iconText = plugin.icon.takeIf { it.isNotBlank() && it != "code" } ?: "⚡"
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(NeonPurple.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "v${plugin.version}",
-                            fontSize = 9.sp,
-                            color = Color(0xFFC4B5FD),
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            text = iconText,
+                            fontSize = 14.sp
                         )
                     }
-                }
-                if (plugin.author.isNotBlank()) {
-                    Text(
-                        text = plugin.author,
-                        fontSize = 10.sp,
-                        color = Color.Gray
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = plugin.name,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = NeonPurple.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp),
+                                border = BorderStroke(0.5.dp, NeonPurple.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = "v${plugin.version}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = NeonLilac,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        if (plugin.author.isNotBlank()) {
+                            Text(
+                                text = "Por ${plugin.author}",
+                                fontSize = 10.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
                 }
             }
 
             if (plugin.description.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = plugin.description,
                     fontSize = 11.sp,
-                    color = Color(0xFF94A3B8)
+                    color = TextSecondary,
+                    lineHeight = 15.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Lista de acciones del plugin en tarjetas independientes horizontales
+            if (plugin.actions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    plugin.actions.forEach { action ->
+                        val isActionRunning = runningActionKey == "${plugin.id}:${action.id}"
+                        val actionLabel = action.label.ifBlank { action.id }
 
-            // Botones de acciones del plugin
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                plugin.actions.forEach { action ->
-                    val isActionRunning = runningActionKey == "${plugin.id}:${action.id}"
-                    val buttonColor = if (action.dangerous) Color(0xFFEF4444) else Color(0xFF6366F1)
+                        Surface(
+                            color = VoidSurfaceElevated,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(0.5.dp, if (action.dangerous) NeonRed.copy(alpha = 0.35f) else VoidBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = actionLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                    if (action.description.isNotBlank()) {
+                                        Text(
+                                            text = action.description,
+                                            fontSize = 10.sp,
+                                            color = TextMuted,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
 
-                    Button(
-                        onClick = { onExecute(action) },
-                        enabled = runningActionKey == null,
-                        colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        if (isActionRunning) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(12.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = { onExecute(action) },
+                                    enabled = runningActionKey == null,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (action.dangerous) NeonRed else NeonPurple,
+                                        disabledContainerColor = (if (action.dangerous) NeonRed else NeonPurple).copy(alpha = 0.35f)
+                                    ),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    if (isActionRunning) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(12.dp),
+                                            strokeWidth = 2.dp,
+                                            color = VoidBlack
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    } else {
+                                        Icon(
+                                            imageVector = if (action.dangerous) Icons.Default.Warning else Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = VoidBlack,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        text = if (isActionRunning) "Corriendo..." else "Ejecutar",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = VoidBlack
+                                    )
+                                }
+                            }
                         }
-                        Text(
-                            text = action.label,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
                     }
                 }
             }

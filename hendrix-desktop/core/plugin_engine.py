@@ -112,10 +112,17 @@ class PluginEngine:
         return self.get_all_plugins_metadata()
 
     def get_all_plugins_metadata(self) -> List[Dict[str, Any]]:
-        """Retorna metadatos serializables para enviar por WebSocket o renderizar en la UI."""
+        """Retorna la lista de plugins instalados con sus acciones disponibles serializables."""
         result = []
         for plugin in self.plugins.values():
             actions = plugin.get_actions()
+            normalized_actions = []
+            for act in actions:
+                act_copy = dict(act)
+                label = act.get("label") or act.get("name") or act.get("id", "Acción")
+                act_copy["label"] = label
+                act_copy["name"] = label
+                normalized_actions.append(act_copy)
             result.append({
                 "id": plugin.id,
                 "name": plugin.name,
@@ -123,8 +130,9 @@ class PluginEngine:
                 "version": plugin.version,
                 "author": plugin.author,
                 "iconEmoji": plugin.icon_emoji,
+                "icon": plugin.icon_emoji or "code",
                 "category": plugin.category,
-                "actions": actions
+                "actions": normalized_actions
             })
         return result
 
