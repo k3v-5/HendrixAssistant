@@ -84,8 +84,81 @@ class PcRemoteCoordinator(
 
     companion object {
         private const val TAG = "PcRemoteCoordinator"
-        private const val DEFAULT_PORT = 8899
+        const val DEFAULT_PORT = 8899
         private const val DEFAULT_TIMEOUT_MS = 5000L
+
+        /**
+         * Construye una URL WebSocket robusta admitiendo dominios WAN, Cloudflare Tunnels (https/wss)
+         * e IPs locales sin desconfigurar el puerto estándar ni los certificados TLS.
+         */
+        fun buildWebSocketUrl(rawHost: String, fallbackPort: Int = DEFAULT_PORT): String {
+            val trimmed = rawHost.trim()
+            if (trimmed.isBlank()) return ""
+
+            val isKnownTunnelDomain = trimmed.contains("trycloudflare.com", ignoreCase = true) ||
+                trimmed.contains("ngrok", ignoreCase = true) ||
+                trimmed.contains("loca.lt", ignoreCase = true) ||
+                trimmed.contains("pinggy.link", ignoreCase = true)
+
+            // Caso A: Esquema explícito ws:// o wss://
+            if (trimmed.startsWith("ws://", ignoreCase = true) || trimmed.startsWith("wss://", ignoreCase = true)) {
+                val scheme = if (trimmed.startsWith("wss://", ignoreCase = true)) "wss" else "ws"
+                val afterScheme = trimmed.substring(trimmed.indexOf("://") + 3)
+                val hostPart = afterScheme.substringBefore("/").substringBefore(":")
+                val hasExplicitPort = afterScheme.substringBefore("/").contains(":")
+                val portPart = if (hasExplicitPort) afterScheme.substringBefore("/").substringAfter(":").toIntOrNull() else null
+                val pathPart = if (afterScheme.contains("/")) "/" + afterScheme.substringAfter("/").trimStart('/') else "/ws"
+                val effectivePath = if (pathPart == "/" || pathPart.isBlank()) "/ws" else pathPart
+
+                return if (portPart != null && portPart != 443 && portPart != 80) {
+                    "$scheme://$hostPart:$portPart$effectivePath"
+                } else if (scheme == "wss") {
+                    "$scheme://$hostPart$effectivePath"
+                } else {
+                    val p = portPart ?: fallbackPort
+                    "$scheme://$hostPart:$p$effectivePath"
+                }
+            }
+
+            // Caso B: Esquema explícito https:// o http://
+            if (trimmed.startsWith("https://", ignoreCase = true) || trimmed.startsWith("http://", ignoreCase = true)) {
+                val isHttps = trimmed.startsWith("https://", ignoreCase = true)
+                val scheme = if (isHttps || isKnownTunnelDomain) "wss" else "ws"
+                val afterScheme = trimmed.substring(trimmed.indexOf("://") + 3)
+                val hostPart = afterScheme.substringBefore("/").substringBefore(":")
+                val hasExplicitPort = afterScheme.substringBefore("/").contains(":")
+                val explicitPort = if (hasExplicitPort) afterScheme.substringBefore("/").substringAfter(":").toIntOrNull() else null
+                val pathPart = if (afterScheme.contains("/")) "/" + afterScheme.substringAfter("/").trimStart('/') else "/ws"
+                val effectivePath = if (pathPart == "/" || pathPart.isBlank()) "/ws" else pathPart
+
+                return if (explicitPort != null && explicitPort != 443 && explicitPort != 80) {
+                    "$scheme://$hostPart:$explicitPort$effectivePath"
+                } else if (scheme == "wss") {
+                    "$scheme://$hostPart$effectivePath"
+                } else {
+                    val p = explicitPort ?: fallbackPort
+                    "$scheme://$hostPart:$p$effectivePath"
+                }
+            }
+
+            // Caso C: Sin esquema proporcionado (ej. dominio tunnel o dirección IP)
+            val hostPart = trimmed.substringBefore("/").substringBefore(":")
+            val hasExplicitPort = trimmed.substringBefore("/").contains(":")
+            val explicitPort = if (hasExplicitPort) trimmed.substringBefore("/").substringAfter(":").toIntOrNull() else null
+            val pathPart = if (trimmed.contains("/")) "/" + trimmed.substringAfter("/").trimStart('/') else "/ws"
+            val effectivePath = if (pathPart == "/" || pathPart.isBlank()) "/ws" else pathPart
+
+            if (isKnownTunnelDomain) {
+                return if (explicitPort != null && explicitPort != 443 && explicitPort != 80) {
+                    "wss://$hostPart:$explicitPort$effectivePath"
+                } else {
+                    "wss://$hostPart$effectivePath"
+                }
+            }
+
+            val p = explicitPort ?: fallbackPort
+            return "ws://$hostPart:$p$effectivePath"
+        }
     }
 
     private val client = OkHttpClient.Builder()
@@ -255,40 +328,86 @@ class PcRemoteCoordinator(
             .apply()
     }
 
-    fun updateEndpoint(ip: String, port: Int, pin: String? = null, mac: String? = null) {
+    fun updateEndpoint(
+        ip: String,
+        port: Int,
+        pin: String? = null,
+        mac: String? = null,
+        remoteTunnelUrl: String? = null
+    ) {
         val current = _endpointConfig.value
+        val cleanIp = ip.trim()
+        val isTunnelInput = cleanIp.contains("trycloudflare.com", ignoreCase = true) ||
+            cleanIp.contains("ngrok", ignoreCase = true) ||
+            cleanIp.contains("loca.lt", ignoreCase = true) ||
+            cleanIp.startsWith("https://", ignoreCase = true)
+
+        val updatedLocalIp = if (isTunnelInput) current.localIp else cleanIp
+        val updatedTunnel = if (isTunnelInput) cleanIp else (remoteTunnelUrl?.trim() ?: current.remoteTunnelUrl)
+
         val updated = current.copy(
-            localIp = ip,
+            localIp = updatedLocalIp,
             port = port,
+            remoteTunnelUrl = updatedTunnel?.takeIf { it.isNotBlank() },
             pin = pin ?: current.pin,
             macAddress = mac ?: current.macAddress
         )
         saveConfig(updated)
     }
 
+    private fun isConnectedToWifi(): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val activeNet = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(activeNet) ?: return false
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
-     * Conecta de forma inteligente: primero prueba LAN directa (< 4s),
-     * y si no está en la misma red y cuenta con túnel WAN, conmuta automáticamente.
+     * Conecta de forma inteligente: detecta conectividad actual (Wi-Fi vs Datos móviles),
+     * prueba la red más adecuada primero, y conmuta automáticamente con failover sin fricción.
      */
     suspend fun connectAuto(): Boolean = withContext(Dispatchers.IO) {
         val conf = _endpointConfig.value
         Log.i(TAG, "Iniciando conexión automática híbrida con ${conf.hostname}")
+        val hasWifi = isConnectedToWifi()
+        val tunnel = conf.remoteTunnelUrl
 
-        // 1. Intentar por LAN directa primero (4s de gracia para ARP y handshake)
-        val lanSuccess = withTimeoutOrNull(4000L) {
-            connect(conf.localIp, conf.port, conf.pin.takeIf { it.isNotBlank() })
-        } ?: false
-
-        if (lanSuccess) {
-            _activeTransport.value = TransportType.LAN_DIRECT
-            return@withContext true
+        // 1. Si estamos con datos móviles (sin Wi-Fi local) y contamos con túnel WAN,
+        // conectar directamente por el túnel para respuesta inmediata (0ms desperdiciados en timeouts LAN)
+        if (!hasWifi && !tunnel.isNullOrBlank()) {
+            Log.i(TAG, "Red móvil/WAN detectada. Conectando prioritariamente por túnel seguro: $tunnel")
+            val wanSuccess = withTimeoutOrNull(6000L) {
+                connect(tunnel, conf.port, conf.pin.takeIf { it.isNotBlank() })
+            } ?: false
+            if (wanSuccess) {
+                _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
+                return@withContext true
+            }
         }
 
-        // 2. Si falló la red local y tenemos túnel WAN (ej. estamos con datos 4G/5G)
-        val tunnel = conf.remoteTunnelUrl
+        // 2. Si hay Wi-Fi o no hay túnel configurado, intentar por LAN directa (2.5s de gracia)
+        if (conf.localIp.isNotBlank()) {
+            val lanSuccess = withTimeoutOrNull(2500L) {
+                connect(conf.localIp, conf.port, conf.pin.takeIf { it.isNotBlank() })
+            } ?: false
+
+            if (lanSuccess) {
+                _activeTransport.value = TransportType.LAN_DIRECT
+                return@withContext true
+            }
+        }
+
+        // 3. Si falló la red local y tenemos túnel WAN, conmutar a WAN
         if (!tunnel.isNullOrBlank()) {
             Log.i(TAG, "Conmutando automáticamente al túnel WAN global seguro: $tunnel")
-            val wanSuccess = connect(tunnel, conf.port, conf.pin.takeIf { it.isNotBlank() })
+            val wanSuccess = withTimeoutOrNull(6000L) {
+                connect(tunnel, conf.port, conf.pin.takeIf { it.isNotBlank() })
+            } ?: false
             if (wanSuccess) {
                 _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
                 return@withContext true
@@ -306,30 +425,27 @@ class PcRemoteCoordinator(
         reconnectJob = null
         _connectionState.value = PcConnectionState.Connecting(host, port)
 
-        val cleanHost = host.trim()
-        val isDirectUrl = cleanHost.startsWith("ws://", ignoreCase = true) || cleanHost.startsWith("wss://", ignoreCase = true)
-
-        val wsUrl = if (isDirectUrl) {
-            cleanHost
-        } else {
-            val stripped = cleanHost.removePrefix("http://").removePrefix("https://").substringBefore("/")
-            val parsedHost = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringBefore(":") else stripped
-            val parsedPort = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringAfter(":").toIntOrNull() ?: port else port
-            "ws://$parsedHost:$parsedPort/ws"
+        val wsUrl = buildWebSocketUrl(host, port)
+        if (wsUrl.isBlank()) {
+            _connectionState.value = PcConnectionState.Error("Dirección de PC o túnel inválida.")
+            return@withContext false
         }
 
         val isWan = wsUrl.startsWith("wss://", ignoreCase = true) ||
-            wsUrl.contains("trycloudflare.com") ||
-            (!wsUrl.contains("192.168.") && !wsUrl.contains("10.") && !wsUrl.contains("127.0.0.1") && !wsUrl.contains("localhost"))
+            wsUrl.contains("trycloudflare.com", ignoreCase = true) ||
+            wsUrl.contains("ngrok", ignoreCase = true) ||
+            (!wsUrl.contains("192.168.") && !wsUrl.contains("10.") && !wsUrl.contains("127.0.0.1") && !wsUrl.contains("localhost") && !wsUrl.contains("172.16.") && !wsUrl.contains("172.17.") && !wsUrl.contains("172.18.") && !wsUrl.contains("172.19.") && !wsUrl.contains("172.2") && !wsUrl.contains("172.30.") && !wsUrl.contains("172.31."))
 
         _activeTransport.value = if (isWan) TransportType.GLOBAL_TUNNEL_WAN else TransportType.LAN_DIRECT
 
         val request = Request.Builder().url(wsUrl).build()
 
         val connectSignal = CompletableDeferred<Boolean>()
+        var isSessionActive = false
 
         activeWebSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                isSessionActive = true
                 Log.i(TAG, "WebSocket conectado con éxito vía ${_activeTransport.value} a $wsUrl")
                 reconnectJob?.cancel()
                 reconnectJob = null
@@ -391,13 +507,21 @@ class PcRemoteCoordinator(
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket cerrado ($code: $reason)")
-                handleDisconnect(unexpected = true)
+                val wasActive = isSessionActive
+                isSessionActive = false
+                handleDisconnect(unexpected = wasActive)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "Error en conexión WebSocket: ${t.message}")
+                val wasActive = isSessionActive
+                isSessionActive = false
                 _connectionState.value = PcConnectionState.Error(t.localizedMessage ?: "Error de conexión con la PC.")
-                handleDisconnect(unexpected = true)
+                if (wasActive) {
+                    handleDisconnect(unexpected = true)
+                } else {
+                    activeWebSocket = null
+                }
                 if (!connectSignal.isCompleted) {
                     connectSignal.complete(false)
                 }
@@ -438,20 +562,26 @@ class PcRemoteCoordinator(
         if (isUserExplicitDisconnect) return
         reconnectJob?.cancel()
         reconnectJob = scope.launch(Dispatchers.IO) {
-            val host = currentHost
-            val port = currentPort
             var delayMs = 1500L
             var attempt = 1
 
             while (!isUserExplicitDisconnect && !_isConnected.value && attempt <= 5) {
-                Log.i(TAG, "Reconexión automática ($attempt/5) a $host:$port en ${delayMs}ms...")
-                _connectionState.value = PcConnectionState.Reconnecting(attempt, host, port)
+                val conf = _endpointConfig.value
+                val hasTunnel = !conf.remoteTunnelUrl.isNullOrBlank()
+                val targetDesc = if (hasTunnel) "Auto Híbrido (LAN/WAN)" else "$currentHost:$currentPort"
+                Log.i(TAG, "Reconexión automática ($attempt/5) a $targetDesc en ${delayMs}ms...")
+                _connectionState.value = PcConnectionState.Reconnecting(attempt, targetDesc, currentPort)
                 delay(delayMs)
                 if (isUserExplicitDisconnect || _isConnected.value) break
 
-                val reconnected = connect(host, port)
+                val reconnected = if (hasTunnel) {
+                    connectAuto()
+                } else {
+                    connect(currentHost, currentPort, conf.pin.takeIf { it.isNotBlank() })
+                }
+
                 if (reconnected) {
-                    Log.i(TAG, "Reconexión automática exitosa con $host:$port")
+                    Log.i(TAG, "Reconexión automática exitosa")
                     requestSnapshot()
                     break
                 }
@@ -679,11 +809,24 @@ class PcRemoteCoordinator(
                     val hostName = json.optString("hostname", "PC-Host")
                     val remoteTunnel = json.optString("remoteTunnelUrl", _endpointConfig.value.remoteTunnelUrl ?: "")
                     val reportedMac = json.optString("macAddress", "").takeIf { it.isNotBlank() } ?: _endpointConfig.value.macAddress
+
+                    val isCurrentWan = _activeTransport.value == TransportType.GLOBAL_TUNNEL_WAN
+                    val effectiveLocalIp = if (isCurrentWan) {
+                        _endpointConfig.value.localIp
+                    } else {
+                        currentHost.removePrefix("ws://").removePrefix("http://").substringBefore("/").substringBefore(":")
+                    }
+                    val effectiveTunnel = if (isCurrentWan) {
+                        currentHost
+                    } else {
+                        remoteTunnel.takeIf { it.isNotBlank() } ?: _endpointConfig.value.remoteTunnelUrl
+                    }
+
                     val updatedConfig = _endpointConfig.value.copy(
                         hostname = hostName,
-                        localIp = currentHost,
-                        port = currentPort,
-                        remoteTunnelUrl = remoteTunnel.takeIf { it.isNotBlank() },
+                        localIp = effectiveLocalIp,
+                        port = if (isCurrentWan) _endpointConfig.value.port else currentPort,
+                        remoteTunnelUrl = effectiveTunnel?.takeIf { it.isNotBlank() },
                         deviceToken = authToken,
                         isPaired = true,
                         lastConnectedEpoch = System.currentTimeMillis(),

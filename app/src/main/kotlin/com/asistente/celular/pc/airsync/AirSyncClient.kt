@@ -57,9 +57,8 @@ class AirSyncClient {
                 bytesTransferred = initialBytes,
                 startedAt = System.currentTimeMillis()
             )
-            onProgress(transfer)
-
-            socket.connect(InetSocketAddress(host, port), SOCKET_TIMEOUT_MS)
+            val cleanHost = sanitizeHost(host)
+            socket.connect(InetSocketAddress(cleanHost, port), SOCKET_TIMEOUT_MS)
             socket.soTimeout = SOCKET_TIMEOUT_MS
 
             val outStream = socket.getOutputStream()
@@ -230,7 +229,8 @@ class AirSyncClient {
             )
             onProgress(transfer)
 
-            socket.connect(InetSocketAddress(host, port), SOCKET_TIMEOUT_MS)
+            val cleanHost = sanitizeHost(host)
+            socket.connect(InetSocketAddress(cleanHost, port), SOCKET_TIMEOUT_MS)
             socket.soTimeout = SOCKET_TIMEOUT_MS
 
             val outStream = socket.getOutputStream()
@@ -374,5 +374,15 @@ class AirSyncClient {
             }
             bytesRead += count
         }
+    }
+
+    private fun sanitizeHost(rawHost: String): String {
+        return rawHost.trim()
+            .removePrefix("ws://")
+            .removePrefix("wss://")
+            .removePrefix("http://")
+            .removePrefix("https://")
+            .substringBefore("/")
+            .substringBefore(":")
     }
 }

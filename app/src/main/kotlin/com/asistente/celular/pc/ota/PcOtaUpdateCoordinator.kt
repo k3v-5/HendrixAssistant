@@ -82,10 +82,18 @@ class PcOtaUpdateCoordinator(
         try {
             val coordinator = pcBridge as? PcRemoteCoordinator
             val config = coordinator?.endpointConfig?.value
+            val isWan = coordinator?.activeTransport?.value == com.asistente.celular.nlu.pc.TransportType.GLOBAL_TUNNEL_WAN
+            val tunnelUrl = config?.remoteTunnelUrl
             val host = config?.localIp?.takeIf { it.isNotBlank() } ?: DEFAULT_PC_IP
             val port = config?.otaPort ?: DEFAULT_OTA_PORT
 
-            val url = "http://$host:$port/api/update/latest"
+            val url = if (isWan && !tunnelUrl.isNullOrBlank()) {
+                val cleanTunnel = tunnelUrl.trim().removeSuffix("/")
+                val httpPrefix = if (cleanTunnel.startsWith("http://") || cleanTunnel.startsWith("https://")) cleanTunnel else "https://$cleanTunnel"
+                "$httpPrefix/api/update/latest"
+            } else {
+                "http://$host:$port/api/update/latest"
+            }
             val request = Request.Builder().url(url).get().build()
 
             val response = httpClient.newCall(request).execute()
@@ -109,7 +117,12 @@ class PcOtaUpdateCoordinator(
             val apkSizeBytes = json.optLong("apkSizeBytes", 0L)
             val sha256 = json.optString("sha256", "")
             val airsyncFileId = json.optString("airsyncFileId", "hendrix_latest_apk")
-            val downloadUrl = json.optString("downloadUrl", "http://$host:$port/api/update/download")
+            var downloadUrl = json.optString("downloadUrl", "http://$host:$port/api/update/download")
+            if (isWan && !tunnelUrl.isNullOrBlank() && (downloadUrl.isBlank() || downloadUrl.contains("192.168.") || downloadUrl.contains("10.") || downloadUrl.contains("localhost") || downloadUrl.contains("127.0.0.1"))) {
+                val cleanTunnel = tunnelUrl.trim().removeSuffix("/")
+                val httpPrefix = if (cleanTunnel.startsWith("http://") || cleanTunnel.startsWith("https://")) cleanTunnel else "https://$cleanTunnel"
+                downloadUrl = "$httpPrefix/api/update/download"
+            }
 
             // Obtener fecha de la última instalación de la app en el dispositivo
             val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

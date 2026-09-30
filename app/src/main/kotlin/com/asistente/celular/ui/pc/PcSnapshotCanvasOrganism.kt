@@ -291,8 +291,9 @@ fun PcSnapshotCanvasOrganism(
 
                                 if (!isPinchGestureActive) {
                                     val touchSlop = with(density) { 18.dp.toPx() }.coerceAtLeast(36f)
+                                    event.changes.forEach { it.consume() }
                                     // Si fue un toque sin arrastre y no se disparó clic temporizado previo
-                                    if (singleTouchDownTime > 0L && !isDragging && !hasFiredLeftClick && !hasFiredRightClick && duration < 600L) {
+                                    if (singleTouchDownTime > 0L && !isDragging && !hasFiredLeftClick && !hasFiredRightClick && duration < 700L) {
                                         view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                                         val (normX, normY) = screenToPcRatio(singleTouchStartPos)
                                         cursorRatioX = normX
@@ -361,7 +362,7 @@ fun PcSnapshotCanvasOrganism(
                                     previousDistance = null
 
                                     // Primer contacto del dedo con la pantalla
-                                    if (!pointer.previousPressed && pointer.pressed) {
+                                    if ((!pointer.previousPressed && pointer.pressed) || singleTouchDownTime == 0L) {
                                         singleTouchDownTime = System.currentTimeMillis()
                                         singleTouchStartPos = pointer.position
                                         isDragging = false

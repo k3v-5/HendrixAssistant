@@ -33,25 +33,27 @@ class PcRemoteCoordinatorTest {
     }
 
     @Test
-    fun testUrlNormalizationLogic() {
-        fun normalize(host: String, port: Int): String {
-            val cleanHost = host.trim()
-            val isDirectUrl = cleanHost.startsWith("ws://", ignoreCase = true) || cleanHost.startsWith("wss://", ignoreCase = true)
-            return if (isDirectUrl) {
-                cleanHost
-            } else {
-                val stripped = cleanHost.removePrefix("http://").removePrefix("https://").substringBefore("/")
-                val parsedHost = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringBefore(":") else stripped
-                val parsedPort = if (stripped.contains(":") && !stripped.contains("[")) stripped.substringAfter(":").toIntOrNull() ?: port else port
-                "ws://$parsedHost:$parsedPort/ws"
-            }
-        }
+    fun testBuildWebSocketUrl() {
+        // LAN sin puerto especificado -> usa fallbackPort (8899)
+        assertEquals("ws://192.168.100.159:8899/ws", PcRemoteCoordinator.buildWebSocketUrl("192.168.100.159", 8899))
+        // LAN con puerto explícito
+        assertEquals("ws://192.168.100.159:9000/ws", PcRemoteCoordinator.buildWebSocketUrl("192.168.100.159:9000", 8899))
+        // LAN con esquema http://
+        assertEquals("ws://192.168.100.159:8899/ws", PcRemoteCoordinator.buildWebSocketUrl("http://192.168.100.159:8899", 8899))
+        // LAN con esquema ws://
+        assertEquals("ws://192.168.100.159:8899/ws", PcRemoteCoordinator.buildWebSocketUrl("ws://192.168.100.159:8899/ws", 8899))
 
-        assertEquals("ws://192.168.100.159:8899/ws", normalize("192.168.100.159", 8899))
-        assertEquals("ws://192.168.100.159:8899/ws", normalize("192.168.100.159:8899", 8899))
-        assertEquals("ws://192.168.100.159:9000/ws", normalize("192.168.100.159:9000", 8899))
-        assertEquals("ws://192.168.100.159:8899/ws", normalize("http://192.168.100.159:8899", 8899))
-        assertEquals("ws://192.168.100.159:8899/ws", normalize("ws://192.168.100.159:8899/ws", 8899))
-        assertEquals("wss://custom-tunnel.trycloudflare.com/ws", normalize("wss://custom-tunnel.trycloudflare.com/ws", 8899))
+        // Cloudflare Tunnels: JAMÁS deben llevar :8899 y deben usar wss://
+        assertEquals("wss://custom-tunnel.trycloudflare.com/ws", PcRemoteCoordinator.buildWebSocketUrl("wss://custom-tunnel.trycloudflare.com/ws", 8899))
+        assertEquals("wss://hendrix-pc.trycloudflare.com/ws", PcRemoteCoordinator.buildWebSocketUrl("https://hendrix-pc.trycloudflare.com", 8899))
+        assertEquals("wss://hendrix-pc.trycloudflare.com/ws", PcRemoteCoordinator.buildWebSocketUrl("https://hendrix-pc.trycloudflare.com/", 8899))
+        assertEquals("wss://hendrix-pc.trycloudflare.com/ws", PcRemoteCoordinator.buildWebSocketUrl("hendrix-pc.trycloudflare.com", 8899))
+
+        // Ngrok u otros dominios de túnel conocidos
+        assertEquals("wss://hendrix.ngrok.io/ws", PcRemoteCoordinator.buildWebSocketUrl("hendrix.ngrok.io", 8899))
+        assertEquals("wss://hendrix.ngrok.io/ws", PcRemoteCoordinator.buildWebSocketUrl("https://hendrix.ngrok.io", 8899))
+
+        // Dominio personalizado con puerto explícito
+        assertEquals("wss://my-domain.org:8443/ws", PcRemoteCoordinator.buildWebSocketUrl("https://my-domain.org:8443", 8899))
     }
 }

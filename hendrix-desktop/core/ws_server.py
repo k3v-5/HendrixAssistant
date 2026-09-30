@@ -934,7 +934,22 @@ async def handle_client(websocket):
                     req_id = data.get("requestId", "")
                     info = system_ops.get_app_apk_info()
                     port = getattr(config, "ota_port", 8901)
-                    info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+                    tunnel_url = tunnel_manager.get_tunnel_url()
+                    is_remote = (client_ip in ("127.0.0.1", "::1", "localhost")) or (not client_ip.startswith(("192.168.", "10.", "172.")))
+                    if is_remote and tunnel_url:
+                        clean_tunnel = tunnel_url.rstrip("/")
+                        if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
+                            clean_tunnel = f"https://{clean_tunnel}"
+                        info["downloadUrl"] = f"{clean_tunnel}/api/update/download"
+                    else:
+                        info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+
+                    if tunnel_url:
+                        clean_tunnel = tunnel_url.rstrip("/")
+                        if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
+                            clean_tunnel = f"https://{clean_tunnel}"
+                        info["tunnelDownloadUrl"] = f"{clean_tunnel}/api/update/download"
+
                     if info.get("available") and info.get("path"):
                         airsync_server.register_file("hendrix_latest_apk", info["path"])
                     resp = {
@@ -971,7 +986,13 @@ async def _apk_watchdog_loop():
                     airsync_server.register_file("hendrix_latest_apk", apk_path)
                     info = system_ops.get_app_apk_info()
                     port = getattr(config, "ota_port", 8901)
+                    tunnel_url = tunnel_manager.get_tunnel_url()
                     info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+                    if tunnel_url:
+                        clean_tunnel = tunnel_url.rstrip("/")
+                        if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
+                            clean_tunnel = f"https://{clean_tunnel}"
+                        info["tunnelDownloadUrl"] = f"{clean_tunnel}/api/update/download"
                     broadcast_app_update(info)
                     log_activity(f"🚀 Nuevo APK detectado en PC. Notificación OTA enviada al móvil.")
                 elif last_mtime is None:
@@ -979,6 +1000,105 @@ async def _apk_watchdog_loop():
                     airsync_server.register_file("hendrix_latest_apk", apk_path)
             except Exception:
                 pass
+
+async def _process_http_request(path: str, headers):
+    import http
+    from websockets.http11 import Response
+
+    clean_path = path.split("?")[0].rstrip("/")
+
+    # Health check para sondeo HTTP o reverse proxies
+    if clean_path in ("", "/health", "/api/health"):
+        resp_data = {
+            "status": "OK",
+            "service": "Hendrix PC Bridge",
+            "version": "1.0",
+            "hostname": socket.gethostname(),
+            "remoteTunnelUrl": tunnel_manager.get_tunnel_url()
+        }
+        body = json.dumps(resp_data).encode("utf-8")
+        return Response(
+            http.HTTPStatus.OK,
+            "OK",
+            [
+                ("Content-Type", "application/json; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                ("Access-Control-Allow-Origin", "*")
+            ],
+            body
+        )
+
+    # Consulta de metadata de actualización de APK
+    if clean_path in ("/api/update/latest", "/api/update/check"):
+        apk_info = system_ops.get_app_apk_info()
+        port = getattr(config, "ota_port", 8901)
+        tunnel_url = tunnel_manager.get_tunnel_url()
+        if tunnel_url:
+            clean_tunnel = tunnel_url.rstrip("/")
+            if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
+                clean_tunnel = f"https://{clean_tunnel}"
+            apk_info["downloadUrl"] = f"{clean_tunnel}/api/update/download"
+            apk_info["tunnelDownloadUrl"] = f"{clean_tunnel}/api/update/download"
+        else:
+            apk_info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+
+        body = json.dumps(apk_info).encode("utf-8")
+        return Response(
+            http.HTTPStatus.OK,
+            "OK",
+            [
+                ("Content-Type", "application/json; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                ("Access-Control-Allow-Origin", "*")
+            ],
+            body
+        )
+
+    # Descarga directa del archivo binario APK sobre túnel HTTP/HTTPS
+    if clean_path == "/api/update/download":
+        apk_path = system_ops.get_app_apk_path()
+        if not os.path.exists(apk_path):
+            err_body = json.dumps({"error": "APK no encontrado en la PC"}).encode("utf-8")
+            return Response(
+                http.HTTPStatus.NOT_FOUND,
+                "Not Found",
+                [
+                    ("Content-Type", "application/json; charset=utf-8"),
+                    ("Content-Length", str(len(err_body))),
+                    ("Access-Control-Allow-Origin", "*")
+                ],
+                err_body
+            )
+
+        try:
+            with open(apk_path, "rb") as f:
+                apk_bytes = f.read()
+
+            return Response(
+                http.HTTPStatus.OK,
+                "OK",
+                [
+                    ("Content-Type", "application/vnd.android.package-archive"),
+                    ("Content-Disposition", 'attachment; filename="hendrix-assistant-update.apk"'),
+                    ("Content-Length", str(len(apk_bytes))),
+                    ("Access-Control-Allow-Origin", "*")
+                ],
+                apk_bytes
+            )
+        except Exception as e:
+            err_body = json.dumps({"error": str(e)}).encode("utf-8")
+            return Response(
+                http.HTTPStatus.INTERNAL_SERVER_ERROR,
+                "Internal Server Error",
+                [
+                    ("Content-Type", "application/json; charset=utf-8"),
+                    ("Content-Length", str(len(err_body))),
+                    ("Access-Control-Allow-Origin", "*")
+                ],
+                err_body
+            )
+
+    return None
 
 async def run_server(port: int = config.port):
     global main_event_loop
@@ -1007,6 +1127,7 @@ async def run_server(port: int = config.port):
         handle_client,
         "0.0.0.0",
         port,
+        process_request=_process_http_request,
         ping_interval=15,
         ping_timeout=25,
         max_size=32 * 1024 * 1024,

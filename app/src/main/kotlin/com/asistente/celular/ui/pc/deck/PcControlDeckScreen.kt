@@ -196,6 +196,7 @@ fun PcControlDeckScreen(
     var manualIpInput by remember(savedConfig) { mutableStateOf(savedConfig?.localIp?.takeIf { it.isNotBlank() } ?: "192.168.100.159") }
     var manualPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
     var manualPinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
+    var manualTunnelInput by remember(savedConfig) { mutableStateOf(savedConfig?.remoteTunnelUrl ?: "") }
 
     val context = LocalContext.current
     val otaCoordinator = remember(pcBridge, context) {
@@ -659,7 +660,7 @@ fun PcControlDeckScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Configura la IP y PIN de tu computadora para conectar directamente:",
+                        text = "Configura la IP local o túnel Cloudflare seguro para conectar:",
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
@@ -668,6 +669,22 @@ fun PcControlDeckScreen(
                         onValueChange = { manualIpInput = it },
                         label = { Text("IP de la PC (LAN)") },
                         placeholder = { Text("192.168.100.159") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NeonCyan,
+                            unfocusedBorderColor = VoidBorder,
+                            focusedContainerColor = VoidBlack,
+                            unfocusedContainerColor = VoidBlack,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                    OutlinedTextField(
+                        value = manualTunnelInput,
+                        onValueChange = { manualTunnelInput = it },
+                        label = { Text("Túnel WAN / Remoto (Cloudflare / ngrok)") },
+                        placeholder = { Text("https://xxx.trycloudflare.com") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -719,26 +736,55 @@ fun PcControlDeckScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val ip = manualIpInput.trim()
-                        val port = manualPortInput.toIntOrNull() ?: 8899
-                        val pin = manualPinInput.trim()
-                        showConnectDialog = false
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Conectando a ws://$ip:$port/ws...")
-                            coordinator?.updateEndpoint(ip, port, pin)
-                            val ok = pcBridge.connect(ip, port, pin)
-                            if (ok) {
-                                snackbarHostState.showSnackbar("Conectado con éxito a la PC")
-                            } else {
-                                snackbarHostState.showSnackbar("No se pudo conectar. Verifica que el servidor de PC esté abierto y el firewall permitido.")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val ip = manualIpInput.trim()
+                            val port = manualPortInput.toIntOrNull() ?: 8899
+                            val pin = manualPinInput.trim()
+                            val tunnel = manualTunnelInput.trim().takeIf { it.isNotBlank() }
+                            coordinator?.updateEndpoint(ip, port, pin, remoteTunnelUrl = tunnel)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Iniciando auto-conexión híbrida (LAN/WAN)...")
+                                val ok = coordinator?.connectAuto() ?: pcBridge.connect(ip, port, pin)
+                                if (ok) {
+                                    showConnectDialog = false
+                                    snackbarHostState.showSnackbar("Conectado con éxito a la PC")
+                                } else {
+                                    snackbarHostState.showSnackbar("No se pudo conectar. Verifica que la PC esté encendida o que el túnel esté activo.")
+                                }
                             }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
-                ) {
-                    Text("Conectar", fontWeight = FontWeight.Bold, color = VoidBlack)
+                        },
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.7f))
+                    ) {
+                        Text("Auto (LAN/WAN)", color = NeonCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = {
+                            val ip = manualIpInput.trim()
+                            val port = manualPortInput.toIntOrNull() ?: 8899
+                            val pin = manualPinInput.trim()
+                            val tunnel = manualTunnelInput.trim().takeIf { it.isNotBlank() }
+                            val isTunnelInput = ip.contains("trycloudflare.com", ignoreCase = true) ||
+                                ip.contains("ngrok", ignoreCase = true) ||
+                                ip.startsWith("https://", ignoreCase = true)
+                            val targetHost = if (isTunnelInput) ip else (tunnel ?: ip)
+                            coordinator?.updateEndpoint(ip, port, pin, remoteTunnelUrl = tunnel)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Conectando a $targetHost...")
+                                val ok = pcBridge.connect(targetHost, port, pin)
+                                if (ok) {
+                                    showConnectDialog = false
+                                    snackbarHostState.showSnackbar("Conectado con éxito a la PC")
+                                } else {
+                                    snackbarHostState.showSnackbar("No se pudo conectar. Verifica que el servidor de PC esté abierto y el firewall permitido.")
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCyan)
+                    ) {
+                        Text("Conectar", fontWeight = FontWeight.Bold, color = VoidBlack)
+                    }
                 }
             },
             dismissButton = {
