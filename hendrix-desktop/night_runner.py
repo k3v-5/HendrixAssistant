@@ -15,7 +15,7 @@ def main():
         description="Hendrix Antigravity Night Runner: Supervisión nocturna y rotación de cuentas Gemini Pro"
     )
     parser.add_argument("--goal", type=str, help="Meta u objetivo a ejecutar durante la noche")
-    parser.add_argument("--workspace", type=str, default=os.getcwd(), help="Directorio raíz del proyecto/workspace")
+    parser.add_argument("--workspace", type=str, default=None, help="Directorio raíz del proyecto/workspace (opcional)")
     parser.add_argument("--max-turns", type=int, default=40, help="Límite proactivo de turnos por cuenta antes de rotar (default: 40, 0 para desactivar)")
     parser.add_argument("--verify-cmd", type=str, default=None, help="Comando de verificación final (ej. 'pytest tests/' o './gradlew test')")
 
@@ -96,7 +96,7 @@ def main():
 
     # Ejecución de Tarea Nocturna
     if args.goal:
-        ws = os.path.abspath(args.workspace)
+        ws = os.path.abspath(args.workspace or os.getcwd())
         print("=============================================================")
         print("🪐 HENDRIX ANTIGRAVITY NIGHT WATCHDOG")
         print(f"Objetivo: {args.goal}")
