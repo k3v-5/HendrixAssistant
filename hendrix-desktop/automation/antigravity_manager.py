@@ -361,11 +361,158 @@ class AntigravityManager:
         best_group = groups[-1]
         return (best_group[0] + best_group[-1]) // 2
 
+    def get_chat_by_id(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """Obtiene información de una conversación específica por su conversation_id."""
+        conn = self._get_readonly_conn()
+        if not conn:
+            return None
+        try:
+            c = conn.cursor()
+            query = """
+                SELECT conversation_id, title, preview, last_modified_time, step_count, project_id, workspace_uris
+                FROM conversation_summaries
+                WHERE conversation_id = ?
+                LIMIT 1
+            """
+            row = c.execute(query, (conversation_id,)).fetchone()
+            if row:
+                cid, title, preview, last_mod, steps, pid, uris_json = row
+                display_title = title.strip() if title and title.strip() else (preview.strip() if preview and preview.strip() else "Conversación")
+                if len(display_title) > 60:
+                    display_title = display_title[:57] + "..."
+                return {
+                    "conversationId": cid,
+                    "title": display_title,
+                    "preview": preview or "",
+                    "lastModified": str(last_mod),
+                    "stepCount": steps or 0,
+                    "projectId": pid or "",
+                    "workspaceUri": uris_json or ""
+                }
+        except Exception as e:
+            print(f"[AntigravityManager] Error buscando chat {conversation_id}: {e}")
+        finally:
+            conn.close()
+        return None
+
+    def select_conversation(
+        self,
+        hwnd: int,
+        title: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+        workspace_name: Optional[str] = None
+    ) -> bool:
+        """
+        Localiza y selecciona una conversación existente en la barra lateral de Antigravity
+        utilizando Windows UI Automation (pywinauto) para evitar la creación de chats duplicados.
+        """
+        if not hwnd:
+            return False
+
+        target_title = title
+        if not target_title and conversation_id:
+            chat_info = self.get_chat_by_id(conversation_id)
+            if chat_info:
+                target_title = chat_info.get("title")
+
+        try:
+            from pywinauto import Desktop
+            app = Desktop(backend='uia').window(handle=hwnd)
+
+            # Si se proporcionó workspace_name y está colapsado, intentar expandirlo
+            if workspace_name:
+                try:
+                    buttons = app.descendants(control_type='Button')
+                    for b in buttons:
+                        btn_text = b.window_text().strip()
+                        if btn_text.lower() == workspace_name.lower():
+                            links = app.descendants(control_type='Hyperlink')
+                            chat_links_count = sum(1 for l in links if l.window_text().strip().lower() not in [
+                                'new conversation', 'conversation history', 'new conversation in project'
+                            ])
+                            if chat_links_count == 0:
+                                b.click_input()
+                                pyautogui.sleep(0.5)
+                            break
+                except Exception:
+                    pass
+
+            links = app.descendants(control_type='Hyperlink')
+            ignore = {'new conversation', 'conversation history', 'new conversation in project'}
+            candidate_links = []
+            for l in links:
+                txt = l.window_text().strip()
+                if txt and txt.lower() not in ignore:
+                    candidate_links.append((txt, l))
+
+            if not candidate_links:
+                print(f"[AntigravityManager] No se encontraron enlaces de chat en la barra lateral.")
+                return False
+
+            best_link = None
+            if target_title:
+                norm_target = target_title.lower().rstrip(".").strip()
+                # 1. Coincidencia exacta
+                for txt, l in candidate_links:
+                    if txt.lower().rstrip(".").strip() == norm_target:
+                        best_link = (txt, l)
+                        break
+
+                # 2. Coincidencia por subcadena
+                if not best_link:
+                    for txt, l in candidate_links:
+                        norm_txt = txt.lower().rstrip(".").strip()
+                        if norm_target in norm_txt or norm_txt in norm_target:
+                            best_link = (txt, l)
+                            break
+
+                # 3. Coincidencia por palabras clave significativas
+                if not best_link:
+                    target_words = set(w for w in norm_target.split() if len(w) > 3)
+                    for txt, l in candidate_links:
+                        txt_words = set(w for w in txt.lower().split() if len(w) > 3)
+                        if target_words and len(target_words.intersection(txt_words)) >= 2:
+                            best_link = (txt, l)
+                            break
+
+            # Si no hubo coincidencia con el título o no se especificó título,
+            # seleccionar la primera conversación bajo el proyecto activo (la más reciente)
+            if not best_link:
+                best_link = candidate_links[0]
+                print(f"[AntigravityManager] Seleccionando conversación más reciente por defecto: '{best_link[0]}'")
+
+            txt, target_el = best_link
+            rect = target_el.rectangle()
+            cx = (rect.left + rect.right) // 2
+            cy = (rect.top + rect.bottom) // 2
+            print(f"[AntigravityManager] Haciendo clic en conversación '{txt}' en ({cx}, {cy})...")
+            pyautogui.click(cx, cy)
+            pyautogui.sleep(1.2)
+            return True
+
+        except Exception as e:
+            print(f"[AntigravityManager] Advertencia en select_conversation vía UIA: {e}")
+            try:
+                rect = (ctypes.c_long * 4)()
+                ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+                h = bottom - top
+                fallback_x = left + 80
+                fallback_y = top + int(h * 0.38)
+                pyautogui.click(fallback_x, fallback_y)
+                pyautogui.sleep(1.0)
+                return True
+            except Exception:
+                pass
+
+        return False
+
     def execute_action(
         self,
         mode: str,
         project_uri: Optional[str] = None,
         conversation_id: Optional[str] = None,
+        conversation_title: Optional[str] = None,
         prompt: Optional[str] = None,
         force_relaunch: bool = False
     ) -> bool:
@@ -373,7 +520,7 @@ class AntigravityManager:
         Ejecuta la acción solicitada en Antigravity:
         - LAUNCH_OR_FOCUS: abrir/enfocar
         - NEW_CHAT: abrir nuevo chat y opcionalmente escribir prompt
-        - EXISTING_CHAT: enfocar conversación y opcionalmente escribir prompt
+        - EXISTING_CHAT: seleccionar conversación existente en la barra lateral y opcionalmente escribir prompt
         """
         workspace_clean = None
         if project_uri:
@@ -398,6 +545,17 @@ class AntigravityManager:
             return True
 
         elif mode == "EXISTING_CHAT":
+            if hwnd:
+                self.force_foreground_window(hwnd)
+                ws_name = os.path.basename(workspace_clean.rstrip("/\\")) if workspace_clean else None
+                self.select_conversation(
+                    hwnd=hwnd,
+                    title=conversation_title,
+                    conversation_id=conversation_id,
+                    workspace_name=ws_name
+                )
+                pyautogui.sleep(1.0)
+
             if prompt and prompt.strip():
                 self._inject_prompt(prompt.strip())
             return True

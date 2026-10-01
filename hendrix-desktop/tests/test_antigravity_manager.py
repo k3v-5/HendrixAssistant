@@ -94,3 +94,58 @@ def test_inject_prompt_safety_terminal_protection(mock_ag_manager):
                     mock_proc.return_value.name.return_value = "pwsh.exe"
                     res = mock_ag_manager._inject_prompt("Continúa")
                     assert res is False
+
+def test_get_chat_by_id(mock_ag_manager):
+    import sqlite3
+    # Crear tabla y datos en db_path
+    conn = sqlite3.connect(mock_ag_manager.db_path)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE conversation_summaries (
+            conversation_id TEXT PRIMARY KEY,
+            title TEXT,
+            preview TEXT,
+            last_modified_time TEXT,
+            step_count INTEGER,
+            project_id TEXT,
+            workspace_uris TEXT,
+            parent_conversation_id TEXT,
+            killed INTEGER
+        )
+    """)
+    c.execute("""
+        INSERT INTO conversation_summaries VALUES (
+            'conv-1234', 'Motor MCP Para Ableton', 'Preview text', '2026-10-01', 5, 'p1', 'file:///F:/Dev/AbletonEngine', '', 0
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+    chat = mock_ag_manager.get_chat_by_id('conv-1234')
+    assert chat is not None
+    assert chat['conversationId'] == 'conv-1234'
+    assert chat['title'] == 'Motor MCP Para Ableton'
+
+def test_select_conversation_matching(mock_ag_manager):
+    # Simular pywinauto Desktop
+    mock_link = MagicMock()
+    mock_link.window_text.return_value = "Motor MCP Para Ableton"
+    mock_rect = MagicMock()
+    mock_rect.left = 100
+    mock_rect.right = 200
+    mock_rect.top = 300
+    mock_rect.bottom = 350
+    mock_link.rectangle.return_value = mock_rect
+
+    with patch('pywinauto.Desktop') as mock_desktop:
+        mock_app = MagicMock()
+        mock_desktop.return_value.window.return_value = mock_app
+        mock_app.descendants.return_value = [mock_link]
+        with patch('pyautogui.click') as mock_click:
+            with patch('pyautogui.sleep'):
+                res = mock_ag_manager.select_conversation(
+                    hwnd=12345,
+                    title="Motor MCP Para Ableton"
+                )
+                assert res is True
+                mock_click.assert_called_once_with(150, 325)

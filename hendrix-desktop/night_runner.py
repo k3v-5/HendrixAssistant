@@ -83,6 +83,7 @@ def main():
         active_chat = recent_chats[0] if recent_chats else None
 
         target_cid = None
+        target_title = None
         target_ws = os.path.abspath(args.workspace) if args.workspace and os.path.exists(args.workspace) else None
 
         if not args.no_resume:
@@ -90,6 +91,7 @@ def main():
                 target_cid = args.resume_chat
             elif active_chat:
                 target_cid = active_chat["conversationId"]
+                target_title = active_chat.get("title")
                 print(f"📍 Conversación activa previa detectada: '{active_chat['title']}' ({target_cid})")
                 if not target_ws and active_chat.get("workspaceUri"):
                     uri = active_chat["workspaceUri"]
@@ -116,6 +118,7 @@ def main():
                     mode=mode,
                     project_uri=target_ws,
                     conversation_id=target_cid,
+                    conversation_title=target_title,
                     prompt=continuation_prompt,
                     force_relaunch=True
                 )

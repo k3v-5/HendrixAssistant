@@ -351,10 +351,12 @@ class NightTaskWatchdog:
         time.sleep(1.0)
         mode = "EXISTING_CHAT" if active_chat else "NEW_CHAT"
         cid = active_chat["conversationId"] if active_chat else None
+        title = active_chat.get("title") if active_chat else None
         self.ag_mgr.execute_action(
             mode=mode,
             project_uri=ws,
             conversation_id=cid,
+            conversation_title=title,
             prompt=continuation_prompt,
             force_relaunch=True
         )
