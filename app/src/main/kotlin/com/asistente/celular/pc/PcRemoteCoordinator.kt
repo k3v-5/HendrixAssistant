@@ -3,8 +3,15 @@ package com.asistente.celular.pc
 import android.content.Context
 import android.util.Log
 import com.asistente.celular.nlu.pc.AntigravityChat
+import com.asistente.celular.nlu.pc.AntigravityProfile
 import com.asistente.celular.nlu.pc.AntigravityProject
 import com.asistente.celular.nlu.pc.AntigravityTargetMode
+import com.asistente.celular.nlu.pc.NightTaskStatus
+import com.asistente.celular.nlu.pc.alert.PcAlertAction
+import com.asistente.celular.nlu.pc.alert.PcAlertCategory
+import com.asistente.celular.nlu.pc.alert.PcAlertSeverity
+import com.asistente.celular.nlu.pc.alert.PcProactiveAlert
+import com.asistente.celular.pc.alert.PcProactiveAlertNotificationHelper
 import com.asistente.celular.nlu.pc.daw.DawAction
 import com.asistente.celular.nlu.pc.daw.DawActionRequest
 import com.asistente.celular.nlu.pc.daw.DawActionResult
@@ -870,6 +877,47 @@ class PcRemoteCoordinator(
                         Log.w(TAG, "🚨 Terminal build error detected on PC: ${alert.command} - ${alert.errorMessage}")
                     }
                 }
+                "AG_NIGHT_EVENT" -> {
+                    val evObj = json.optJSONObject("event")
+                    if (evObj != null) {
+                        val eventType = evObj.optString("eventType", "")
+                        val details = evObj.optJSONObject("details") ?: JSONObject()
+                        val title = when (eventType) {
+                            "NIGHT_TASK_STARTED" -> "🌙 Tarea Nocturna Antigravity Iniciada"
+                            "NIGHT_TASK_ROTATING" -> "⚠️ Rotando Cuenta Gemini Pro"
+                            "NIGHT_TASK_RESUMED" -> "✅ Tarea Reanudada con Nueva Cuenta"
+                            "NIGHT_TASK_LOOP_DETECTED" -> "🔄 Corrección de Bucle Aplicada"
+                            "NIGHT_TASK_PAUSED_COOLDOWN" -> "⛔ Enfriamiento de Cuentas (Pausa)"
+                            "NIGHT_TASK_COMPLETED" -> "🎉 Tarea Nocturna Finalizada con Éxito"
+                            else -> "🪐 Antigravity: $eventType"
+                        }
+                        val message = when (eventType) {
+                            "NIGHT_TASK_ROTATING" -> "Límite de cuota alcanzado. Cambiando a cuenta disponible..."
+                            "NIGHT_TASK_RESUMED" -> "Cuenta '${details.optString("activeProfile")}' activa. Continuando meta."
+                            "NIGHT_TASK_LOOP_DETECTED" -> "Se inyectó prompt correctivo para romper bucle de herramientas."
+                            "NIGHT_TASK_PAUSED_COOLDOWN" -> "Todas las cuentas en cooldown. Se reanudará automáticamente."
+                            "NIGHT_TASK_COMPLETED" -> "La meta ha sido alcanzada y verificada."
+                            else -> details.optString("goal", "Supervisión nocturna en curso.")
+                        }
+                        val severity = when (eventType) {
+                            "NIGHT_TASK_COMPLETED" -> PcAlertSeverity.INFO
+                            "NIGHT_TASK_ROTATING", "NIGHT_TASK_LOOP_DETECTED" -> PcAlertSeverity.WARNING
+                            "NIGHT_TASK_PAUSED_COOLDOWN" -> PcAlertSeverity.CRITICAL
+                            else -> PcAlertSeverity.INFO
+                        }
+                        val alert = PcProactiveAlert(
+                            alertId = "ag_night_${System.currentTimeMillis()}",
+                            category = PcAlertCategory.AGENT_NIGHT_TASK,
+                            title = title,
+                            message = message,
+                            severity = severity,
+                            actions = listOf(PcAlertAction("dismiss", "Aceptar"))
+                        )
+                        _proactiveAlerts.value = alert
+                        PcProactiveAlertNotificationHelper.showAlertNotification(context, alert)
+                        Log.i(TAG, "🌙 Evento nocturno Antigravity recibido: $eventType")
+                    }
+                }
                 "AIRSYNC_LIST_RESP" -> {
                     val port = json.optInt("port", 8900)
                     if (port > 0) {
@@ -1272,6 +1320,142 @@ class PcRemoteCoordinator(
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun queryAntigravityProfiles(): List<AntigravityProfile> = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext emptyList()
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_PROFILE_LIST")
+            put("requestId", reqId)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() } ?: return@withContext emptyList()
+        val arr = resp.optJSONArray("profiles") ?: JSONArray()
+        val list = mutableListOf<AntigravityProfile>()
+        for (i in 0 until arr.length()) {
+            val po = arr.getJSONObject(i)
+            list.add(
+                AntigravityProfile(
+                    name = po.optString("name", ""),
+                    email = po.optString("email", ""),
+                    isActive = po.optBoolean("isActive", false),
+                    inCooldown = po.optBoolean("inCooldown", false),
+                    cooldownRemainingSeconds = po.optInt("cooldownRemainingSeconds", 0),
+                    usageCount = po.optInt("usageCount", 0)
+                )
+            )
+        }
+        list
+    }
+
+    override suspend fun captureAntigravityProfile(name: String, email: String?): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_PROFILE_CAPTURE")
+            put("requestId", reqId)
+            put("name", name)
+            if (email != null) put("email", email)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun activateAntigravityProfile(name: String): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_PROFILE_ACTIVATE")
+            put("requestId", reqId)
+            put("name", name)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun startAntigravityNightTask(
+        goal: String,
+        workspace: String,
+        maxTurnsPerAccount: Int,
+        verificationCmd: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_NIGHT_START")
+            put("requestId", reqId)
+            put("goal", goal)
+            put("workspace", workspace)
+            put("maxTurnsPerAccount", maxTurnsPerAccount)
+            if (verificationCmd != null) put("verificationCmd", verificationCmd)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun stopAntigravityNightTask(reason: String): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_NIGHT_STOP")
+            put("requestId", reqId)
+            put("reason", reason)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun queryNightTaskStatus(): NightTaskStatus? = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext null
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "AG_NIGHT_STATUS")
+            put("requestId", reqId)
+        }
+        sendSignedPayload(req, ws)
+
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() } ?: return@withContext null
+        val statusObj = resp.optJSONObject("status") ?: return@withContext null
+        NightTaskStatus(
+            status = statusObj.optString("status", "IDLE"),
+            goal = statusObj.optString("goal", ""),
+            workspace = statusObj.optString("workspace", ""),
+            activeProfile = statusObj.optString("activeProfile").takeIf { it.isNotBlank() },
+            currentTurns = statusObj.optInt("currentTurns", 0),
+            totalTurns = statusObj.optInt("totalTurns", 0),
+            rotationsCount = statusObj.optInt("rotationsCount", 0),
+            loopRecoveriesCount = statusObj.optInt("loopRecoveriesCount", 0),
+            startedAt = statusObj.optString("startedAt").takeIf { it.isNotBlank() },
+            lastIncident = statusObj.optString("lastIncident").takeIf { it.isNotBlank() }
+        )
     }
 
     override suspend fun executeDawAction(request: DawActionRequest): DawActionResult = withContext(Dispatchers.IO) {

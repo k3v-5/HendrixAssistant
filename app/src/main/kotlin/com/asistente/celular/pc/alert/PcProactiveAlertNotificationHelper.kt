@@ -60,6 +60,7 @@ object PcProactiveAlertNotificationHelper {
             PcAlertCategory.RENDER_CRASHED -> "💥"
             PcAlertCategory.BUILD_FAILED -> "❌"
             PcAlertCategory.SECURITY -> "🔒"
+            PcAlertCategory.AGENT_NIGHT_TASK -> "🌙"
             PcAlertCategory.OTHER -> "🔔"
         }
 

@@ -15,6 +15,8 @@ from capture.screen_engine import screen_engine
 from input.input_controller import input_controller
 from automation.uia_manager import uia_manager
 from automation.antigravity_manager import antigravity_manager
+from automation.antigravity_profiles import antigravity_profile_manager
+from automation.night_watchdog import night_task_watchdog
 from automation.ableton_manager import ableton_manager
 from automation.module_automations import execute_module_action
 from automation.window_manager import window_manager
@@ -153,6 +155,19 @@ def broadcast_json(payload: dict):
             pass
 
 broadcast = broadcast_json
+
+def broadcast_night_event(event_type: str, payload: dict):
+    if not active_websockets:
+        return
+    msg = json.dumps({"type": "AG_NIGHT_EVENT", "event": payload})
+    for ws in list(active_websockets):
+        try:
+            if main_event_loop and main_event_loop.is_running():
+                asyncio.run_coroutine_threadsafe(ws.send(msg), main_event_loop)
+        except Exception:
+            pass
+
+night_task_watchdog.register_event_callback(broadcast_night_event)
 
 dropzone_manager.add_file_ready_listener(broadcast_dropzone_file_ready)
 dropzone_manager.start_watcher()
@@ -432,6 +447,95 @@ async def handle_client(websocket):
                     }
                     await websocket.send(json.dumps(resp))
                     log_activity(f"⚡ Acción Antigravity ejecutada: {mode} (Éxito: {success})")
+
+                # 10.1 Antigravity: Listar perfiles / cuentas de Gemini Pro
+                elif msg_type == "AG_PROFILE_LIST":
+                    req_id = data.get("requestId", "")
+                    profiles = antigravity_profile_manager.list_profiles()
+                    active = antigravity_profile_manager.get_active_profile()
+                    resp = {
+                        "type": "AG_PROFILE_LIST_RESP",
+                        "requestId": req_id,
+                        "profiles": profiles,
+                        "activeProfile": active
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🪐 Perfiles Antigravity listados ({len(profiles)} cuentas)")
+
+                # 10.2 Antigravity: Capturar sesión activa como perfil
+                elif msg_type == "AG_PROFILE_CAPTURE":
+                    req_id = data.get("requestId", "")
+                    name = data.get("name", "").strip()
+                    email = data.get("email")
+                    if not name:
+                        name = f"profile_{int(time.time())}"
+                    success = antigravity_profile_manager.capture_current_profile(name, email)
+                    resp = {
+                        "type": "AG_PROFILE_CAPTURE_RESP",
+                        "requestId": req_id,
+                        "success": success,
+                        "name": name,
+                        "message": f"Perfil '{name}' capturado con éxito" if success else "Error capturando sesión activa"
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🪐 Captura de perfil '{name}': {'Éxito' if success else 'Falló'}")
+
+                # 10.3 Antigravity: Activar perfil
+                elif msg_type == "AG_PROFILE_ACTIVATE":
+                    req_id = data.get("requestId", "")
+                    name = data.get("name", "").strip()
+                    success = antigravity_profile_manager.activate_profile(name, kill_running=True)
+                    resp = {
+                        "type": "AG_PROFILE_ACTIVATE_RESP",
+                        "requestId": req_id,
+                        "success": success,
+                        "name": name,
+                        "message": f"Perfil '{name}' activado" if success else f"Error activando perfil '{name}'"
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🪐 Activación de perfil '{name}': {'Éxito' if success else 'Falló'}")
+
+                # 10.4 Antigravity: Iniciar tarea nocturna supervisada
+                elif msg_type == "AG_NIGHT_START":
+                    req_id = data.get("requestId", "")
+                    goal = data.get("goal", "")
+                    workspace = data.get("workspace", "")
+                    max_turns = data.get("maxTurnsPerAccount", 40)
+                    verify_cmd = data.get("verificationCmd")
+                    success = night_task_watchdog.start_task(goal, workspace, max_turns, verify_cmd)
+                    resp = {
+                        "type": "AG_NIGHT_START_RESP",
+                        "requestId": req_id,
+                        "success": success,
+                        "status": night_task_watchdog.get_status()
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🌙 Tarea nocturna iniciada: '{goal[:40]}...' (Éxito: {success})")
+
+                # 10.5 Antigravity: Detener tarea nocturna
+                elif msg_type == "AG_NIGHT_STOP":
+                    req_id = data.get("requestId", "")
+                    reason = data.get("reason", "USER_REQUESTED")
+                    success = night_task_watchdog.stop_task(reason)
+                    resp = {
+                        "type": "AG_NIGHT_STOP_RESP",
+                        "requestId": req_id,
+                        "success": success,
+                        "status": night_task_watchdog.get_status()
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🌙 Tarea nocturna detenida (Razón: {reason})")
+
+                # 10.6 Antigravity: Consultar estado de tarea nocturna
+                elif msg_type == "AG_NIGHT_STATUS":
+                    req_id = data.get("requestId", "")
+                    resp = {
+                        "type": "AG_NIGHT_STATUS_RESP",
+                        "requestId": req_id,
+                        "status": night_task_watchdog.get_status(),
+                        "profiles": antigravity_profile_manager.list_profiles()
+                    }
+                    await websocket.send(json.dumps(resp))
 
                 # 11. DAW / Ableton Live: Ejecutar acción de transporte o proyecto
                 elif msg_type == "DAW_ACTION":

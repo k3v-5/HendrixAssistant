@@ -40,3 +40,31 @@ enum class AntigravityTargetMode {
     /** Lanzar o enfocar la aplicación de escritorio Antigravity. */
     LAUNCH_OR_FOCUS
 }
+
+/**
+ * Representa una cuenta o perfil de Gemini Pro registrado para rotación.
+ */
+data class AntigravityProfile(
+    val name: String,
+    val email: String = "",
+    val isActive: Boolean = false,
+    val inCooldown: Boolean = false,
+    val cooldownRemainingSeconds: Int = 0,
+    val usageCount: Int = 0
+)
+
+/**
+ * Estado en tiempo real del supervisor de tareas nocturnas de Antigravity.
+ */
+data class NightTaskStatus(
+    val status: String = "IDLE",
+    val goal: String = "",
+    val workspace: String = "",
+    val activeProfile: String? = null,
+    val currentTurns: Int = 0,
+    val totalTurns: Int = 0,
+    val rotationsCount: Int = 0,
+    val loopRecoveriesCount: Int = 0,
+    val startedAt: String? = null,
+    val lastIncident: String? = null
+)

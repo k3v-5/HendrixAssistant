@@ -6,6 +6,7 @@ enum class PcAlertCategory {
     RENDER_CRASHED,
     BUILD_FAILED,
     SECURITY,
+    AGENT_NIGHT_TASK,
     OTHER
 }
 

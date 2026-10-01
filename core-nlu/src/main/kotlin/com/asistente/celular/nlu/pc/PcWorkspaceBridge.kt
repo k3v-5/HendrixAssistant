@@ -170,6 +170,41 @@ interface PcWorkspaceBridge {
     ): Boolean = true
 
     /**
+     * Consulta la lista de cuentas y perfiles de Gemini Pro capturados para rotación en Antigravity.
+     */
+    suspend fun queryAntigravityProfiles(): List<AntigravityProfile> = emptyList()
+
+    /**
+     * Captura la sesión activa actual de Antigravity como un perfil identificado por nombre.
+     */
+    suspend fun captureAntigravityProfile(name: String, email: String? = null): Boolean = true
+
+    /**
+     * Activa un perfil registrado, intercambiando las credenciales de sesión en la PC.
+     */
+    suspend fun activateAntigravityProfile(name: String): Boolean = true
+
+    /**
+     * Inicia una tarea nocturna supervisada con rotación automática de cuentas ante límites de cuota.
+     */
+    suspend fun startAntigravityNightTask(
+        goal: String,
+        workspace: String,
+        maxTurnsPerAccount: Int = 40,
+        verificationCmd: String? = null
+    ): Boolean = true
+
+    /**
+     * Detiene la tarea nocturna en curso.
+     */
+    suspend fun stopAntigravityNightTask(reason: String = "USER_REQUESTED"): Boolean = true
+
+    /**
+     * Consulta el estado en tiempo real del supervisor de tareas nocturnas.
+     */
+    suspend fun queryNightTaskStatus(): NightTaskStatus? = null
+
+    /**
      * Ejecuta una acción de producción musical o gestión de sesión en el DAW objetivo.
      */
     suspend fun executeDawAction(
