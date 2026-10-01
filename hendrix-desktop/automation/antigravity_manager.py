@@ -361,23 +361,6 @@ class AntigravityManager:
         best_group = groups[-1]
         return (best_group[0] + best_group[-1]) // 2
 
-    def _detect_sidebar_active_chat(self, img, w: int, h: int) -> Optional[int]:
-        """
-        Detecta si hay conversaciones con notificaciones o tareas activas (punto azul)
-        en la barra lateral izquierda de Antigravity.
-        """
-        sidebar_max_x = min(280, int(w * 0.25))
-        blue_y_coords = []
-        for y in range(int(h * 0.12), int(h * 0.85)):
-            for x in range(15, sidebar_max_x):
-                r, g, b = img.getpixel((x, y))[:3]
-                if b > 150 and b > r * 1.4 and b > g * 1.2:
-                    blue_y_coords.append(y)
-
-        if blue_y_coords:
-            return sum(blue_y_coords) // len(blue_y_coords)
-        return None
-
     def execute_action(
         self,
         mode: str,
@@ -411,12 +394,12 @@ class AntigravityManager:
             pyautogui.sleep(1.0)
 
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip(), resume_conversation=False)
+                self._inject_prompt(prompt.strip())
             return True
 
         elif mode == "EXISTING_CHAT":
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip(), resume_conversation=True)
+                self._inject_prompt(prompt.strip())
             return True
 
         elif mode == "SWITCH_PROJECT_ONLY":
@@ -434,12 +417,12 @@ class AntigravityManager:
 
         elif mode == "LAUNCH_OR_FOCUS":
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip(), resume_conversation=False)
+                self._inject_prompt(prompt.strip())
             return True
 
         return True
 
-    def _inject_prompt(self, text: str, resume_conversation: bool = True) -> bool:
+    def _inject_prompt(self, text: str) -> bool:
         """Inyecta el prompt en el área de entrada activa de Antigravity de forma 100% segura y dinámica."""
         hwnd = self.find_antigravity_window()
         if not hwnd:
@@ -485,34 +468,37 @@ class AntigravityManager:
         except Exception:
             pass
 
-        # 5. Si se solicitó reanudar conversación y hay un punto azul en la barra lateral, abrirlo
-        if shot and resume_conversation:
-            blue_y = self._detect_sidebar_active_chat(shot, w, h)
-            if blue_y is not None:
-                pyautogui.click(left + 80, top + blue_y)
-                pyautogui.sleep(1.2)
-                try:
-                    shot = pyautogui.screenshot(region=(left, top, w, h))
-                except Exception:
-                    pass
-
-        # 6. Localizar dinámicamente la caja de texto
+        # 5. Localizar dinámicamente la caja de texto
         target_y = None
         if shot:
             box_y = self._detect_input_box(shot, w, h)
             if box_y is not None:
                 target_y = top + box_y
 
+        # Si no se encontró caja (ej. la ventana estaba en Scheduled Tasks o Settings),
+        # abrir un nuevo chat en el proyecto actual con Ctrl+N
+        if target_y is None:
+            pyautogui.hotkey("ctrl", "n")
+            pyautogui.sleep(1.0)
+            try:
+                shot = pyautogui.screenshot(region=(left, top, w, h))
+                if shot:
+                    box_y = self._detect_input_box(shot, w, h)
+                    if box_y is not None:
+                        target_y = top + box_y
+            except Exception:
+                pass
+
         if target_y is None:
             target_y = top + int(h * 0.92)
 
         click_x = left + int(w * 0.58)
 
-        # 7. Clic en la caja de texto
+        # 6. Clic en la caja de texto
         pyautogui.click(click_x, target_y)
         pyautogui.sleep(0.4)
 
-        # 8. Pegar y enviar
+        # 7. Pegar y enviar
         if pyperclip:
             pyperclip.copy(text)
             pyautogui.sleep(0.2)

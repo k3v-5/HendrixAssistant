@@ -66,7 +66,7 @@ def test_execute_action_existing_chat(mock_ag_manager):
                         force_relaunch=True
                     )
                     assert res is True
-                    mock_inject.assert_called_once_with("Continúa", resume_conversation=True)
+                    mock_inject.assert_called_once_with("Continúa")
 
 def test_wait_for_window_success(mock_ag_manager):
     # Simulate window appearing after 1 check
