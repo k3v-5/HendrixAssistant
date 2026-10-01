@@ -325,6 +325,59 @@ class AntigravityManager:
 
         return user32.GetForegroundWindow() == hwnd
 
+    def _detect_input_box(self, img, w: int, h: int) -> Optional[int]:
+        """
+        Detecta dinámicamente la coordenada Y central de la caja de entrada de texto
+        en Antigravity analizando el color característico del contenedor RGB=(28, 28, 28).
+        Soporta tanto la vista centrada (home) como la vista inferior (conversación activa).
+        """
+        search_x = int(w * 0.60)
+        matches = []
+        for y in range(int(h * 0.30), int(h * 0.98)):
+            r, g, b = img.getpixel((search_x, y))[:3]
+            if 22 <= r <= 36 and 22 <= g <= 36 and 22 <= b <= 36:
+                matches.append(y)
+
+        if not matches:
+            return None
+
+        # Agrupar píxeles contiguos (la caja tiene al menos 15px de altura)
+        groups = []
+        curr = [matches[0]]
+        for m in matches[1:]:
+            if m == curr[-1] + 1:
+                curr.append(m)
+            else:
+                if len(curr) >= 15:
+                    groups.append(curr)
+                curr = [m]
+        if len(curr) >= 15:
+            groups.append(curr)
+
+        if not groups:
+            return None
+
+        # Preferir el grupo inferior si existe (caja inferior de chat)
+        best_group = groups[-1]
+        return (best_group[0] + best_group[-1]) // 2
+
+    def _detect_sidebar_active_chat(self, img, w: int, h: int) -> Optional[int]:
+        """
+        Detecta si hay conversaciones con notificaciones o tareas activas (punto azul)
+        en la barra lateral izquierda de Antigravity.
+        """
+        sidebar_max_x = min(280, int(w * 0.25))
+        blue_y_coords = []
+        for y in range(int(h * 0.12), int(h * 0.85)):
+            for x in range(15, sidebar_max_x):
+                r, g, b = img.getpixel((x, y))[:3]
+                if b > 150 and b > r * 1.4 and b > g * 1.2:
+                    blue_y_coords.append(y)
+
+        if blue_y_coords:
+            return sum(blue_y_coords) // len(blue_y_coords)
+        return None
+
     def execute_action(
         self,
         mode: str,
@@ -358,22 +411,12 @@ class AntigravityManager:
             pyautogui.sleep(1.0)
 
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip())
+                self._inject_prompt(prompt.strip(), resume_conversation=False)
             return True
 
         elif mode == "EXISTING_CHAT":
-            if conversation_id:
-                try:
-                    os.startfile(f"antigravity://conversation/{conversation_id}")
-                    pyautogui.sleep(1.5)
-                    hwnd_cur = self.find_antigravity_window()
-                    if hwnd_cur:
-                        self.force_foreground_window(hwnd_cur)
-                except Exception:
-                    pass
-
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip())
+                self._inject_prompt(prompt.strip(), resume_conversation=True)
             return True
 
         elif mode == "SWITCH_PROJECT_ONLY":
@@ -391,13 +434,13 @@ class AntigravityManager:
 
         elif mode == "LAUNCH_OR_FOCUS":
             if prompt and prompt.strip():
-                self._inject_prompt(prompt.strip())
+                self._inject_prompt(prompt.strip(), resume_conversation=False)
             return True
 
         return True
 
-    def _inject_prompt(self, text: str) -> bool:
-        """Inyecta el prompt en el área de entrada activa de Antigravity de forma 100% segura."""
+    def _inject_prompt(self, text: str, resume_conversation: bool = True) -> bool:
+        """Inyecta el prompt en el área de entrada activa de Antigravity de forma 100% segura y dinámica."""
         hwnd = self.find_antigravity_window()
         if not hwnd:
             print("[AntigravityManager] No se encontró ventana de Antigravity para inyectar el prompt.")
@@ -428,18 +471,48 @@ class AntigravityManager:
                 print(f"[AntigravityManager] ⚠️ Seguridad: La ventana activa es '{fg_pname}', no Antigravity. Se cancela el pegado para no afectar la consola.")
                 return False
 
-        # 3. Obtener coordenadas relativas de la caja de texto
+        # 3. Obtener dimensiones de la ventana
         rect = (ctypes.c_long * 4)()
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
         w = right - left
         h = bottom - top
+
+        # 4. Capturar pantalla de la ventana para análisis dinámico
+        shot = None
+        try:
+            shot = pyautogui.screenshot(region=(left, top, w, h))
+        except Exception:
+            pass
+
+        # 5. Si se solicitó reanudar conversación y hay un punto azul en la barra lateral, abrirlo
+        if shot and resume_conversation:
+            blue_y = self._detect_sidebar_active_chat(shot, w, h)
+            if blue_y is not None:
+                pyautogui.click(left + 80, top + blue_y)
+                pyautogui.sleep(1.2)
+                try:
+                    shot = pyautogui.screenshot(region=(left, top, w, h))
+                except Exception:
+                    pass
+
+        # 6. Localizar dinámicamente la caja de texto
+        target_y = None
+        if shot:
+            box_y = self._detect_input_box(shot, w, h)
+            if box_y is not None:
+                target_y = top + box_y
+
+        if target_y is None:
+            target_y = top + int(h * 0.92)
+
         click_x = left + int(w * 0.58)
-        click_y = top + int(h * 0.93)
-        pyautogui.click(click_x, click_y)
+
+        # 7. Clic en la caja de texto
+        pyautogui.click(click_x, target_y)
         pyautogui.sleep(0.4)
 
-        # 4. Pegar y enviar
+        # 8. Pegar y enviar
         if pyperclip:
             pyperclip.copy(text)
             pyautogui.sleep(0.2)

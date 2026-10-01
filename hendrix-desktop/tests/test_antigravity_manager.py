@@ -59,16 +59,14 @@ def test_execute_action_existing_chat(mock_ag_manager):
         with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
             with patch.object(mock_ag_manager, '_inject_prompt') as mock_inject:
                 with patch('pyautogui.sleep'):
-                    with patch('os.startfile', create=True) as mock_startfile:
-                        res = mock_ag_manager.execute_action(
-                            mode="EXISTING_CHAT",
-                            conversation_id="conv-1234",
-                            prompt="Continúa",
-                            force_relaunch=True
-                        )
-                        assert res is True
-                        mock_startfile.assert_called_once_with("antigravity://conversation/conv-1234")
-                        mock_inject.assert_called_once_with("Continúa")
+                    res = mock_ag_manager.execute_action(
+                        mode="EXISTING_CHAT",
+                        conversation_id="conv-1234",
+                        prompt="Continúa",
+                        force_relaunch=True
+                    )
+                    assert res is True
+                    mock_inject.assert_called_once_with("Continúa", resume_conversation=True)
 
 def test_wait_for_window_success(mock_ag_manager):
     # Simulate window appearing after 1 check
