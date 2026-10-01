@@ -27,21 +27,47 @@ def test_launch_or_focus_spawn_process(mock_ag_manager, tmp_path):
     workspace.mkdir()
 
     with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=None):
-        with patch('subprocess.Popen') as mock_popen:
-            res = mock_ag_manager.launch_or_focus(workspace_path=str(workspace))
-            assert res is True
-            mock_popen.assert_called_once()
-            args, kwargs = mock_popen.call_args
-            assert args[0] == [mock_ag_manager.exe_path, str(workspace)]
-            assert "creationflags" in kwargs
+        with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
+            with patch('subprocess.Popen') as mock_popen:
+                res = mock_ag_manager.launch_or_focus(workspace_path=str(workspace))
+                assert res is True
+                mock_popen.assert_called_once()
+                args, kwargs = mock_popen.call_args
+                assert args[0] == [mock_ag_manager.exe_path, str(workspace)]
+                assert "creationflags" in kwargs
 
 def test_launch_or_focus_fallback_startfile(mock_ag_manager):
     with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=None):
-        with patch('subprocess.Popen', side_effect=OSError("Popen failed")):
+        with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
+            with patch('subprocess.Popen', side_effect=OSError("Popen failed")):
+                with patch('os.startfile', create=True) as mock_startfile:
+                    res = mock_ag_manager.launch_or_focus()
+                    assert res is True
+                    mock_startfile.assert_called_once_with(mock_ag_manager.exe_path)
+
+def test_launch_or_focus_force_relaunch(mock_ag_manager):
+    # force_relaunch should ignore any existing HWND and spawn a new instance
+    with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=999):
+        with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
             with patch('os.startfile', create=True) as mock_startfile:
-                res = mock_ag_manager.launch_or_focus()
+                res = mock_ag_manager.launch_or_focus(force_relaunch=True)
                 assert res is True
                 mock_startfile.assert_called_once_with(mock_ag_manager.exe_path)
+
+def test_execute_action_existing_chat(mock_ag_manager):
+    with patch.object(mock_ag_manager, 'launch_or_focus', return_value=True):
+        with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
+            with patch.object(mock_ag_manager, '_inject_prompt') as mock_inject:
+                with patch('os.startfile', create=True) as mock_startfile:
+                    res = mock_ag_manager.execute_action(
+                        mode="EXISTING_CHAT",
+                        conversation_id="conv-1234",
+                        prompt="Continúa",
+                        force_relaunch=True
+                    )
+                    assert res is True
+                    mock_startfile.assert_called_once_with("antigravity://conversation/conv-1234")
+                    mock_inject.assert_called_once_with("Continúa")
 
 def test_wait_for_window_success(mock_ag_manager):
     # Simulate window appearing after 1 check

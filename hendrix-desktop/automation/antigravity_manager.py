@@ -209,44 +209,70 @@ class AntigravityManager:
             time.sleep(0.5)
         return None
 
-    def launch_or_focus(self, workspace_path: Optional[str] = None) -> bool:
-        """Enfoca la ventana de Antigravity o la inicia si no está corriendo."""
-        hwnd = self.find_antigravity_window()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-            return True
+    def is_process_running(self) -> bool:
+        """Comprueba si algún proceso de Antigravity.exe está corriendo."""
+        try:
+            import psutil
+            for p in psutil.process_iter(['name']):
+                try:
+                    if (p.info.get('name') or '').lower() == 'antigravity.exe':
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return False
+
+    def launch_or_focus(self, workspace_path: Optional[str] = None, force_relaunch: bool = False) -> bool:
+        """
+        Enfoca la ventana de Antigravity o la inicia si no está corriendo.
+        Si force_relaunch es True, ignora cualquier HWND previo y lanza un proceso nuevo.
+        """
+        if not force_relaunch:
+            hwnd = self.find_antigravity_window()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                return True
 
         if os.path.exists(self.exe_path):
             try:
-                if workspace_path and os.path.exists(workspace_path):
+                # Si se solicitó force_relaunch, esperar a que los procesos previos mueran
+                if force_relaunch:
+                    start_wait = time.time()
+                    while time.time() - start_wait < 3.0:
+                        if not self.is_process_running():
+                            break
+                        time.sleep(0.3)
+
+                launched = False
+                if hasattr(os, "startfile"):
+                    try:
+                        if workspace_path and os.path.exists(workspace_path):
+                            os.startfile(self.exe_path, "open", f'"{workspace_path}"')
+                        else:
+                            os.startfile(self.exe_path)
+                        launched = True
+                    except Exception as e_sf:
+                        print(f"[AntigravityManager] Advertencia en startfile, recurriendo a Popen: {e_sf}")
+
+                if not launched:
+                    cmd = [self.exe_path]
+                    if workspace_path and os.path.exists(workspace_path):
+                        cmd.append(workspace_path)
                     creation_flags = 0
                     if sys.platform == "win32":
-                        creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-                    subprocess.Popen(
-                        [self.exe_path, workspace_path],
-                        creationflags=creation_flags,
-                        close_fds=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        stdin=subprocess.DEVNULL
-                    )
-                else:
-                    if hasattr(os, "startfile"):
-                        os.startfile(self.exe_path)
-                    else:
-                        subprocess.Popen([self.exe_path])
-                time.sleep(1.5)
+                        creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+                    subprocess.Popen(cmd, creationflags=creation_flags)
+
+                hwnd = self.wait_for_window(timeout_sec=15.0)
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
                 return True
             except Exception as e:
                 print(f"[AntigravityManager] Error lanzando ejecutable: {e}")
-                try:
-                    os.startfile(self.exe_path)
-                    time.sleep(1.5)
-                    return True
-                except Exception as e2:
-                    print(f"[AntigravityManager] Error lanzando ejecutable con startfile: {e2}")
-                    return False
+                return False
 
         return False
 
@@ -255,7 +281,8 @@ class AntigravityManager:
         mode: str,
         project_uri: Optional[str] = None,
         conversation_id: Optional[str] = None,
-        prompt: Optional[str] = None
+        prompt: Optional[str] = None,
+        force_relaunch: bool = False
     ) -> bool:
         """
         Ejecuta la acción solicitada en Antigravity:
@@ -267,19 +294,20 @@ class AntigravityManager:
         if project_uri:
             workspace_clean = urllib.parse.unquote(project_uri.replace("file:///", "").replace("file://", ""))
 
-        self.launch_or_focus(workspace_path=workspace_clean)
-        hwnd = self.wait_for_window(timeout_sec=12.0)
+        self.launch_or_focus(workspace_path=workspace_clean, force_relaunch=force_relaunch)
+        hwnd = self.wait_for_window(timeout_sec=15.0)
         if hwnd:
             ctypes.windll.user32.ShowWindow(hwnd, 9)
             ctypes.windll.user32.SetForegroundWindow(hwnd)
-            pyautogui.sleep(1.0)
+            # Dar tiempo a Electron para renderizar el DOM del chat
+            pyautogui.sleep(3.5 if force_relaunch else 1.0)
         else:
             pyautogui.sleep(2.0)
 
         if mode == "NEW_CHAT":
             # Nuevo chat en Antigravity (Ctrl+N o atajo de nueva conversación)
             pyautogui.hotkey("ctrl", "n")
-            pyautogui.sleep(0.8)
+            pyautogui.sleep(1.0)
 
             if prompt and prompt.strip():
                 self._inject_prompt(prompt.strip())
@@ -289,7 +317,7 @@ class AntigravityManager:
             if conversation_id:
                 try:
                     os.startfile(f"antigravity://conversation/{conversation_id}")
-                    pyautogui.sleep(0.8)
+                    pyautogui.sleep(1.2)
                 except Exception:
                     pass
 
@@ -301,10 +329,18 @@ class AntigravityManager:
             if project_uri:
                 clean_path = urllib.parse.unquote(project_uri.replace("file:///", "").replace("file://", ""))
                 try:
-                    subprocess.Popen([self.exe_path, clean_path])
+                    if hasattr(os, "startfile"):
+                        os.startfile(self.exe_path, "open", f'"{clean_path}"')
+                    else:
+                        subprocess.Popen([self.exe_path, clean_path])
                     return True
                 except Exception:
                     pass
+            return True
+
+        elif mode == "LAUNCH_OR_FOCUS":
+            if prompt and prompt.strip():
+                self._inject_prompt(prompt.strip())
             return True
 
         return True
@@ -313,21 +349,25 @@ class AntigravityManager:
         """Inyecta el prompt en el área de entrada activa de Antigravity."""
         hwnd = self.find_antigravity_window()
         if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            pyautogui.sleep(0.4)
+
             rect = (ctypes.c_long * 4)()
             ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
             left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
             w = right - left
             h = bottom - top
-            click_x = left + int(w * 0.59)
+            click_x = left + int(w * 0.58)
             click_y = top + int(h * 0.93)
             pyautogui.click(click_x, click_y)
-            pyautogui.sleep(0.3)
+            pyautogui.sleep(0.4)
 
         if pyperclip:
             pyperclip.copy(text)
-            pyautogui.sleep(0.1)
+            pyautogui.sleep(0.2)
             pyautogui.hotkey("ctrl", "v")
-            pyautogui.sleep(0.1)
+            pyautogui.sleep(0.2)
             pyautogui.press("enter")
         else:
             pyautogui.write(text, interval=0.01)

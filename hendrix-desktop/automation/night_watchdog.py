@@ -313,6 +313,15 @@ class NightTaskWatchdog:
             self._notify("NIGHT_TASK_PAUSED_COOLDOWN", {"message": "Esperando expiración de cooldown"})
             return
 
+        # Detectar chat activo antes de rotar para reanudarlo
+        active_chat = None
+        try:
+            recent = self.ag_mgr.get_recent_chats(limit=1)
+            if recent:
+                active_chat = recent[0]
+        except Exception:
+            pass
+
         print(f"[NightWatchdog] Rotando de '{curr_profile}' a '{next_profile}'...")
         success = self.profile_mgr.activate_profile(next_profile, kill_running=True)
 
@@ -339,8 +348,16 @@ class NightTaskWatchdog:
             f"y continúa ejecutando las tareas pendientes y ejecutando tests hasta completar el objetivo."
         )
 
-        time.sleep(2.0)
-        self.ag_mgr.execute_action("NEW_CHAT", project_uri=ws, prompt=continuation_prompt)
+        time.sleep(1.0)
+        mode = "EXISTING_CHAT" if active_chat else "NEW_CHAT"
+        cid = active_chat["conversationId"] if active_chat else None
+        self.ag_mgr.execute_action(
+            mode=mode,
+            project_uri=ws,
+            conversation_id=cid,
+            prompt=continuation_prompt,
+            force_relaunch=True
+        )
 
         self._notify("NIGHT_TASK_RESUMED", {
             "activeProfile": next_profile,

@@ -122,13 +122,16 @@ class AntigravityProfileManager:
         return ""
 
     def is_antigravity_running(self) -> bool:
-        """Comprueba si algún proceso de Antigravity está en ejecución."""
+        """Comprueba si algún proceso de Antigravity.exe está en ejecución."""
         try:
             import psutil
             for p in psutil.process_iter(['name']):
-                pname = p.info.get('name') or ''
-                if 'antigravity' in pname.lower():
-                    return True
+                try:
+                    pname = p.info.get('name') or ''
+                    if pname.lower() == 'antigravity.exe':
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
         except Exception:
             pass
         return False
@@ -202,7 +205,7 @@ class AntigravityProfileManager:
         print(f"[AntigravityProfileManager] Perfil '{name}' capturado ({copied_count} elementos copiados, email={detected_email})")
         return copied_count > 0 or bool(cred_info)
 
-    def close_antigravity_processes(self, timeout_sec: float = 4.0) -> bool:
+    def close_antigravity_processes(self, timeout_sec: float = 5.0) -> bool:
         """Termina los procesos de Antigravity para liberar bloqueos de archivos de sesión."""
         try:
             subprocess.run(
@@ -217,7 +220,18 @@ class AntigravityProfileManager:
                 if not self.is_antigravity_running():
                     break
                 time.sleep(0.3)
-            time.sleep(1.0)
+
+            # Si aún quedase alguno, forzar árbol de procesos
+            if self.is_antigravity_running():
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/IM", "Antigravity.exe"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False
+                )
+                time.sleep(0.5)
+
+            time.sleep(0.8)
             return True
         except Exception as e:
             print(f"[AntigravityProfileManager] Error cerrando procesos: {e}")
