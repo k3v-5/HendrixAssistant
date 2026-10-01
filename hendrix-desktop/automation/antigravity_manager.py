@@ -143,6 +143,57 @@ class AntigravityManager:
 
         return chats
 
+    def get_active_conversations(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Obtiene la lista de todas las conversaciones que estaban activas o en ejecución
+        (not_fully_idle=1 o CASCADE_RUN_STATUS_RUNNING) ordenadas por última actividad.
+        Permite la recuperación multi-chat escalable.
+        """
+        conn = self._get_readonly_conn()
+        if not conn:
+            return []
+
+        active = []
+        try:
+            c = conn.cursor()
+            query = """
+                SELECT conversation_id, title, preview, last_modified_time, step_count, project_id, workspace_uris, status, not_fully_idle
+                FROM conversation_summaries
+                WHERE parent_conversation_id = '' AND killed = 0 AND (not_fully_idle = 1 OR status = 'CASCADE_RUN_STATUS_RUNNING')
+                ORDER BY last_modified_time DESC
+                LIMIT ?
+            """
+            rows = c.execute(query, (limit,)).fetchall()
+            for cid, title, preview, last_mod, steps, pid, uris_json, status, not_idle in rows:
+                display_title = title.strip() if title and title.strip() else (preview.strip() if preview and preview.strip() else "Conversación")
+                if len(display_title) > 60:
+                    display_title = display_title[:57] + "..."
+
+                active.append({
+                    "conversationId": cid,
+                    "title": display_title,
+                    "preview": preview or "",
+                    "lastModified": str(last_mod),
+                    "stepCount": steps or 0,
+                    "projectId": pid or "",
+                    "workspaceUri": uris_json or "",
+                    "status": status or "",
+                    "notFullyIdle": bool(not_idle)
+                })
+
+            # Si ninguna conversación tenía not_fully_idle=1, fallback al chat más reciente
+            if not active:
+                recents = self.get_recent_chats(limit=1)
+                if recents:
+                    active = recents
+
+        except Exception as e:
+            print(f"[AntigravityManager] Error buscando conversaciones activas: {e}")
+        finally:
+            conn.close()
+
+        return active
+
     def find_antigravity_window(self) -> Optional[int]:
         """Busca el manejador de ventana (HWND) de Antigravity si está abierta."""
         user32 = ctypes.windll.user32
@@ -507,12 +558,60 @@ class AntigravityManager:
 
         return False
 
+    def resume_multiple_conversations(
+        self,
+        chats: List[Dict[str, Any]],
+        prompt: str = "Continúa con la tarea que estabas realizando"
+    ) -> int:
+        """
+        Reanuda secuencialmente múltiples conversaciones activas en Antigravity:
+        1. Selecciona la conversación en la barra lateral.
+        2. Espera a que cargue el hilo de mensajes.
+        3. Inyecta el prompt de continuación.
+        4. Repite para cada conversación activa con un intervalo seguro.
+        Retorna la cantidad de conversaciones reanudadas con éxito.
+        """
+        hwnd = self.find_antigravity_window()
+        if not hwnd or not chats:
+            return 0
+
+        self.force_foreground_window(hwnd)
+        resumed_count = 0
+
+        for i, chat in enumerate(chats):
+            title = chat.get("title", "")
+            cid = chat.get("conversationId", "")
+            ws = chat.get("workspaceUri", "")
+            ws_name = os.path.basename(ws.replace("file:///", "").replace("file://", "").rstrip("/\\")) if ws else None
+
+            print(f"[AntigravityManager] Reanudando conversación [{i+1}/{len(chats)}]: '{title}'...")
+            self.select_conversation(
+                hwnd=hwnd,
+                title=title,
+                conversation_id=cid,
+                workspace_name=ws_name
+            )
+
+            pyautogui.sleep(1.0)
+            if self._inject_prompt(prompt):
+                resumed_count += 1
+                print(f"[AntigravityManager] ✅ Prompt enviado a '{title}'.")
+            else:
+                print(f"[AntigravityManager] ⚠️ No se pudo inyectar el prompt en '{title}'.")
+
+            # Pausa entre conversaciones para que Electron procese la orden
+            if i < len(chats) - 1:
+                pyautogui.sleep(1.5)
+
+        return resumed_count
+
     def execute_action(
         self,
         mode: str,
         project_uri: Optional[str] = None,
         conversation_id: Optional[str] = None,
         conversation_title: Optional[str] = None,
+        active_chats: Optional[List[Dict[str, Any]]] = None,
         prompt: Optional[str] = None,
         force_relaunch: bool = False
     ) -> bool:
@@ -521,6 +620,7 @@ class AntigravityManager:
         - LAUNCH_OR_FOCUS: abrir/enfocar
         - NEW_CHAT: abrir nuevo chat y opcionalmente escribir prompt
         - EXISTING_CHAT: seleccionar conversación existente en la barra lateral y opcionalmente escribir prompt
+        - RESUME_ALL: reanudar todas las conversaciones activas secuencialmente
         """
         workspace_clean = None
         if project_uri:
@@ -558,6 +658,21 @@ class AntigravityManager:
 
             if prompt and prompt.strip():
                 self._inject_prompt(prompt.strip())
+            return True
+
+        elif mode == "RESUME_ALL":
+            chats_to_resume = active_chats or []
+            if not chats_to_resume and conversation_id:
+                chats_to_resume = [{"conversationId": conversation_id, "title": conversation_title}]
+            elif not chats_to_resume:
+                chats_to_resume = self.get_active_conversations()
+
+            if chats_to_resume:
+                resumed = self.resume_multiple_conversations(
+                    chats=chats_to_resume,
+                    prompt=prompt or "Continúa con la tarea que estabas realizando"
+                )
+                return resumed > 0
             return True
 
         elif mode == "SWITCH_PROJECT_ONLY":

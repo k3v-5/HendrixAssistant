@@ -149,3 +149,76 @@ def test_select_conversation_matching(mock_ag_manager):
                 )
                 assert res is True
                 mock_click.assert_called_once_with(150, 325)
+
+def test_get_active_conversations(mock_ag_manager):
+    import sqlite3
+    conn = sqlite3.connect(mock_ag_manager.db_path)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE conversation_summaries (
+            conversation_id TEXT PRIMARY KEY,
+            title TEXT,
+            preview TEXT,
+            last_modified_time TEXT,
+            step_count INTEGER,
+            project_id TEXT,
+            workspace_uris TEXT,
+            parent_conversation_id TEXT,
+            status TEXT,
+            not_fully_idle INTEGER,
+            killed INTEGER
+        )
+    """)
+    c.execute("""
+        INSERT INTO conversation_summaries VALUES (
+            'conv-1', 'Chat Activo 1', 'Preview', '2026-10-01', 5, 'p1', 'file:///F:/Dev/A', '', 'CASCADE_RUN_STATUS_RUNNING', 1, 0
+        )
+    """)
+    c.execute("""
+        INSERT INTO conversation_summaries VALUES (
+            'conv-2', 'Chat Activo 2', 'Preview', '2026-10-01', 10, 'p2', 'file:///F:/Dev/B', '', 'CASCADE_RUN_STATUS_IDLE', 1, 0
+        )
+    """)
+    c.execute("""
+        INSERT INTO conversation_summaries VALUES (
+            'conv-3', 'Chat Inactivo', 'Preview', '2026-09-30', 2, 'p3', 'file:///F:/Dev/C', '', 'CASCADE_RUN_STATUS_IDLE', 0, 0
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+    active = mock_ag_manager.get_active_conversations()
+    assert len(active) == 2
+    titles = [a['title'] for a in active]
+    assert 'Chat Activo 1' in titles
+    assert 'Chat Activo 2' in titles
+
+def test_resume_multiple_conversations(mock_ag_manager):
+    chats = [
+        {"conversationId": "c1", "title": "Chat 1", "workspaceUri": "file:///F:/Dev/A"},
+        {"conversationId": "c2", "title": "Chat 2", "workspaceUri": "file:///F:/Dev/B"}
+    ]
+    with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=12345):
+        with patch.object(mock_ag_manager, 'force_foreground_window', return_value=True):
+            with patch.object(mock_ag_manager, 'select_conversation', return_value=True) as mock_select:
+                with patch.object(mock_ag_manager, '_inject_prompt', return_value=True) as mock_inject:
+                    with patch('pyautogui.sleep'):
+                        count = mock_ag_manager.resume_multiple_conversations(chats, "Continúa")
+                        assert count == 2
+                        assert mock_select.call_count == 2
+                        assert mock_inject.call_count == 2
+
+def test_execute_action_resume_all(mock_ag_manager):
+    chats = [{"conversationId": "c1", "title": "Chat 1"}]
+    with patch.object(mock_ag_manager, 'launch_or_focus', return_value=True):
+        with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
+            with patch.object(mock_ag_manager, 'resume_multiple_conversations', return_value=1) as mock_resume:
+                with patch('pyautogui.sleep'):
+                    res = mock_ag_manager.execute_action(
+                        mode="RESUME_ALL",
+                        active_chats=chats,
+                        prompt="Continúa",
+                        force_relaunch=True
+                    )
+                    assert res is True
+                    mock_resume.assert_called_once_with(chats=chats, prompt="Continúa")

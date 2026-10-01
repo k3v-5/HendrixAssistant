@@ -78,26 +78,32 @@ def main():
         from automation.antigravity_manager import antigravity_manager
         import urllib.parse
 
-        # 1. Detectar conversación activa y workspace ANTES de cerrar Antigravity
-        recent_chats = antigravity_manager.get_recent_chats(limit=1)
-        active_chat = recent_chats[0] if recent_chats else None
-
-        target_cid = None
-        target_title = None
+        # 1. Detectar conversaciones activas ANTES de cerrar Antigravity
+        active_chats = []
         target_ws = os.path.abspath(args.workspace) if args.workspace and os.path.exists(args.workspace) else None
 
         if not args.no_resume:
             if args.resume_chat and args.resume_chat != "latest":
-                target_cid = args.resume_chat
-            elif active_chat:
-                target_cid = active_chat["conversationId"]
-                target_title = active_chat.get("title")
-                print(f"📍 Conversación activa previa detectada: '{active_chat['title']}' ({target_cid})")
-                if not target_ws and active_chat.get("workspaceUri"):
-                    uri = active_chat["workspaceUri"]
+                chat_info = antigravity_manager.get_chat_by_id(args.resume_chat)
+                if chat_info:
+                    active_chats = [chat_info]
+                else:
+                    active_chats = [{"conversationId": args.resume_chat, "title": "Conversación específica"}]
+            else:
+                active_chats = antigravity_manager.get_active_conversations()
+
+        if active_chats:
+            if len(active_chats) == 1:
+                print(f"📍 1 conversación activa detectada: '{active_chats[0]['title']}' ({active_chats[0]['conversationId']})")
+                if not target_ws and active_chats[0].get("workspaceUri"):
+                    uri = active_chats[0]["workspaceUri"]
                     clean_ws = urllib.parse.unquote(uri.replace("file:///", "").replace("file://", ""))
                     if os.path.exists(clean_ws):
                         target_ws = clean_ws
+            else:
+                print(f"📍 {len(active_chats)} conversaciones activas detectadas:")
+                for idx, c in enumerate(active_chats, 1):
+                    print(f"   {idx}. '{c['title']}' ({c['conversationId']})")
 
         print(f"Activando perfil '{args.activate}'...")
         success = antigravity_profile_manager.activate_profile(args.activate, kill_running=True)
@@ -106,25 +112,34 @@ def main():
             if not args.no_reopen:
                 print("🚀 Reabriendo Antigravity automáticamente con la nueva cuenta...")
 
-                continuation_prompt = args.prompt
-                if not continuation_prompt and not args.no_resume and target_cid:
-                    continuation_prompt = "Continúa con la tarea que estabas realizando"
+                continuation_prompt = args.prompt or "Continúa con la tarea que estabas realizando"
 
-                mode = "EXISTING_CHAT" if target_cid else "LAUNCH_OR_FOCUS"
-                if continuation_prompt and not target_cid:
-                    mode = "NEW_CHAT"
-
-                antigravity_manager.execute_action(
-                    mode=mode,
-                    project_uri=target_ws,
-                    conversation_id=target_cid,
-                    conversation_title=target_title,
-                    prompt=continuation_prompt,
-                    force_relaunch=True
-                )
-                if target_cid:
-                    print(f"✅ Conversación reanudada: '{active_chat['title'] if active_chat else target_cid}' con prompt enviado.")
+                if len(active_chats) > 1:
+                    print(f"🔄 Reanudando {len(active_chats)} conversaciones activas secuencialmente...")
+                    antigravity_manager.execute_action(
+                        mode="RESUME_ALL",
+                        active_chats=active_chats,
+                        prompt=continuation_prompt,
+                        force_relaunch=True
+                    )
+                    print(f"✅ {len(active_chats)} conversaciones reanudadas con éxito en la nueva sesión.")
+                elif len(active_chats) == 1:
+                    target_chat = active_chats[0]
+                    antigravity_manager.execute_action(
+                        mode="EXISTING_CHAT",
+                        project_uri=target_ws,
+                        conversation_id=target_chat["conversationId"],
+                        conversation_title=target_chat.get("title"),
+                        prompt=continuation_prompt,
+                        force_relaunch=True
+                    )
+                    print(f"✅ Conversación reanudada: '{target_chat['title']}' con prompt enviado.")
                 else:
+                    antigravity_manager.execute_action(
+                        mode="LAUNCH_OR_FOCUS",
+                        prompt=args.prompt,
+                        force_relaunch=True
+                    )
                     print("✅ Antigravity iniciado correctamente con la nueva sesión.")
         else:
             print(f"❌ Error al activar el perfil '{args.activate}'.")
