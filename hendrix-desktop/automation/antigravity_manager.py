@@ -219,26 +219,27 @@ class AntigravityManager:
 
         if os.path.exists(self.exe_path):
             try:
-                args = [self.exe_path]
                 if workspace_path and os.path.exists(workspace_path):
-                    args.append(workspace_path)
-
-                creation_flags = 0
-                if sys.platform == "win32":
-                    creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-
-                subprocess.Popen(
-                    args,
-                    creationflags=creation_flags,
-                    close_fds=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL
-                )
+                    creation_flags = 0
+                    if sys.platform == "win32":
+                        creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                    subprocess.Popen(
+                        [self.exe_path, workspace_path],
+                        creationflags=creation_flags,
+                        close_fds=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL
+                    )
+                else:
+                    if hasattr(os, "startfile"):
+                        os.startfile(self.exe_path)
+                    else:
+                        subprocess.Popen([self.exe_path])
                 time.sleep(1.5)
                 return True
             except Exception as e:
-                print(f"[AntigravityManager] Error lanzando ejecutable con Popen: {e}")
+                print(f"[AntigravityManager] Error lanzando ejecutable: {e}")
                 try:
                     os.startfile(self.exe_path)
                     time.sleep(1.5)
