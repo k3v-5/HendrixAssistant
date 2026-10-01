@@ -276,6 +276,55 @@ class AntigravityManager:
 
         return False
 
+    def force_foreground_window(self, hwnd: int) -> bool:
+        """
+        Garantiza que la ventana de Antigravity adquiera el foco del primer plano en Windows 10/11
+        utilizando la combinación de restauración, bypass de tecla ALT y AttachThreadInput.
+        """
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        if not user32.IsWindow(hwnd):
+            return False
+
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9) # SW_RESTORE
+        else:
+            user32.ShowWindow(hwnd, 5) # SW_SHOW
+
+        fg_hwnd = user32.GetForegroundWindow()
+        if fg_hwnd == hwnd:
+            return True
+
+        # Método 1: Bypass de tecla ALT (estándar para Win10/11)
+        VK_MENU = 0x12
+        KEYEVENTF_KEYUP = 0x0002
+        user32.keybd_event(VK_MENU, 0, 0, 0)
+        user32.SetForegroundWindow(hwnd)
+        user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+        user32.BringWindowToTop(hwnd)
+
+        if user32.GetForegroundWindow() == hwnd:
+            return True
+
+        # Método 2: AttachThreadInput para heredar permisos de foco del hilo foreground
+        fore_thread = user32.GetWindowThreadProcessId(fg_hwnd, None)
+        app_thread = kernel32.GetCurrentThreadId()
+        target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+
+        if fore_thread and target_thread and fore_thread != target_thread:
+            try:
+                user32.AttachThreadInput(fore_thread, app_thread, True)
+                user32.AttachThreadInput(target_thread, app_thread, True)
+                user32.BringWindowToTop(hwnd)
+                user32.ShowWindow(hwnd, 9)
+                user32.SetForegroundWindow(hwnd)
+            finally:
+                user32.AttachThreadInput(fore_thread, app_thread, False)
+                user32.AttachThreadInput(target_thread, app_thread, False)
+
+        return user32.GetForegroundWindow() == hwnd
+
     def execute_action(
         self,
         mode: str,
@@ -297,10 +346,9 @@ class AntigravityManager:
         self.launch_or_focus(workspace_path=workspace_clean, force_relaunch=force_relaunch)
         hwnd = self.wait_for_window(timeout_sec=15.0)
         if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-            # Dar tiempo a Electron para renderizar el DOM del chat
-            pyautogui.sleep(3.5 if force_relaunch else 1.0)
+            # Dar tiempo a Electron para renderizar el DOM del chat (6s en arranque en frío)
+            pyautogui.sleep(6.0 if force_relaunch else 1.0)
+            self.force_foreground_window(hwnd)
         else:
             pyautogui.sleep(2.0)
 
@@ -317,7 +365,10 @@ class AntigravityManager:
             if conversation_id:
                 try:
                     os.startfile(f"antigravity://conversation/{conversation_id}")
-                    pyautogui.sleep(1.2)
+                    pyautogui.sleep(1.5)
+                    hwnd_cur = self.find_antigravity_window()
+                    if hwnd_cur:
+                        self.force_foreground_window(hwnd_cur)
                 except Exception:
                     pass
 
@@ -345,24 +396,50 @@ class AntigravityManager:
 
         return True
 
-    def _inject_prompt(self, text: str):
-        """Inyecta el prompt en el área de entrada activa de Antigravity."""
+    def _inject_prompt(self, text: str) -> bool:
+        """Inyecta el prompt en el área de entrada activa de Antigravity de forma 100% segura."""
         hwnd = self.find_antigravity_window()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        if not hwnd:
+            print("[AntigravityManager] No se encontró ventana de Antigravity para inyectar el prompt.")
+            return False
+
+        user32 = ctypes.windll.user32
+
+        # 1. Asegurar foco en Antigravity
+        focused = False
+        for _ in range(5):
+            if self.force_foreground_window(hwnd):
+                focused = True
+                break
             pyautogui.sleep(0.4)
 
-            rect = (ctypes.c_long * 4)()
-            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
-            left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
-            w = right - left
-            h = bottom - top
-            click_x = left + int(w * 0.58)
-            click_y = top + int(h * 0.93)
-            pyautogui.click(click_x, click_y)
-            pyautogui.sleep(0.4)
+        # 2. Protección estricta: comprobar si la ventana foreground es efectivamente Antigravity
+        fg_hwnd = user32.GetForegroundWindow()
+        if fg_hwnd != hwnd and not focused:
+            fg_pid = ctypes.c_ulong()
+            user32.GetWindowThreadProcessId(fg_hwnd, ctypes.byref(fg_pid))
+            import psutil
+            try:
+                fg_pname = psutil.Process(fg_pid.value).name().lower()
+            except Exception:
+                fg_pname = ""
 
+            if "antigravity" not in fg_pname:
+                print(f"[AntigravityManager] ⚠️ Seguridad: La ventana activa es '{fg_pname}', no Antigravity. Se cancela el pegado para no afectar la consola.")
+                return False
+
+        # 3. Obtener coordenadas relativas de la caja de texto
+        rect = (ctypes.c_long * 4)()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+        w = right - left
+        h = bottom - top
+        click_x = left + int(w * 0.58)
+        click_y = top + int(h * 0.93)
+        pyautogui.click(click_x, click_y)
+        pyautogui.sleep(0.4)
+
+        # 4. Pegar y enviar
         if pyperclip:
             pyperclip.copy(text)
             pyautogui.sleep(0.2)
@@ -372,5 +449,7 @@ class AntigravityManager:
         else:
             pyautogui.write(text, interval=0.01)
             pyautogui.press("enter")
+
+        return True
 
 antigravity_manager = AntigravityManager()

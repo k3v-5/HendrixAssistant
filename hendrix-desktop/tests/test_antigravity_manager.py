@@ -58,16 +58,17 @@ def test_execute_action_existing_chat(mock_ag_manager):
     with patch.object(mock_ag_manager, 'launch_or_focus', return_value=True):
         with patch.object(mock_ag_manager, 'wait_for_window', return_value=12345):
             with patch.object(mock_ag_manager, '_inject_prompt') as mock_inject:
-                with patch('os.startfile', create=True) as mock_startfile:
-                    res = mock_ag_manager.execute_action(
-                        mode="EXISTING_CHAT",
-                        conversation_id="conv-1234",
-                        prompt="Continúa",
-                        force_relaunch=True
-                    )
-                    assert res is True
-                    mock_startfile.assert_called_once_with("antigravity://conversation/conv-1234")
-                    mock_inject.assert_called_once_with("Continúa")
+                with patch('pyautogui.sleep'):
+                    with patch('os.startfile', create=True) as mock_startfile:
+                        res = mock_ag_manager.execute_action(
+                            mode="EXISTING_CHAT",
+                            conversation_id="conv-1234",
+                            prompt="Continúa",
+                            force_relaunch=True
+                        )
+                        assert res is True
+                        mock_startfile.assert_called_once_with("antigravity://conversation/conv-1234")
+                        mock_inject.assert_called_once_with("Continúa")
 
 def test_wait_for_window_success(mock_ag_manager):
     # Simulate window appearing after 1 check
@@ -85,3 +86,13 @@ def test_wait_for_window_timeout(mock_ag_manager):
         with patch('time.sleep'):
             hwnd = mock_ag_manager.wait_for_window(timeout_sec=0.1)
             assert hwnd is None
+
+def test_inject_prompt_safety_terminal_protection(mock_ag_manager):
+    # Si la ventana activa no es Antigravity, no debe inyectar texto para no afectar la terminal
+    with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=12345):
+        with patch.object(mock_ag_manager, 'force_foreground_window', return_value=False):
+            with patch('ctypes.windll.user32.GetForegroundWindow', return_value=88888):
+                with patch('psutil.Process') as mock_proc:
+                    mock_proc.return_value.name.return_value = "pwsh.exe"
+                    res = mock_ag_manager._inject_prompt("Continúa")
+                    assert res is False
