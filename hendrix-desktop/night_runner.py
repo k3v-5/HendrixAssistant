@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--close-running", action="store_true", help="Cierra Antigravity automáticamente antes de capturar para evitar que Network\\Cookies esté bloqueado")
     parser.add_argument("--reopen", action="store_true", help="Vuelve a abrir Antigravity automáticamente tras capturar el perfil")
     parser.add_argument("--activate", type=str, metavar="NAME", help="Activa la cuenta indicada como la sesión principal")
+    parser.add_argument("--no-reopen", action="store_true", help="No reabrir Antigravity automáticamente tras activar un perfil")
     parser.add_argument("--mark-exhausted", type=str, metavar="NAME", help="Pone un perfil en cooldown de 4 horas por límite de cuota")
 
     args = parser.parse_args()
@@ -73,7 +74,16 @@ def main():
         print(f"Activando perfil '{args.activate}'...")
         success = antigravity_profile_manager.activate_profile(args.activate)
         if success:
-            print(f"✅ Perfil '{args.activate}' activado. Puedes abrir Antigravity con esta cuenta.")
+            print(f"✅ Perfil '{args.activate}' activado exitosamente.")
+            if not args.no_reopen:
+                from automation.antigravity_manager import antigravity_manager
+                print("🚀 Reabriendo Antigravity automáticamente con la nueva cuenta...")
+                ws = os.path.abspath(args.workspace) if args.workspace and os.path.exists(args.workspace) else None
+                reopened = antigravity_manager.launch_or_focus(workspace_path=ws)
+                if reopened:
+                    print("✅ Antigravity iniciado correctamente con la nueva sesión.")
+                else:
+                    print("⚠️ No se pudo iniciar Antigravity automáticamente. Por favor ábrelo manualmente.")
         else:
             print(f"❌ Error al activar el perfil '{args.activate}'.")
         return

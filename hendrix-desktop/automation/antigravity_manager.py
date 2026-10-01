@@ -1,4 +1,6 @@
 import os
+import sys
+import time
 import re
 import json
 import sqlite3
@@ -196,7 +198,18 @@ class AntigravityManager:
         user32.EnumWindows(WNDENUMPROC(enum_windows_proc), 0)
         return found_hwnd
 
-    def launch_or_focus(self) -> bool:
+    def wait_for_window(self, timeout_sec: float = 15.0) -> Optional[int]:
+        """Espera de forma no bloqueante a que la ventana de Antigravity aparezca y sea visible."""
+        start_time = time.time()
+        while time.time() - start_time < timeout_sec:
+            hwnd = self.find_antigravity_window()
+            if hwnd:
+                time.sleep(1.0)
+                return hwnd
+            time.sleep(0.5)
+        return None
+
+    def launch_or_focus(self, workspace_path: Optional[str] = None) -> bool:
         """Enfoca la ventana de Antigravity o la inicia si no está corriendo."""
         hwnd = self.find_antigravity_window()
         if hwnd:
@@ -206,12 +219,33 @@ class AntigravityManager:
 
         if os.path.exists(self.exe_path):
             try:
-                subprocess.Popen([self.exe_path])
-                pyautogui.sleep(1.5)
+                args = [self.exe_path]
+                if workspace_path and os.path.exists(workspace_path):
+                    args.append(workspace_path)
+
+                creation_flags = 0
+                if sys.platform == "win32":
+                    creation_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+
+                subprocess.Popen(
+                    args,
+                    creationflags=creation_flags,
+                    close_fds=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL
+                )
+                time.sleep(1.5)
                 return True
             except Exception as e:
-                print(f"[AntigravityManager] Error lanzando ejecutable: {e}")
-                return False
+                print(f"[AntigravityManager] Error lanzando ejecutable con Popen: {e}")
+                try:
+                    os.startfile(self.exe_path)
+                    time.sleep(1.5)
+                    return True
+                except Exception as e2:
+                    print(f"[AntigravityManager] Error lanzando ejecutable con startfile: {e2}")
+                    return False
 
         return False
 
@@ -228,13 +262,23 @@ class AntigravityManager:
         - NEW_CHAT: abrir nuevo chat y opcionalmente escribir prompt
         - EXISTING_CHAT: enfocar conversación y opcionalmente escribir prompt
         """
-        self.launch_or_focus()
-        pyautogui.sleep(0.5)
+        workspace_clean = None
+        if project_uri:
+            workspace_clean = urllib.parse.unquote(project_uri.replace("file:///", "").replace("file://", ""))
+
+        self.launch_or_focus(workspace_path=workspace_clean)
+        hwnd = self.wait_for_window(timeout_sec=12.0)
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            pyautogui.sleep(1.0)
+        else:
+            pyautogui.sleep(2.0)
 
         if mode == "NEW_CHAT":
             # Nuevo chat en Antigravity (Ctrl+N o atajo de nueva conversación)
             pyautogui.hotkey("ctrl", "n")
-            pyautogui.sleep(0.6)
+            pyautogui.sleep(0.8)
 
             if prompt and prompt.strip():
                 self._inject_prompt(prompt.strip())

@@ -484,7 +484,14 @@ async def handle_client(websocket):
                 elif msg_type == "AG_PROFILE_ACTIVATE":
                     req_id = data.get("requestId", "")
                     name = data.get("name", "").strip()
+                    reopen = data.get("reopen", True)
                     success = antigravity_profile_manager.activate_profile(name, kill_running=True)
+                    if success and reopen:
+                        try:
+                            from automation.antigravity_manager import antigravity_manager
+                            antigravity_manager.launch_or_focus()
+                        except Exception as e:
+                            print(f"[WsServer] Error reabriendo Antigravity: {e}")
                     resp = {
                         "type": "AG_PROFILE_ACTIVATE_RESP",
                         "requestId": req_id,

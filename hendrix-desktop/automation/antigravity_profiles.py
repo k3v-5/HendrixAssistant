@@ -179,21 +179,21 @@ class AntigravityProfileManager:
         print(f"[AntigravityProfileManager] Perfil '{name}' capturado ({copied_count} elementos copiados, email={detected_email})")
         return copied_count > 0
 
-    def close_antigravity_processes(self, timeout_sec: float = 3.0) -> bool:
-        """Termina los procesos de Antigravity y su language server para liberar bloqueos."""
+    def close_antigravity_processes(self, timeout_sec: float = 4.0) -> bool:
+        """Termina los procesos de Antigravity para liberar bloqueos de archivos de sesión."""
         try:
             subprocess.run(
-                ["taskkill", "/F", "/IM", "Antigravity.exe", "/T"],
+                ["taskkill", "/F", "/IM", "Antigravity.exe"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False
             )
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "language_server.exe", "/T"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False
-            )
+            # Esperar a que todos los procesos de Antigravity.exe hayan finalizado
+            start_t = time.time()
+            while time.time() - start_t < timeout_sec:
+                if not self.is_antigravity_running():
+                    break
+                time.sleep(0.3)
             time.sleep(1.0)
             return True
         except Exception as e:
