@@ -6,13 +6,14 @@ import time
 import subprocess
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
+from automation.windows_credential_vault import windows_credential_vault
 
 class AntigravityProfileManager:
     """
     Gestor de perfiles y sesiones de autenticación para Google Antigravity.
     Permite respaldar, alternar y rotar múltiples cuentas de Gemini Pro
     almacenando los datos esenciales de sesión (%APPDATA%\\Antigravity)
-    en directorios de perfil aislados.
+    y las credenciales OAuth en Windows Credential Vault ('gemini:antigravity').
     """
 
     ESSENTIAL_ITEMS = [
@@ -27,9 +28,15 @@ class AntigravityProfileManager:
         "Session Storage",
     ]
 
-    def __init__(self, base_profiles_dir: Optional[str] = None, appdata_dir: Optional[str] = None):
+    def __init__(
+        self,
+        base_profiles_dir: Optional[str] = None,
+        appdata_dir: Optional[str] = None,
+        vault=None
+    ):
         self.profiles_dir = base_profiles_dir or os.path.expanduser(r"~\.antigravity-profiles")
         self.appdata_dir = appdata_dir or os.path.expandvars(r"%APPDATA%\Antigravity")
+        self.vault = vault or windows_credential_vault
         self.manifest_file = os.path.join(self.profiles_dir, "profiles_manifest.json")
         os.makedirs(self.profiles_dir, exist_ok=True)
         self._ensure_manifest()
@@ -79,10 +86,13 @@ class AntigravityProfileManager:
                 except Exception:
                     pass
 
+            has_cred = os.path.exists(os.path.join(self.profiles_dir, name, "credential.json"))
+
             result.append({
                 "name": name,
                 "email": info.get("email", ""),
                 "isActive": name == active,
+                "hasCredential": has_cred,
                 "inCooldown": in_cooldown,
                 "cooldownRemainingSeconds": int(remaining_seconds),
                 "cooldownUntil": cooldown_until_str,
@@ -159,7 +169,20 @@ class AntigravityProfileManager:
                 except Exception as e:
                     print(f"[AntigravityProfileManager] Advertencia copiando {rel_path}: {e}")
 
-        detected_email = email or self._extract_email_from_appdata(self.appdata_dir)
+        # Capturar credencial de Windows Credential Manager ('gemini:antigravity')
+        cred_info = self.vault.read_credential("gemini:antigravity")
+        cred_email = ""
+        if cred_info:
+            cred_file = os.path.join(profile_path, "credential.json")
+            try:
+                with open(cred_file, "w", encoding="utf-8") as f:
+                    json.dump(cred_info, f, indent=2, ensure_ascii=False)
+                cred_email = cred_info.get("email") or ""
+                print(f"[AntigravityProfileManager] Credencial de Windows Vault capturada ({cred_email or 'OAuth Token'})")
+            except Exception as e:
+                print(f"[AntigravityProfileManager] Error guardando credential.json: {e}")
+
+        detected_email = email or cred_email or self._extract_email_from_appdata(self.appdata_dir)
         now_str = datetime.now(timezone.utc).isoformat()
 
         manifest = self._load_manifest()
@@ -177,7 +200,7 @@ class AntigravityProfileManager:
         self._save_manifest(manifest)
 
         print(f"[AntigravityProfileManager] Perfil '{name}' capturado ({copied_count} elementos copiados, email={detected_email})")
-        return copied_count > 0
+        return copied_count > 0 or bool(cred_info)
 
     def close_antigravity_processes(self, timeout_sec: float = 4.0) -> bool:
         """Termina los procesos de Antigravity para liberar bloqueos de archivos de sesión."""
@@ -233,6 +256,25 @@ class AntigravityProfileManager:
                 except Exception as e:
                     print(f"[AntigravityProfileManager] Error restaurando {rel_path}: {e}")
 
+        # Restaurar credencial en Windows Credential Manager ('gemini:antigravity')
+        cred_restored = False
+        cred_file = os.path.join(profile_path, "credential.json")
+        if os.path.exists(cred_file):
+            try:
+                with open(cred_file, "r", encoding="utf-8") as f:
+                    cred_data = json.load(f)
+                blob = cred_data.get("blob", "")
+                user = cred_data.get("userName", "antigravity")
+                target = cred_data.get("target", "gemini:antigravity")
+                if blob:
+                    cred_restored = self.vault.write_credential(target, blob, user_name=user)
+                    if cred_restored:
+                        print(f"[AntigravityProfileManager] Credencial OAuth de Windows Vault restaurada para '{name}'")
+                    else:
+                        print(f"[AntigravityProfileManager] Advertencia: No se pudo escribir en Windows Vault")
+            except Exception as e:
+                print(f"[AntigravityProfileManager] Error restaurando credencial de Windows: {e}")
+
         manifest = self._load_manifest()
         now_str = datetime.now(timezone.utc).isoformat()
         if name in manifest.get("profiles", {}):
@@ -241,8 +283,8 @@ class AntigravityProfileManager:
         manifest["active_profile"] = name
         self._save_manifest(manifest)
 
-        print(f"[AntigravityProfileManager] Perfil '{name}' activado con éxito ({restored_count} archivos/directorios aplicados)")
-        return restored_count > 0
+        print(f"[AntigravityProfileManager] Perfil '{name}' activado con éxito ({restored_count} archivos aplicados, oauth={cred_restored})")
+        return restored_count > 0 or cred_restored
 
     def mark_quota_exhausted(self, name: str, cooldown_hours: float = 4.0):
         """Marca un perfil como agotado de cuota con una hora de expiración de enfriamiento."""

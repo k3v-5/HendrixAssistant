@@ -25,9 +25,15 @@ def mock_profile_env(tmp_path):
     network_dir.mkdir()
     (network_dir / "Cookies").write_text("dummy_cookies_content", encoding="utf-8")
 
+    from unittest.mock import MagicMock
+    mock_vault = MagicMock()
+    mock_vault.read_credential.return_value = None
+    mock_vault.write_credential.return_value = True
+
     mgr = AntigravityProfileManager(
         base_profiles_dir=str(base_profiles),
-        appdata_dir=str(appdata)
+        appdata_dir=str(appdata),
+        vault=mock_vault
     )
     return mgr, str(base_profiles), str(appdata)
 

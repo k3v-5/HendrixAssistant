@@ -38,8 +38,9 @@ def main():
             print("No hay perfiles capturados aún. Usa '--capture-current <nombre>' con Antigravity logueado.")
         for p in profiles:
             star = "★ [ACTIVO]" if p["isActive"] else " "
+            auth = "🔑 [OAUTH OK]" if p.get("hasCredential") else "⚠️ [FALTA OAUTH]"
             cooldown = f"⛔ COOLDOWN ({p['cooldownRemainingSeconds']}s restantes)" if p["inCooldown"] else "✅ DISPONIBLE"
-            print(f" {star} {p['name']} | Email: {p['email'] or 'N/A'} | Usos: {p['usageCount']} | Estado: {cooldown}")
+            print(f" {star} {p['name']} | Email: {p['email'] or 'N/A'} | {auth} | Usos: {p['usageCount']} | Estado: {cooldown}")
         print()
         return
 
