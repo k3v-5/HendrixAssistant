@@ -66,6 +66,7 @@ import com.asistente.celular.ui.pc.deck.airsync.PcAirSyncCard
 import com.asistente.celular.ui.pc.deck.terminal.PcWorkspaceContextCard
 import com.asistente.celular.ui.pc.deck.macro.PcDynamicMacroDeckScreen
 import com.asistente.celular.ui.automation.designer.VisualRoutineDesignerScreen
+import com.asistente.celular.ui.pc.deck.antigravity.PcAntigravityPoolCard
 
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -1667,6 +1668,15 @@ private fun DeckMacrosTabContent(
                             )
                         }
                     }
+                    PcModuleId.ANTIGRAVITY_PROFILES -> {
+                        item(key = module.id.name) {
+                            PcAntigravityPoolCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
                     // Módulos de software con comandos macro (Unreal Engine 5, Blender 3D, Adobe Suite, Ableton Live, FL Studio, Web Browsers, etc.)
                     else -> {
                         item(key = module.id.name) {
@@ -2062,6 +2072,16 @@ private fun TelemetryTabContent(
         if (isModuleEnabled(PcModuleId.CUSTOM_PLUGINS)) {
             item {
                 PcCustomPluginsCard(
+                    pcBridge = pcBridge,
+                    modifier = Modifier.fillMaxWidth(),
+                    onShowSnackbar = onShowSnackbar
+                )
+            }
+        }
+
+        if (isModuleEnabled(PcModuleId.ANTIGRAVITY_PROFILES)) {
+            item {
+                PcAntigravityPoolCard(
                     pcBridge = pcBridge,
                     modifier = Modifier.fillMaxWidth(),
                     onShowSnackbar = onShowSnackbar

@@ -50,7 +50,8 @@ data class AntigravityProfile(
     val isActive: Boolean = false,
     val inCooldown: Boolean = false,
     val cooldownRemainingSeconds: Int = 0,
-    val usageCount: Int = 0
+    val usageCount: Int = 0,
+    val hasCredential: Boolean = true
 )
 
 /**

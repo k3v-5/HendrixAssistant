@@ -96,6 +96,24 @@ interface PcWorkspaceBridge {
         get() = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
 
     /**
+     * Flujo reactivo con la lista de perfiles y cuentas de Gemini Pro configuradas para Antigravity.
+     */
+    val antigravityProfiles: StateFlow<List<AntigravityProfile>>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+
+    /**
+     * Flujo reactivo con el estado del supervisor de tareas nocturnas en tiempo real.
+     */
+    val nightTaskStatus: StateFlow<NightTaskStatus?>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(null)
+
+    /**
+     * Flujo reactivo con las conversaciones activas o en ejecución en Antigravity.
+     */
+    val activeAntigravityChats: StateFlow<List<AntigravityChat>>
+        get() = kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+
+    /**
      * Cambia el modo de operación de la conexión remota.
      */
     suspend fun setOperationMode(mode: PcOperationMode): Boolean
@@ -181,8 +199,9 @@ interface PcWorkspaceBridge {
 
     /**
      * Activa un perfil registrado, intercambiando las credenciales de sesión en la PC.
+     * @param resumeChats Si es true, reanuda automáticamente los chats activos detectados antes del cambio.
      */
-    suspend fun activateAntigravityProfile(name: String): Boolean = true
+    suspend fun activateAntigravityProfile(name: String, resumeChats: Boolean = true): Boolean = true
 
     /**
      * Inicia una tarea nocturna supervisada con rotación automática de cuentas ante límites de cuota.

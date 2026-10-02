@@ -20,7 +20,8 @@ enum class PcModuleId {
     WIRELESS_AUDIO_MONITOR,
     AUTOMATED_ROUTINES,
     AIRSYNC_P2P,
-    WORKSPACE_TERMINAL_MEMORY
+    WORKSPACE_TERMINAL_MEMORY,
+    ANTIGRAVITY_PROFILES
 }
 
 /**
@@ -369,6 +370,19 @@ object PcModuleRegistry {
         )
     )
 
+    val ANTIGRAVITY_PROFILES_MODULE = PcModuleDefinition(
+        id = PcModuleId.ANTIGRAVITY_PROFILES,
+        name = "Antigravity & Gemini Pool",
+        category = PcModuleCategory.SYSTEM_TOOLS,
+        iconEmoji = "🪐",
+        isEnabledByDefault = true,
+        description = "Monitor de cuotas de Gemini Pro, rotación multicuenta, reanudación de chats y supervisión de tareas nocturnas.",
+        accentColorHex = 0xFF6366F1,
+        quickMacros = listOf(
+            PcQuickMacro("REFRESH_PROFILES", "Refrescar Perfiles", "🔄", null, 0xFF6366F1)
+        )
+    )
+
     /** Lista completa de todos los módulos disponibles en la plataforma. */
     val ALL_MODULES: List<PcModuleDefinition> = listOf(
         ABLETON_LIVE_MODULE,
@@ -387,7 +401,8 @@ object PcModuleRegistry {
         WIRELESS_AUDIO_MONITOR_MODULE,
         AUTOMATED_ROUTINES_MODULE,
         AIRSYNC_P2P_MODULE,
-        WORKSPACE_TERMINAL_MEMORY_MODULE
+        WORKSPACE_TERMINAL_MEMORY_MODULE,
+        ANTIGRAVITY_PROFILES_MODULE
     )
 
     fun findById(id: PcModuleId): PcModuleDefinition? = ALL_MODULES.firstOrNull { it.id == id }

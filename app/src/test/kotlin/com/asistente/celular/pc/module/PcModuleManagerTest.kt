@@ -26,10 +26,11 @@ class PcModuleManagerTest {
     @Test
     fun testInitialModulesLoaded() {
         val all = manager.modules.value
-        assertEquals(17, all.size)
+        assertEquals(18, all.size)
         assertTrue(manager.isModuleEnabled(PcModuleId.UNREAL_ENGINE))
         assertTrue(manager.isModuleEnabled(PcModuleId.BLENDER))
         assertTrue(manager.isModuleEnabled(PcModuleId.ADOBE_CREATIVE))
+        assertTrue(manager.isModuleEnabled(PcModuleId.ANTIGRAVITY_PROFILES))
     }
 
     @Test
@@ -51,9 +52,10 @@ class PcModuleManagerTest {
         assertFalse(manager.isModuleEnabled(PcModuleId.BLENDER))
 
         manager.enableAllModules()
-        assertEquals(17, manager.enabledModules.value.size)
+        assertEquals(18, manager.enabledModules.value.size)
         assertTrue(manager.isModuleEnabled(PcModuleId.UNREAL_ENGINE))
         assertTrue(manager.isModuleEnabled(PcModuleId.BLENDER))
+        assertTrue(manager.isModuleEnabled(PcModuleId.ANTIGRAVITY_PROFILES))
     }
 
     @Test

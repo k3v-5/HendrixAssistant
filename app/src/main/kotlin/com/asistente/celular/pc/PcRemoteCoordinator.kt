@@ -253,6 +253,15 @@ class PcRemoteCoordinator(
     private val _openWindows = MutableStateFlow<List<PcWindowInfo>>(emptyList())
     val openWindows: StateFlow<List<PcWindowInfo>> = _openWindows.asStateFlow()
 
+    private val _antigravityProfiles = MutableStateFlow<List<AntigravityProfile>>(emptyList())
+    override val antigravityProfiles: StateFlow<List<AntigravityProfile>> = _antigravityProfiles.asStateFlow()
+
+    private val _nightTaskStatus = MutableStateFlow<NightTaskStatus?>(null)
+    override val nightTaskStatus: StateFlow<NightTaskStatus?> = _nightTaskStatus.asStateFlow()
+
+    private val _activeAntigravityChats = MutableStateFlow<List<AntigravityChat>>(emptyList())
+    override val activeAntigravityChats: StateFlow<List<AntigravityChat>> = _activeAntigravityChats.asStateFlow()
+
     private val airSyncClient = AirSyncClient()
     private var airSyncPort: Int = 8900
 
@@ -849,10 +858,12 @@ class PcRemoteCoordinator(
                         transportType = _activeTransport.value
                     )
 
-                    // Solicitar snapshot inicial de inmediato para que la pantalla esté disponible al instante
+                    // Solicitar snapshot inicial y sincronizar estado de perfiles Antigravity de inmediato
                     scope.launch(Dispatchers.IO) {
                         delay(250)
                         requestSnapshot()
+                        queryAntigravityProfiles()
+                        queryNightTaskStatus()
                     }
                 }
                 "FOREGROUND_APP_CHANGED" -> {
@@ -877,46 +888,85 @@ class PcRemoteCoordinator(
                         Log.w(TAG, "🚨 Terminal build error detected on PC: ${alert.command} - ${alert.errorMessage}")
                     }
                 }
-                "AG_NIGHT_EVENT" -> {
-                    val evObj = json.optJSONObject("event")
-                    if (evObj != null) {
-                        val eventType = evObj.optString("eventType", "")
-                        val details = evObj.optJSONObject("details") ?: JSONObject()
-                        val title = when (eventType) {
-                            "NIGHT_TASK_STARTED" -> "🌙 Tarea Nocturna Antigravity Iniciada"
-                            "NIGHT_TASK_ROTATING" -> "⚠️ Rotando Cuenta Gemini Pro"
-                            "NIGHT_TASK_RESUMED" -> "✅ Tarea Reanudada con Nueva Cuenta"
-                            "NIGHT_TASK_LOOP_DETECTED" -> "🔄 Corrección de Bucle Aplicada"
-                            "NIGHT_TASK_PAUSED_COOLDOWN" -> "⛔ Enfriamiento de Cuentas (Pausa)"
-                            "NIGHT_TASK_COMPLETED" -> "🎉 Tarea Nocturna Finalizada con Éxito"
-                            else -> "🪐 Antigravity: $eventType"
+                "AG_PROFILE_CHANGED_EVENT" -> {
+                    val activeProf = json.optString("activeProfile", "")
+                    val resumedCount = json.optInt("resumedChatsCount", 0)
+                    val pArr = json.optJSONArray("profiles")
+                    if (pArr != null) {
+                        val pList = mutableListOf<AntigravityProfile>()
+                        for (i in 0 until pArr.length()) {
+                            val po = pArr.getJSONObject(i)
+                            pList.add(
+                                AntigravityProfile(
+                                    name = po.optString("name", ""),
+                                    email = po.optString("email", ""),
+                                    isActive = po.optBoolean("isActive", false),
+                                    inCooldown = po.optBoolean("inCooldown", false),
+                                    cooldownRemainingSeconds = po.optInt("cooldownRemainingSeconds", 0),
+                                    usageCount = po.optInt("usageCount", 0),
+                                    hasCredential = po.optBoolean("hasCredential", true)
+                                )
+                            )
                         }
-                        val message = when (eventType) {
-                            "NIGHT_TASK_ROTATING" -> "Límite de cuota alcanzado. Cambiando a cuenta disponible..."
-                            "NIGHT_TASK_RESUMED" -> "Cuenta '${details.optString("activeProfile")}' activa. Continuando meta."
-                            "NIGHT_TASK_LOOP_DETECTED" -> "Se inyectó prompt correctivo para romper bucle de herramientas."
-                            "NIGHT_TASK_PAUSED_COOLDOWN" -> "Todas las cuentas en cooldown. Se reanudará automáticamente."
-                            "NIGHT_TASK_COMPLETED" -> "La meta ha sido alcanzada y verificada."
-                            else -> details.optString("goal", "Supervisión nocturna en curso.")
-                        }
-                        val severity = when (eventType) {
-                            "NIGHT_TASK_COMPLETED" -> PcAlertSeverity.INFO
-                            "NIGHT_TASK_ROTATING", "NIGHT_TASK_LOOP_DETECTED" -> PcAlertSeverity.WARNING
-                            "NIGHT_TASK_PAUSED_COOLDOWN" -> PcAlertSeverity.CRITICAL
-                            else -> PcAlertSeverity.INFO
-                        }
-                        val alert = PcProactiveAlert(
-                            alertId = "ag_night_${System.currentTimeMillis()}",
-                            category = PcAlertCategory.AGENT_NIGHT_TASK,
-                            title = title,
-                            message = message,
-                            severity = severity,
-                            actions = listOf(PcAlertAction("dismiss", "Aceptar"))
-                        )
-                        _proactiveAlerts.value = alert
-                        PcProactiveAlertNotificationHelper.showAlertNotification(context, alert)
-                        Log.i(TAG, "🌙 Evento nocturno Antigravity recibido: $eventType")
+                        _antigravityProfiles.value = pList
+                    } else if (activeProf.isNotBlank()) {
+                        val current = _antigravityProfiles.value
+                        _antigravityProfiles.value = current.map { it.copy(isActive = (it.name == activeProf)) }
                     }
+                    val alert = PcProactiveAlert(
+                        alertId = "ag_prof_${System.currentTimeMillis()}",
+                        category = PcAlertCategory.AGENT_NIGHT_TASK,
+                        title = "🪐 Perfil Antigravity Conmutado",
+                        message = "Cuenta '$activeProf' activa en PC" + if (resumedCount > 0) " ($resumedCount chats reanudados)" else "",
+                        severity = PcAlertSeverity.INFO,
+                        actions = listOf(PcAlertAction("dismiss", "Aceptar"))
+                    )
+                    _proactiveAlerts.value = alert
+                    PcProactiveAlertNotificationHelper.showAlertNotification(context, alert)
+                    Log.i(TAG, "🪐 Perfil cambiado en PC: $activeProf (resumed: $resumedCount)")
+                }
+                "NIGHT_TASK_EVENT", "AG_NIGHT_EVENT" -> {
+                    val evObj = json.optJSONObject("event") ?: json
+                    val eventType = evObj.optString("eventType", "")
+                    val details = evObj.optJSONObject("details") ?: JSONObject()
+                    val taskStateObj = evObj.optJSONObject("taskState") ?: evObj.optJSONObject("taskStatus") ?: evObj.optJSONObject("status")
+                    if (taskStateObj != null) {
+                        _nightTaskStatus.value = parseNightTaskStatus(taskStateObj)
+                    }
+                    val title = when (eventType) {
+                        "NIGHT_TASK_STARTED" -> "🌙 Tarea Nocturna Antigravity Iniciada"
+                        "NIGHT_TASK_ROTATING" -> "⚠️ Rotando Cuenta Gemini Pro"
+                        "NIGHT_TASK_RESUMED" -> "✅ Tarea Reanudada con Nueva Cuenta"
+                        "NIGHT_TASK_LOOP_DETECTED" -> "🔄 Corrección de Bucle Aplicada"
+                        "NIGHT_TASK_PAUSED_COOLDOWN" -> "⛔ Enfriamiento de Cuentas (Pausa)"
+                        "NIGHT_TASK_COMPLETED" -> "🎉 Tarea Nocturna Finalizada con Éxito"
+                        else -> "🪐 Antigravity: $eventType"
+                    }
+                    val message = when (eventType) {
+                        "NIGHT_TASK_ROTATING" -> "Límite de cuota alcanzado. Cambiando a cuenta disponible..."
+                        "NIGHT_TASK_RESUMED" -> "Cuenta '${details.optString("activeProfile")}' activa. Continuando meta."
+                        "NIGHT_TASK_LOOP_DETECTED" -> "Se inyectó prompt correctivo para romper bucle de herramientas."
+                        "NIGHT_TASK_PAUSED_COOLDOWN" -> "Todas las cuentas en cooldown. Se reanudará automáticamente."
+                        "NIGHT_TASK_COMPLETED" -> "La meta ha sido alcanzada y verificada."
+                        else -> details.optString("goal", "Supervisión nocturna en curso.")
+                    }
+                    val severity = when (eventType) {
+                        "NIGHT_TASK_COMPLETED" -> PcAlertSeverity.INFO
+                        "NIGHT_TASK_ROTATING", "NIGHT_TASK_LOOP_DETECTED" -> PcAlertSeverity.WARNING
+                        "NIGHT_TASK_PAUSED_COOLDOWN" -> PcAlertSeverity.CRITICAL
+                        else -> PcAlertSeverity.INFO
+                    }
+                    val alert = PcProactiveAlert(
+                        alertId = "ag_night_${System.currentTimeMillis()}",
+                        category = PcAlertCategory.AGENT_NIGHT_TASK,
+                        title = title,
+                        message = message,
+                        severity = severity,
+                        actions = listOf(PcAlertAction("dismiss", "Aceptar"))
+                    )
+                    _proactiveAlerts.value = alert
+                    PcProactiveAlertNotificationHelper.showAlertNotification(context, alert)
+                    Log.i(TAG, "🌙 Evento nocturno Antigravity recibido: $eventType")
                 }
                 "AIRSYNC_LIST_RESP" -> {
                     val port = json.optInt("port", 8900)
@@ -1346,10 +1396,33 @@ class PcRemoteCoordinator(
                     isActive = po.optBoolean("isActive", false),
                     inCooldown = po.optBoolean("inCooldown", false),
                     cooldownRemainingSeconds = po.optInt("cooldownRemainingSeconds", 0),
-                    usageCount = po.optInt("usageCount", 0)
+                    usageCount = po.optInt("usageCount", 0),
+                    hasCredential = po.optBoolean("hasCredential", true)
                 )
             )
         }
+        _antigravityProfiles.value = list
+
+        val cArr = resp.optJSONArray("activeChats")
+        if (cArr != null) {
+            val chatList = mutableListOf<AntigravityChat>()
+            for (i in 0 until cArr.length()) {
+                val co = cArr.getJSONObject(i)
+                chatList.add(
+                    AntigravityChat(
+                        conversationId = co.optString("conversationId", ""),
+                        title = co.optString("title", "Conversación"),
+                        preview = co.optString("preview", ""),
+                        lastModifiedEpoch = co.optLong("lastModifiedEpoch", System.currentTimeMillis()),
+                        stepCount = co.optInt("stepCount", 0),
+                        projectId = co.optString("projectId", ""),
+                        workspaceUri = co.optString("workspaceUri", "")
+                    )
+                )
+            }
+            _activeAntigravityChats.value = chatList
+        }
+
         list
     }
 
@@ -1371,7 +1444,7 @@ class PcRemoteCoordinator(
         resp?.optBoolean("success", false) ?: false
     }
 
-    override suspend fun activateAntigravityProfile(name: String): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun activateAntigravityProfile(name: String, resumeChats: Boolean): Boolean = withContext(Dispatchers.IO) {
         val ws = activeWebSocket ?: return@withContext false
         val reqId = UUID.randomUUID().toString().take(8)
         val deferred = CompletableDeferred<JSONObject>()
@@ -1381,11 +1454,25 @@ class PcRemoteCoordinator(
             put("type", "AG_PROFILE_ACTIVATE")
             put("requestId", reqId)
             put("name", name)
+            put("resumeChats", resumeChats)
         }
         sendSignedPayload(req, ws)
 
-        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
-        resp?.optBoolean("success", false) ?: false
+        val resp = withTimeoutOrNull(15000L) { deferred.await() }
+        val success = resp?.optBoolean("success", false) ?: false
+        if (success) {
+            val currentList = _antigravityProfiles.value
+            if (currentList.isNotEmpty()) {
+                _antigravityProfiles.value = currentList.map { p ->
+                    p.copy(isActive = (p.name == name))
+                }
+            }
+            scope.launch {
+                delay(600)
+                queryAntigravityProfiles()
+            }
+        }
+        success
     }
 
     override suspend fun startAntigravityNightTask(
@@ -1410,7 +1497,14 @@ class PcRemoteCoordinator(
         sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
-        resp?.optBoolean("success", false) ?: false
+        val success = resp?.optBoolean("success", false) ?: false
+        if (success) {
+            val statusObj = resp?.optJSONObject("status") ?: resp?.optJSONObject("taskState")
+            if (statusObj != null) {
+                _nightTaskStatus.value = parseNightTaskStatus(statusObj)
+            }
+        }
+        success
     }
 
     override suspend fun stopAntigravityNightTask(reason: String): Boolean = withContext(Dispatchers.IO) {
@@ -1427,7 +1521,14 @@ class PcRemoteCoordinator(
         sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
-        resp?.optBoolean("success", false) ?: false
+        val success = resp?.optBoolean("success", false) ?: false
+        if (success) {
+            val statusObj = resp?.optJSONObject("status") ?: resp?.optJSONObject("taskState")
+            if (statusObj != null) {
+                _nightTaskStatus.value = parseNightTaskStatus(statusObj)
+            }
+        }
+        success
     }
 
     override suspend fun queryNightTaskStatus(): NightTaskStatus? = withContext(Dispatchers.IO) {
@@ -1443,8 +1544,57 @@ class PcRemoteCoordinator(
         sendSignedPayload(req, ws)
 
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() } ?: return@withContext null
-        val statusObj = resp.optJSONObject("status") ?: return@withContext null
-        NightTaskStatus(
+        val statusObj = resp.optJSONObject("status") ?: resp.optJSONObject("taskState")
+        val status = statusObj?.let { parseNightTaskStatus(it) }
+        if (status != null) {
+            _nightTaskStatus.value = status
+        }
+
+        val pArr = resp.optJSONArray("profiles")
+        if (pArr != null) {
+            val pList = mutableListOf<AntigravityProfile>()
+            for (i in 0 until pArr.length()) {
+                val po = pArr.getJSONObject(i)
+                pList.add(
+                    AntigravityProfile(
+                        name = po.optString("name", ""),
+                        email = po.optString("email", ""),
+                        isActive = po.optBoolean("isActive", false),
+                        inCooldown = po.optBoolean("inCooldown", false),
+                        cooldownRemainingSeconds = po.optInt("cooldownRemainingSeconds", 0),
+                        usageCount = po.optInt("usageCount", 0),
+                        hasCredential = po.optBoolean("hasCredential", true)
+                    )
+                )
+            }
+            _antigravityProfiles.value = pList
+        }
+
+        val cArr = resp.optJSONArray("activeChats")
+        if (cArr != null) {
+            val chatList = mutableListOf<AntigravityChat>()
+            for (i in 0 until cArr.length()) {
+                val co = cArr.getJSONObject(i)
+                chatList.add(
+                    AntigravityChat(
+                        conversationId = co.optString("conversationId", ""),
+                        title = co.optString("title", "Conversación"),
+                        preview = co.optString("preview", ""),
+                        lastModifiedEpoch = co.optLong("lastModifiedEpoch", System.currentTimeMillis()),
+                        stepCount = co.optInt("stepCount", 0),
+                        projectId = co.optString("projectId", ""),
+                        workspaceUri = co.optString("workspaceUri", "")
+                    )
+                )
+            }
+            _activeAntigravityChats.value = chatList
+        }
+
+        status
+    }
+
+    private fun parseNightTaskStatus(statusObj: JSONObject): NightTaskStatus {
+        return NightTaskStatus(
             status = statusObj.optString("status", "IDLE"),
             goal = statusObj.optString("goal", ""),
             workspace = statusObj.optString("workspace", ""),

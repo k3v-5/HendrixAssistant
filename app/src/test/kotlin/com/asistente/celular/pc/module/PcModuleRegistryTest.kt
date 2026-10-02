@@ -17,7 +17,7 @@ class PcModuleRegistryTest {
     @Test
     fun testAllModulesRegistered() {
         val modules = PcModuleRegistry.ALL_MODULES
-        assertEquals(17, modules.size)
+        assertEquals(18, modules.size)
 
         val ids = modules.map { it.id }.toSet()
         assertTrue(ids.contains(PcModuleId.ABLETON_LIVE))
@@ -37,6 +37,7 @@ class PcModuleRegistryTest {
         assertTrue(ids.contains(PcModuleId.AUTOMATED_ROUTINES))
         assertTrue(ids.contains(PcModuleId.AIRSYNC_P2P))
         assertTrue(ids.contains(PcModuleId.WORKSPACE_TERMINAL_MEMORY))
+        assertTrue(ids.contains(PcModuleId.ANTIGRAVITY_PROFILES))
     }
 
     @Test

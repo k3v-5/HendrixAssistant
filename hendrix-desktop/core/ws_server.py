@@ -78,6 +78,16 @@ def broadcast_audio_frame(packet: bytes):
 sentinel_monitor.register_callback(broadcast_proactive_alert)
 audio_stream_server.register_callback(broadcast_audio_frame)
 
+def broadcast_night_task_event(event_type: str, payload: dict):
+    broadcast_proactive_alert({
+        "type": "NIGHT_TASK_EVENT",
+        "eventType": event_type,
+        "taskState": payload.get("taskState", {}),
+        "details": payload.get("details", {})
+    })
+
+night_task_watchdog.register_event_callback(broadcast_night_task_event)
+
 def broadcast_foreground_change(payload: dict):
     if not active_websockets:
         return
@@ -453,14 +463,20 @@ async def handle_client(websocket):
                     req_id = data.get("requestId", "")
                     profiles = antigravity_profile_manager.list_profiles()
                     active = antigravity_profile_manager.get_active_profile()
+                    active_chats = []
+                    try:
+                        active_chats = antigravity_manager.get_active_conversations()
+                    except Exception:
+                        pass
                     resp = {
                         "type": "AG_PROFILE_LIST_RESP",
                         "requestId": req_id,
                         "profiles": profiles,
-                        "activeProfile": active
+                        "activeProfile": active,
+                        "activeChats": active_chats
                     }
                     await websocket.send(json.dumps(resp))
-                    log_activity(f"🪐 Perfiles Antigravity listados ({len(profiles)} cuentas)")
+                    log_activity(f"🪐 Perfiles Antigravity listados ({len(profiles)} cuentas, {len(active_chats)} chats activos)")
 
                 # 10.2 Antigravity: Capturar sesión activa como perfil
                 elif msg_type == "AG_PROFILE_CAPTURE":
@@ -485,22 +501,63 @@ async def handle_client(websocket):
                     req_id = data.get("requestId", "")
                     name = data.get("name", "").strip()
                     reopen = data.get("reopen", True)
+                    resume_chats = data.get("resumeChats", True)
+
+                    active_chats = []
+                    if resume_chats:
+                        try:
+                            active_chats = antigravity_manager.get_active_conversations()
+                        except Exception:
+                            pass
+
                     success = antigravity_profile_manager.activate_profile(name, kill_running=True)
+                    resumed_count = 0
                     if success and reopen:
                         try:
-                            from automation.antigravity_manager import antigravity_manager
-                            antigravity_manager.launch_or_focus()
+                            continuation_prompt = data.get("prompt") or "Continúa con la tarea que estabas realizando"
+                            if len(active_chats) > 1:
+                                antigravity_manager.execute_action(
+                                    mode="RESUME_ALL",
+                                    active_chats=active_chats,
+                                    prompt=continuation_prompt,
+                                    force_relaunch=True
+                                )
+                                resumed_count = len(active_chats)
+                            elif len(active_chats) == 1:
+                                target_chat = active_chats[0]
+                                antigravity_manager.execute_action(
+                                    mode="EXISTING_CHAT",
+                                    conversation_id=target_chat["conversationId"],
+                                    conversation_title=target_chat.get("title"),
+                                    prompt=continuation_prompt,
+                                    force_relaunch=True
+                                )
+                                resumed_count = 1
+                            else:
+                                antigravity_manager.launch_or_focus()
                         except Exception as e:
                             print(f"[WsServer] Error reabriendo Antigravity: {e}")
+
                     resp = {
                         "type": "AG_PROFILE_ACTIVATE_RESP",
                         "requestId": req_id,
                         "success": success,
                         "name": name,
-                        "message": f"Perfil '{name}' activado" if success else f"Error activando perfil '{name}'"
+                        "activeProfile": antigravity_profile_manager.get_active_profile(),
+                        "resumedChatsCount": resumed_count,
+                        "resumedChats": [c.get("title") for c in active_chats],
+                        "message": f"Perfil '{name}' activado ({resumed_count} chats reanudados)" if success else f"Error activando perfil '{name}'"
                     }
                     await websocket.send(json.dumps(resp))
-                    log_activity(f"🪐 Activación de perfil '{name}': {'Éxito' if success else 'Falló'}")
+
+                    # Notificar broadcast del cambio de perfil a todos los clientes conectados (celular/tablet)
+                    broadcast_proactive_alert({
+                        "type": "AG_PROFILE_CHANGED_EVENT",
+                        "activeProfile": name,
+                        "resumedChatsCount": resumed_count,
+                        "profiles": antigravity_profile_manager.list_profiles()
+                    })
+                    log_activity(f"🪐 Activación de perfil '{name}' desde remoto: {'Éxito' if success else 'Falló'} ({resumed_count} chats reanudados)")
 
                 # 10.4 Antigravity: Iniciar tarea nocturna supervisada
                 elif msg_type == "AG_NIGHT_START":
@@ -536,11 +593,17 @@ async def handle_client(websocket):
                 # 10.6 Antigravity: Consultar estado de tarea nocturna
                 elif msg_type == "AG_NIGHT_STATUS":
                     req_id = data.get("requestId", "")
+                    active_chats = []
+                    try:
+                        active_chats = antigravity_manager.get_active_conversations()
+                    except Exception:
+                        pass
                     resp = {
                         "type": "AG_NIGHT_STATUS_RESP",
                         "requestId": req_id,
                         "status": night_task_watchdog.get_status(),
-                        "profiles": antigravity_profile_manager.list_profiles()
+                        "profiles": antigravity_profile_manager.list_profiles(),
+                        "activeChats": active_chats
                     }
                     await websocket.send(json.dumps(resp))
 
