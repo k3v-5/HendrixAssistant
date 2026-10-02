@@ -26,3 +26,25 @@ class TestWsServerHttp(unittest.IsolatedAsyncioTestCase):
         # /ws should return None so that websockets upgrades to WebSocket connection
         resp = await _process_http_request("/ws", {})
         self.assertIsNone(resp)
+
+    async def test_websockets_14_signature_with_connection_and_request(self):
+        class MockRequest:
+            def __init__(self, path):
+                self.path = path
+                self.headers = {}
+
+        class MockConnection:
+            pass
+
+        mock_conn = MockConnection()
+        mock_req = MockRequest("/health")
+
+        resp = await _process_http_request(mock_conn, mock_req)
+        self.assertIsNotNone(resp)
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.body.decode("utf-8"))
+        self.assertEqual(data["status"], "OK")
+
+        ws_req = MockRequest("/ws")
+        ws_resp = await _process_http_request(mock_conn, ws_req)
+        self.assertIsNone(ws_resp)

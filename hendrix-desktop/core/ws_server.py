@@ -1175,11 +1175,36 @@ async def _apk_watchdog_loop():
             except Exception:
                 pass
 
-async def _process_http_request(path: str, headers):
+async def _process_http_request(*args, **kwargs):
     import http
     from websockets.http11 import Response
 
-    clean_path = path.split("?")[0].rstrip("/")
+    # Compatibilidad bidireccional: websockets 14+ pasa (connection, request),
+    # mientras que websockets legacy o pruebas unitarias pasan (path, headers).
+    path = ""
+    headers = None
+    if len(args) >= 2:
+        if isinstance(args[0], str):
+            path = args[0]
+            headers = args[1]
+        else:
+            request_obj = args[1]
+            path = getattr(request_obj, "path", "") or ""
+            headers = getattr(request_obj, "headers", None)
+    elif len(args) == 1:
+        if isinstance(args[0], str):
+            path = args[0]
+        else:
+            path = getattr(args[0], "path", "") or ""
+
+    clean_path = path.split("?")[0].rstrip("/") if isinstance(path, str) else ""
+
+    def _build_headers(header_pairs):
+        try:
+            from websockets.datastructures import Headers
+            return Headers(header_pairs)
+        except Exception:
+            return dict(header_pairs)
 
     # Health check para sondeo HTTP o reverse proxies
     if clean_path in ("", "/health", "/api/health"):
@@ -1194,11 +1219,11 @@ async def _process_http_request(path: str, headers):
         return Response(
             http.HTTPStatus.OK,
             "OK",
-            [
+            _build_headers([
                 ("Content-Type", "application/json; charset=utf-8"),
                 ("Content-Length", str(len(body))),
                 ("Access-Control-Allow-Origin", "*")
-            ],
+            ]),
             body
         )
 
@@ -1220,11 +1245,11 @@ async def _process_http_request(path: str, headers):
         return Response(
             http.HTTPStatus.OK,
             "OK",
-            [
+            _build_headers([
                 ("Content-Type", "application/json; charset=utf-8"),
                 ("Content-Length", str(len(body))),
                 ("Access-Control-Allow-Origin", "*")
-            ],
+            ]),
             body
         )
 
@@ -1236,11 +1261,11 @@ async def _process_http_request(path: str, headers):
             return Response(
                 http.HTTPStatus.NOT_FOUND,
                 "Not Found",
-                [
+                _build_headers([
                     ("Content-Type", "application/json; charset=utf-8"),
                     ("Content-Length", str(len(err_body))),
                     ("Access-Control-Allow-Origin", "*")
-                ],
+                ]),
                 err_body
             )
 
@@ -1251,12 +1276,12 @@ async def _process_http_request(path: str, headers):
             return Response(
                 http.HTTPStatus.OK,
                 "OK",
-                [
+                _build_headers([
                     ("Content-Type", "application/vnd.android.package-archive"),
                     ("Content-Disposition", 'attachment; filename="hendrix-assistant-update.apk"'),
                     ("Content-Length", str(len(apk_bytes))),
                     ("Access-Control-Allow-Origin", "*")
-                ],
+                ]),
                 apk_bytes
             )
         except Exception as e:
@@ -1264,11 +1289,11 @@ async def _process_http_request(path: str, headers):
             return Response(
                 http.HTTPStatus.INTERNAL_SERVER_ERROR,
                 "Internal Server Error",
-                [
+                _build_headers([
                     ("Content-Type", "application/json; charset=utf-8"),
                     ("Content-Length", str(len(err_body))),
                     ("Access-Control-Allow-Origin", "*")
-                ],
+                ]),
                 err_body
             )
 
