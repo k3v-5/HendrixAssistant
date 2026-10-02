@@ -90,6 +90,9 @@ def main():
     ui_logger("Hendrix Desktop Companion iniciado correctamente")
     ui_logger(f"Escuchando en ws://{config.local_ip}:{config.port}/ws")
 
+    if "--minimized" in sys.argv or "--tray" in sys.argv:
+        app.after(100, app.minimize_to_tray)
+
     app.mainloop()
 
 if __name__ == "__main__":
