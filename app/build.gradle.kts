@@ -9,12 +9,19 @@ android {
     namespace = "com.asistente.celular"
     compileSdk = 34
 
+    val gitCommitCount = try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD").start()
+        process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 100
+    } catch (_: Exception) {
+        100
+    }
+
     defaultConfig {
         applicationId = "com.asistente.celular"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 1000 + gitCommitCount
+        versionName = "1.0.$gitCommitCount"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

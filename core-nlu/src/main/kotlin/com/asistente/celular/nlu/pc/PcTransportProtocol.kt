@@ -33,7 +33,8 @@ data class PcEndpointConfig(
     val otaPort: Int = 8901,
     val snapshotQuality: Int = 75,
     val telemetryIntervalMs: Long = 3000L,
-    val autoPasteDefault: Boolean = true
+    val autoPasteDefault: Boolean = true,
+    val tailscaleIp: String? = null
 )
 
 /**

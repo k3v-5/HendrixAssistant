@@ -122,6 +122,10 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     // Repositorio de la Bóveda Hendrix (Backup & Restore)
     val vaultRepository = com.asistente.celular.vault.HendrixVaultRepository(application)
 
+    // Gestor de Persistencia Resiliente y Respaldos Atómicos
+    val dataBackupManager: com.asistente.celular.nlu.backup.DataBackupCoordinator =
+        com.asistente.celular.data.backup.DataPersistenceBackupManager(application)
+
     // Motores de Audio y Voz
     private val ttsEngine = AndroidNativeTtsEngine(
         context = application,
@@ -195,6 +199,11 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         pcDiscoveryCoordinator.startDiscovery()
         viewModelScope.launch {
             pcRemoteCoordinator.connectAuto()
+        }
+
+        // Auto-restaurar datos si se detecta instalación limpia con respaldo previo existente
+        viewModelScope.launch {
+            dataBackupManager.autoRestoreIfCleanInstall()
         }
 
         // Sincronizar automáticamente Notas y Tareas con el motor RAG vectorial

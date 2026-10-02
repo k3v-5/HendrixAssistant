@@ -241,6 +241,18 @@ class PcOtaUpdateCoordinator(
 
         _downloadState.value = OtaDownloadState.ReadyToInstall(targetFile)
 
+        // Respaldo preventivo de datos (local y espejo en PC) antes de actualizar el APK
+        try {
+            val backupManager = com.asistente.celular.data.backup.DataPersistenceBackupManager(context)
+            val backup = backupManager.createFullBackup("PRE_OTA_UPDATE")
+            backupManager.saveBackupToPersistentStorage(backup)
+            val backupJson = kotlinx.serialization.json.Json.encodeToString(com.asistente.celular.nlu.backup.FullAppStateBackup.serializer(), backup)
+            pcBridge.pushAppStateBackup(backupJson)
+            Log.i(TAG, "🛡️ Respaldo preventivo previo a actualización OTA completado con éxito (local y en PC).")
+        } catch (e: Exception) {
+            Log.w(TAG, "Aviso: No se pudo completar el respaldo preventivo pre-OTA: ${e.message}")
+        }
+
         withContext(Dispatchers.Main) {
             triggerInstall(targetFile)
         }

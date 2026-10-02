@@ -308,6 +308,7 @@ class PcRemoteCoordinator(
         val snapshotQuality = prefs.getInt("pc_snapshot_quality", 75)
         val telemetryIntervalMs = prefs.getLong("pc_telemetry_interval_ms", 3000L)
         val autoPasteDefault = prefs.getBoolean("pc_auto_paste_default", true)
+        val tailscaleIp = prefs.getString("pc_tailscale_ip", null)
 
         return PcEndpointConfig(
             hostname = hostname,
@@ -321,7 +322,8 @@ class PcRemoteCoordinator(
             airSyncPort = airSyncPort,
             snapshotQuality = snapshotQuality,
             telemetryIntervalMs = telemetryIntervalMs,
-            autoPasteDefault = autoPasteDefault
+            autoPasteDefault = autoPasteDefault,
+            tailscaleIp = tailscaleIp
         )
     }
 
@@ -341,6 +343,7 @@ class PcRemoteCoordinator(
             .putInt("pc_snapshot_quality", newConfig.snapshotQuality)
             .putLong("pc_telemetry_interval_ms", newConfig.telemetryIntervalMs)
             .putBoolean("pc_auto_paste_default", newConfig.autoPasteDefault)
+            .putString("pc_tailscale_ip", newConfig.tailscaleIp)
             .apply()
     }
 
@@ -349,7 +352,8 @@ class PcRemoteCoordinator(
         port: Int,
         pin: String? = null,
         mac: String? = null,
-        remoteTunnelUrl: String? = null
+        remoteTunnelUrl: String? = null,
+        tailscaleIp: String? = null
     ) {
         val current = _endpointConfig.value
         val cleanIp = ip.trim()
@@ -358,16 +362,27 @@ class PcRemoteCoordinator(
             cleanIp.contains("loca.lt", ignoreCase = true) ||
             cleanIp.startsWith("https://", ignoreCase = true)
 
-        val updatedLocalIp = if (isTunnelInput) current.localIp else cleanIp
+        val isTailscaleInput = cleanIp.startsWith("100.")
+
+        val updatedLocalIp = if (isTunnelInput) current.localIp else if (isTailscaleInput) current.localIp else cleanIp
         val updatedTunnel = if (isTunnelInput) cleanIp else (remoteTunnelUrl?.trim() ?: current.remoteTunnelUrl)
+        val updatedTailscale = if (isTailscaleInput) cleanIp else (tailscaleIp?.trim() ?: current.tailscaleIp)
 
         val updated = current.copy(
             localIp = updatedLocalIp,
             port = port,
             remoteTunnelUrl = updatedTunnel?.takeIf { it.isNotBlank() },
+            tailscaleIp = updatedTailscale?.takeIf { it.isNotBlank() },
             pin = pin ?: current.pin,
             macAddress = mac ?: current.macAddress
         )
+        saveConfig(updated)
+    }
+
+    fun setTailscaleIp(ip: String) {
+        val clean = ip.trim()
+        val current = _endpointConfig.value
+        val updated = current.copy(tailscaleIp = clean.takeIf { it.isNotBlank() })
         saveConfig(updated)
     }
 
@@ -385,28 +400,42 @@ class PcRemoteCoordinator(
 
     /**
      * Conecta de forma inteligente: detecta conectividad actual (Wi-Fi vs Datos móviles),
-     * prueba la red más adecuada primero, y conmuta automáticamente con failover sin fricción.
+     * prueba la red más adecuada primero, y conmuta automáticamente con failover sin fricción
+     * entre LAN directa, Tailscale VPN Mesh privada y Túnel WAN seguro.
      */
     suspend fun connectAuto(): Boolean = withContext(Dispatchers.IO) {
         val conf = _endpointConfig.value
         Log.i(TAG, "Iniciando conexión automática híbrida con ${conf.hostname}")
         val hasWifi = isConnectedToWifi()
         val tunnel = conf.remoteTunnelUrl
+        val tailscale = conf.tailscaleIp
 
-        // 1. Si estamos con datos móviles (sin Wi-Fi local) y contamos con túnel WAN,
-        // conectar directamente por el túnel para respuesta inmediata (0ms desperdiciados en timeouts LAN)
-        if (!hasWifi && !tunnel.isNullOrBlank()) {
-            Log.i(TAG, "Red móvil/WAN detectada. Conectando prioritariamente por túnel seguro: $tunnel")
-            val wanSuccess = withTimeoutOrNull(6000L) {
-                connect(tunnel, conf.port, conf.pin.takeIf { it.isNotBlank() })
-            } ?: false
-            if (wanSuccess) {
-                _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
-                return@withContext true
+        // 1. Si estamos con datos móviles (sin Wi-Fi local), probar primero Tailscale o túnel WAN
+        if (!hasWifi) {
+            if (!tailscale.isNullOrBlank()) {
+                Log.i(TAG, "Red móvil detectada. Conectando por Tailscale Mesh privado: $tailscale")
+                val tsSuccess = withTimeoutOrNull(4000L) {
+                    connect(tailscale, conf.port, conf.pin.takeIf { it.isNotBlank() })
+                } ?: false
+                if (tsSuccess) {
+                    _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
+                    return@withContext true
+                }
+            }
+
+            if (!tunnel.isNullOrBlank()) {
+                Log.i(TAG, "Conectando prioritariamente por túnel seguro: $tunnel")
+                val wanSuccess = withTimeoutOrNull(6000L) {
+                    connect(tunnel, conf.port, conf.pin.takeIf { it.isNotBlank() })
+                } ?: false
+                if (wanSuccess) {
+                    _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
+                    return@withContext true
+                }
             }
         }
 
-        // 2. Si hay Wi-Fi o no hay túnel configurado, intentar por LAN directa (2.5s de gracia)
+        // 2. Si hay Wi-Fi o como primer intento local, probar por LAN directa (2.5s de gracia)
         if (conf.localIp.isNotBlank()) {
             val lanSuccess = withTimeoutOrNull(2500L) {
                 connect(conf.localIp, conf.port, conf.pin.takeIf { it.isNotBlank() })
@@ -418,7 +447,19 @@ class PcRemoteCoordinator(
             }
         }
 
-        // 3. Si falló la red local y tenemos túnel WAN, conmutar a WAN
+        // 3. Fallback a Tailscale si falló LAN directa
+        if (!tailscale.isNullOrBlank()) {
+            Log.i(TAG, "LAN no respondió. Conmutando a Tailscale VPN Mesh privada: $tailscale")
+            val tsSuccess = withTimeoutOrNull(4000L) {
+                connect(tailscale, conf.port, conf.pin.takeIf { it.isNotBlank() })
+            } ?: false
+            if (tsSuccess) {
+                _activeTransport.value = TransportType.GLOBAL_TUNNEL_WAN
+                return@withContext true
+            }
+        }
+
+        // 4. Si falló la red local y tenemos túnel WAN, conmutar a WAN
         if (!tunnel.isNullOrBlank()) {
             Log.i(TAG, "Conmutando automáticamente al túnel WAN global seguro: $tunnel")
             val wanSuccess = withTimeoutOrNull(6000L) {
@@ -2829,6 +2870,60 @@ class PcRemoteCoordinator(
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
         val vObj = resp?.opt("vault")
         vObj?.toString()
+    }
+
+    override suspend fun pushAppStateBackup(backupJson: String): Boolean = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext false
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "APP_STATE_BACKUP_PUSH")
+            put("requestId", reqId)
+            put("backup", backupJson)
+        }
+        sendSignedPayload(req, ws)
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        resp?.optBoolean("success", false) ?: false
+    }
+
+    override suspend fun pullAppStateBackup(filename: String?): String? = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext null
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "APP_STATE_BACKUP_PULL")
+            put("requestId", reqId)
+            if (filename != null) put("filename", filename)
+        }
+        sendSignedPayload(req, ws)
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        val stateObj = resp?.opt("appState")
+        stateObj?.toString()
+    }
+
+    override suspend fun listAppStateBackups(): List<String> = withContext(Dispatchers.IO) {
+        val ws = activeWebSocket ?: return@withContext emptyList()
+        val reqId = UUID.randomUUID().toString().take(8)
+        val deferred = CompletableDeferred<JSONObject>()
+        pendingRequests[reqId] = deferred
+
+        val req = JSONObject().apply {
+            put("type", "APP_STATE_BACKUP_LIST")
+            put("requestId", reqId)
+        }
+        sendSignedPayload(req, ws)
+        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        val arr = resp?.optJSONArray("backups") ?: org.json.JSONArray()
+        val list = mutableListOf<String>()
+        for (i in 0 until arr.length()) {
+            val item = arr.getJSONObject(i)
+            list.add(item.optString("filename", ""))
+        }
+        list
     }
 
     override suspend fun getOpenWindows(): List<PcWindowInfo> = withContext(Dispatchers.IO) {

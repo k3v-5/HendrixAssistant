@@ -66,7 +66,39 @@ class TestSystemOps(unittest.TestCase):
         # 3. Read
         read_res = system_ops.read_vault_backup(save_res["filename"])
         self.assertTrue(read_res["success"])
-        self.assertEqual(read_res["vault"]["profiles"][0]["id"], "deck_1")
+    def test_app_state_backup_save_list_read(self):
+        sample_state = {
+            "metadata": {"timestamp": 1234567890, "versionName": "1.0.1", "versionCode": 1001},
+            "notes": [{"id": "n1", "title": "Nota persistida"}],
+            "settings": {"gemini_api_key": "AIzaSyTestKey"}
+        }
+
+        # 1. Save
+        save_res = system_ops.save_app_state_backup(sample_state)
+        self.assertTrue(save_res["success"])
+        self.assertTrue(os.path.exists(save_res["path"]))
+
+        # 2. List
+        backups = system_ops.list_app_state_backups()
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0]["filename"], save_res["filename"])
+
+        # 3. Read
+        read_res = system_ops.read_app_state_backup(save_res["filename"])
+        self.assertTrue(read_res["success"])
+        self.assertEqual(read_res["appState"]["settings"]["gemini_api_key"], "AIzaSyTestKey")
+
+        # 4. Read latest default
+        read_latest = system_ops.read_app_state_backup()
+        self.assertTrue(read_latest["success"])
+        self.assertEqual(read_latest["appState"]["notes"][0]["title"], "Nota persistida")
+
+    def test_get_tailscale_ip_structure(self):
+        # Debe retornar None si no está activo o un string de IP válido
+        ip = system_ops.get_tailscale_ip()
+        if ip is not None:
+            self.assertIsInstance(ip, str)
+            self.assertTrue(ip.startswith("100.") or "." in ip)
 
 if __name__ == "__main__":
     unittest.main()

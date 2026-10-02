@@ -1103,6 +1103,42 @@ async def handle_client(websocket):
                     await websocket.send(json.dumps(resp))
                     log_activity(f"📦 Respaldo de Bóveda enviado al móvil: {result.get('filename')}")
 
+                # 42.1 Estado Completo de la App: Guardar Respaldo Espejo
+                elif msg_type == "APP_STATE_BACKUP_PUSH":
+                    req_id = data.get("requestId", "")
+                    backup_payload = data.get("backup") or data.get("appState")
+                    result = system_ops.save_app_state_backup(backup_payload)
+                    resp = {
+                        "type": "APP_STATE_BACKUP_PUSH_RESP",
+                        "requestId": req_id,
+                        **result
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🛡️ Respaldo completo de la app móvil guardado en PC: {result.get('filename')}")
+
+                # 42.2 Estado Completo de la App: Listar y Recuperar Respaldo
+                elif msg_type == "APP_STATE_BACKUP_LIST":
+                    req_id = data.get("requestId", "")
+                    backups = system_ops.list_app_state_backups()
+                    resp = {
+                        "type": "APP_STATE_BACKUP_LIST_RESP",
+                        "requestId": req_id,
+                        "backups": backups
+                    }
+                    await websocket.send(json.dumps(resp))
+
+                elif msg_type == "APP_STATE_BACKUP_PULL":
+                    req_id = data.get("requestId", "")
+                    target_file = data.get("filename")
+                    result = system_ops.read_app_state_backup(target_file)
+                    resp = {
+                        "type": "APP_STATE_BACKUP_PULL_RESP",
+                        "requestId": req_id,
+                        **result
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🛡️ Respaldo completo de app enviado al móvil para restauración: {result.get('filename')}")
+
                 # 43. Consulta de Actualizaciones OTA de la App Móvil
                 elif msg_type == "APP_UPDATE_CHECK":
                     req_id = data.get("requestId", "")
@@ -1213,7 +1249,8 @@ async def _process_http_request(*args, **kwargs):
             "service": "Hendrix PC Bridge",
             "version": "1.0",
             "hostname": socket.gethostname(),
-            "remoteTunnelUrl": tunnel_manager.get_tunnel_url()
+            "remoteTunnelUrl": tunnel_manager.get_tunnel_url(),
+            "tailscaleIp": system_ops.get_tailscale_ip()
         }
         body = json.dumps(resp_data).encode("utf-8")
         return Response(

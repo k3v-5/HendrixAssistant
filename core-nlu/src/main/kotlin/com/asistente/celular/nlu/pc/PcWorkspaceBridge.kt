@@ -459,6 +459,22 @@ interface PcWorkspaceBridge {
     suspend fun restoreVault(filename: String? = null): String? = null
 
     /**
+     * Envía una copia de respaldo completa del estado de la app móvil (notas, tareas, configuración)
+     * a la PC de escritorio para contingencias y migraciones.
+     */
+    suspend fun pushAppStateBackup(backupJson: String): Boolean = false
+
+    /**
+     * Recupera el respaldo completo más reciente o específico del estado de la app móvil desde la PC.
+     */
+    suspend fun pullAppStateBackup(filename: String? = null): String? = null
+
+    /**
+     * Lista los nombres de los respaldos completos de la app móvil guardados en la PC.
+     */
+    suspend fun listAppStateBackups(): List<String> = emptyList()
+
+    /**
      * Obtiene la lista de aplicaciones abiertas visibles en la barra de tareas de Windows.
      */
     suspend fun getOpenWindows(): List<PcWindowInfo> = emptyList()

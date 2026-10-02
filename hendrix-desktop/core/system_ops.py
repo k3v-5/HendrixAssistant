@@ -211,6 +211,154 @@ class SystemOps:
             return {"success": False, "message": f"Error al leer respaldo: {e}"}
 
     @staticmethod
+    def get_tailscale_ip() -> Optional[str]:
+        """
+        Detecta si Tailscale está activo en la máquina y obtiene su IP privada (100.x.y.z).
+        """
+        try:
+            addrs = psutil.net_if_addrs()
+            for iface_name, addr_list in addrs.items():
+                is_tailscale_name = "tailscale" in iface_name.lower()
+                for addr in addr_list:
+                    # AF_INET = IPv4 (2 en la mayoría de sistemas)
+                    if getattr(addr, "family", None) and str(addr.family).endswith("AF_INET") or addr.family == 2:
+                        ip = addr.address
+                        if is_tailscale_name:
+                            return ip
+                        # Rango Carrier-Grade NAT asignado a Tailscale (RFC 6598: 100.64.0.0/10)
+                        if ip.startswith("100."):
+                            try:
+                                second_octet = int(ip.split(".")[1])
+                                if 64 <= second_octet <= 127:
+                                    return ip
+                            except Exception:
+                                pass
+        except Exception as e:
+            logger.warning(f"Error detectando IP de Tailscale: {e}")
+        return None
+
+    @staticmethod
+    def save_app_state_backup(backup_data: Any) -> Dict[str, Any]:
+        """
+        Guarda un respaldo completo del estado y datos de la app móvil (notas, tareas, settings, vault, etc.).
+        """
+        try:
+            root = dropzone_manager.root_path
+            backup_dir = os.path.join(root, "Backups")
+            os.makedirs(backup_dir, exist_ok=True)
+
+            ts = int(time.time())
+            filename = f"hendrix_app_state_{ts}.json"
+            target_path = os.path.join(backup_dir, filename)
+            latest_path = os.path.join(backup_dir, "hendrix_app_state_latest.json")
+
+            parsed = None
+            if isinstance(backup_data, str):
+                try:
+                    parsed = json.loads(backup_data)
+                except Exception:
+                    pass
+
+            content_to_write = parsed if parsed is not None else backup_data
+
+            with open(target_path, "w", encoding="utf-8") as f:
+                if isinstance(content_to_write, (dict, list)):
+                    json.dump(content_to_write, f, indent=2, ensure_ascii=False)
+                else:
+                    f.write(str(content_to_write))
+
+            with open(latest_path, "w", encoding="utf-8") as f:
+                if isinstance(content_to_write, (dict, list)):
+                    json.dump(content_to_write, f, indent=2, ensure_ascii=False)
+                else:
+                    f.write(str(content_to_write))
+
+            file_size = os.path.getsize(target_path)
+            logger.info(f"Estado de la app móvil respaldado con éxito en {target_path} ({file_size} bytes)")
+            return {
+                "success": True,
+                "filename": filename,
+                "path": target_path,
+                "timestamp": ts,
+                "sizeBytes": file_size,
+                "message": f"Respaldo de app guardado exitosamente: {filename}"
+            }
+        except Exception as e:
+            logger.error(f"Error al guardar respaldo de app: {e}")
+            return {"success": False, "message": f"Error al guardar respaldo de app: {e}"}
+
+    @staticmethod
+    def read_app_state_backup(filename: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Lee el contenido de un respaldo de la app móvil específico o del más reciente.
+        """
+        try:
+            root = dropzone_manager.root_path
+            backup_dir = os.path.join(root, "Backups")
+            if not os.path.exists(backup_dir):
+                return {"success": False, "message": "No hay respaldos disponibles en la PC."}
+
+            target_path = None
+            if filename:
+                cand = os.path.join(backup_dir, filename)
+                if os.path.exists(cand):
+                    target_path = cand
+
+            if not target_path:
+                latest_cand = os.path.join(backup_dir, "hendrix_app_state_latest.json")
+                if os.path.exists(latest_cand):
+                    target_path = latest_cand
+                else:
+                    backups = SystemOps.list_app_state_backups()
+                    if backups:
+                        target_path = backups[0]["path"]
+
+            if not target_path or not os.path.exists(target_path):
+                return {"success": False, "message": "No se encontró ningún archivo de respaldo de app."}
+
+            with open(target_path, "r", encoding="utf-8") as f:
+                content = json.load(f)
+
+            stat = os.stat(target_path)
+            return {
+                "success": True,
+                "filename": os.path.basename(target_path),
+                "timestamp": int(stat.st_mtime),
+                "appState": content
+            }
+        except Exception as e:
+            logger.error(f"Error al leer respaldo de app: {e}")
+            return {"success": False, "message": f"Error al leer respaldo de app: {e}"}
+
+    @staticmethod
+    def list_app_state_backups() -> List[Dict[str, Any]]:
+        """
+        Lista los respaldos de la app móvil disponibles en Dropzone/Backups.
+        """
+        try:
+            root = dropzone_manager.root_path
+            backup_dir = os.path.join(root, "Backups")
+            if not os.path.exists(backup_dir):
+                return []
+
+            results = []
+            for fname in os.listdir(backup_dir):
+                if fname.startswith("hendrix_app_state_") and fname.endswith(".json") and fname != "hendrix_app_state_latest.json":
+                    fpath = os.path.join(backup_dir, fname)
+                    stat = os.stat(fpath)
+                    results.append({
+                        "filename": fname,
+                        "sizeBytes": stat.st_size,
+                        "modified": int(stat.st_mtime),
+                        "path": fpath
+                    })
+            results.sort(key=lambda x: x["modified"], reverse=True)
+            return results
+        except Exception as e:
+            logger.error(f"Error al listar respaldos de app: {e}")
+            return []
+
+    @staticmethod
     def get_app_apk_path() -> str:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.abspath(os.path.join(base_dir, "..", "app", "build", "outputs", "apk", "debug", "app-debug.apk"))
