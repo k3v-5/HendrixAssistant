@@ -378,13 +378,15 @@ async def handle_client(websocket):
                 elif msg_type == "GET_OPEN_WINDOWS":
                     req_id = data.get("requestId", "")
                     windows = await asyncio.to_thread(window_manager.get_taskbar_windows)
+                    is_locked = screen_engine.is_session_locked()
                     resp = {
                         "type": "OPEN_WINDOWS_LIST",
                         "requestId": req_id,
-                        "windows": windows
+                        "windows": windows,
+                        "isSessionLocked": is_locked
                     }
                     await websocket.send(json.dumps(resp))
-                    log_activity(f"🪟 Ventanas abiertas enviadas al móvil ({len(windows)} aplicaciones)")
+                    log_activity(f"🪟 Ventanas abiertas enviadas al móvil ({len(windows)} aplicaciones, Bloqueado: {is_locked})")
 
                 # 5.2. Solicitud de traer al frente / enfocar una ventana específica
                 elif msg_type == "FOCUS_WINDOW":

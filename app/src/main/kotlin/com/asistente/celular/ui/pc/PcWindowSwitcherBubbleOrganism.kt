@@ -33,7 +33,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +65,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -90,6 +95,8 @@ fun PcWindowSwitcherBubbleOrganism(
     openWindows: List<PcWindowInfo>,
     onRequestWindows: suspend () -> List<PcWindowInfo>,
     onFocusWindow: (Long) -> Unit,
+    isSessionLocked: Boolean = false,
+    onUnlockClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -368,7 +375,79 @@ fun PcWindowSwitcherBubbleOrganism(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Lista de aplicaciones
-                    if (windowsList.isEmpty() && !isLoading) {
+                    if (isSessionLocked) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0x33EF4444),
+                            border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Text(
+                                    text = "Computadora Bloqueada",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "Windows aísla y oculta las aplicaciones de la barra de tareas mientras la pantalla de bloqueo (Winlogon) esté activa.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    textAlign = TextAlign.Center
+                                )
+                                if (onUnlockClick != null) {
+                                    Button(
+                                        onClick = {
+                                            isExpanded = false
+                                            onUnlockClick()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFDC2626)
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Desbloquear con PIN", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (isLoading && windowsList.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    color = NeonPurple,
+                                    modifier = Modifier.size(28.dp),
+                                    strokeWidth = 3.dp
+                                )
+                                Text(
+                                    text = "Consultando ventanas activas en Windows...",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    } else if (windowsList.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

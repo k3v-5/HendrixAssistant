@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
@@ -108,10 +110,14 @@ fun PcRemoteWorkspaceScreen(
     var dictationText by remember { mutableStateOf("") }
     var showDictationDialog by remember { mutableStateOf(false) }
 
-    val anyPcRemoteDialog = showConfigDialog || showDictationDialog
+    var showUnlockDialog by remember { mutableStateOf(false) }
+    var unlockPinInput by remember { mutableStateOf("") }
+
+    val anyPcRemoteDialog = showConfigDialog || showDictationDialog || showUnlockDialog
     BackHandler(enabled = anyPcRemoteDialog) {
         showConfigDialog = false
         showDictationDialog = false
+        showUnlockDialog = false
     }
     BackHandler(enabled = !anyPcRemoteDialog) {
         onBack()
@@ -278,6 +284,8 @@ fun PcRemoteWorkspaceScreen(
             if (isConnected) {
                 PcWindowSwitcherBubbleOrganism(
                     openWindows = openWindows,
+                    isSessionLocked = telemetry?.isSessionLocked == true,
+                    onUnlockClick = { showUnlockDialog = true },
                     onRequestWindows = { pcBridge.getOpenWindows() },
                     onFocusWindow = { hwnd ->
                         scope.launch {
@@ -286,7 +294,91 @@ fun PcRemoteWorkspaceScreen(
                     }
                 )
             }
+
+            // Banner flotante cuando la PC está bloqueada (Winlogon)
+            if (isConnected && telemetry?.isSessionLocked == true) {
+                Surface(
+                    onClick = { showUnlockDialog = true },
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xEE991B1B),
+                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                        Text(
+                            text = "PC Bloqueada • Toca para desbloquear",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    // Diálogo de desbloqueo rápido de sesión de Windows
+    if (showUnlockDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnlockDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(20.dp))
+                    Text(
+                        text = "Desbloquear Sesión de Windows",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Ingresa tu PIN o contraseña de Windows para reactivar el escritorio y las aplicaciones:",
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                    OutlinedTextField(
+                        value = unlockPinInput,
+                        onValueChange = { unlockPinInput = it },
+                        label = { Text("PIN de Windows") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val pin = unlockPinInput
+                        showUnlockDialog = false
+                        scope.launch {
+                            pcBridge.unlockSession(pin)
+                            delay(1200)
+                            pcBridge.getOpenWindows()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                ) {
+                    Text("Desbloquear", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUnlockDialog = false }) {
+                    Text("Cancelar", color = Color(0xFF94A3B8))
+                }
+            },
+            containerColor = Color(0xFF1E1B4B)
+        )
     }
 
     // Diálogo de configuración y emparejamiento único ("Enroll Once, Connect Anywhere")

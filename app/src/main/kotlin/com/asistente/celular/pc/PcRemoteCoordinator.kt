@@ -721,6 +721,10 @@ class PcRemoteCoordinator(
                     }
                 }
                 "OPEN_WINDOWS_LIST" -> {
+                    if (json.has("isSessionLocked")) {
+                        val isLocked = json.optBoolean("isSessionLocked", false)
+                        _telemetry.value = _telemetry.value?.copy(isSessionLocked = isLocked)
+                    }
                     val wArr = json.optJSONArray("windows") ?: JSONArray()
                     val list = mutableListOf<PcWindowInfo>()
                     for (i in 0 until wArr.length()) {
@@ -2939,6 +2943,10 @@ class PcRemoteCoordinator(
         }
         sendSignedPayload(req, ws)
         val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
+        if (resp != null && resp.has("isSessionLocked")) {
+            val isLocked = resp.optBoolean("isSessionLocked", false)
+            _telemetry.value = _telemetry.value?.copy(isSessionLocked = isLocked)
+        }
         val wArr = resp?.optJSONArray("windows") ?: org.json.JSONArray()
         val list = mutableListOf<PcWindowInfo>()
         for (i in 0 until wArr.length()) {

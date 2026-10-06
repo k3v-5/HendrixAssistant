@@ -992,6 +992,8 @@ private fun ScreenLiveTabContent(
 
                 PcWindowSwitcherBubbleOrganism(
                     openWindows = openWindows,
+                    isSessionLocked = isSessionLocked,
+                    onUnlockClick = onUnlockClick,
                     onRequestWindows = { pcBridge.getOpenWindows() },
                     onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
                 )
