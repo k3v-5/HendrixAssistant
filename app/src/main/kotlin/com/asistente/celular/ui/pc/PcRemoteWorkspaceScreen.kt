@@ -205,10 +205,7 @@ fun PcRemoteWorkspaceScreen(
                         },
                         isLoupeEnabled = isLoupeActive,
                         isWindowFocusActive = isFocusWindowActive,
-                        activeWindowBounds = telemetry?.activeWindowBounds,
-                        openWindows = openWindows,
-                        onRequestWindows = { coordinator?.getOpenWindows() ?: emptyList() },
-                        onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
+                        activeWindowBounds = telemetry?.activeWindowBounds
                     )
 
                     // Overlay informativo y botón de reconexión rápida cuando no está conectado
@@ -271,6 +268,22 @@ fun PcRemoteWorkspaceScreen(
                         scope.launch { pcBridge.typeTextDirectly(text) }
                     },
                     onStartVoiceDictation = { showDictationDialog = true }
+                )
+            }
+
+            // ==========================================
+            // GESTOR DE VENTANAS FLOTANTE DE WINDOWS
+            // (Completamente desacoplado del canvas; libre de interferencia de clics con la PC)
+            // ==========================================
+            if (isConnected) {
+                PcWindowSwitcherBubbleOrganism(
+                    openWindows = openWindows,
+                    onRequestWindows = { pcBridge.getOpenWindows() },
+                    onFocusWindow = { hwnd ->
+                        scope.launch {
+                            pcBridge.focusWindow(hwnd)
+                        }
+                    }
                 )
             }
         }

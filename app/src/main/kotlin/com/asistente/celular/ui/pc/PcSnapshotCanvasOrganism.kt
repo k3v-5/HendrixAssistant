@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.pc.PcActionType
 import com.asistente.celular.nlu.pc.PcInteractionAction
-import com.asistente.celular.nlu.pc.PcWindowInfo
 import com.asistente.celular.nlu.pc.WindowBounds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -102,9 +101,6 @@ fun PcSnapshotCanvasOrganism(
     isLoupeEnabled: Boolean = false,
     isWindowFocusActive: Boolean = false,
     activeWindowBounds: WindowBounds? = null,
-    openWindows: List<PcWindowInfo> = emptyList(),
-    onRequestWindows: (suspend () -> List<PcWindowInfo>)? = null,
-    onFocusWindow: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
@@ -1006,27 +1002,5 @@ fun PcSnapshotCanvasOrganism(
             )
         }
 
-        // ==========================================
-        // BOLA FLOTANTE (GESTOR DE VENTANAS DE WINDOWS)
-        // ==========================================
-        if (onRequestWindows != null || onFocusWindow != null) {
-            PcWindowSwitcherBubbleOrganism(
-                openWindows = openWindows,
-                onRequestWindows = onRequestWindows ?: { emptyList() },
-                onFocusWindow = { hwnd ->
-                    if (onFocusWindow != null) {
-                        onFocusWindow(hwnd)
-                    } else {
-                        onSendAction(
-                            PcInteractionAction(
-                                type = PcActionType.FOCUS_WINDOW,
-                                hwnd = hwnd
-                            )
-                        )
-                    }
-                    showToast("Conmutando aplicación...", 1)
-                }
-            )
-        }
     }
 }

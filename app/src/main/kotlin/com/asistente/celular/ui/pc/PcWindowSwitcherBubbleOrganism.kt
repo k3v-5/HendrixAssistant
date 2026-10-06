@@ -10,7 +10,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,11 +49,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -99,18 +103,20 @@ fun PcWindowSwitcherBubbleOrganism(
     // Tamaño del contenedor padre para mantener la bola dentro de la pantalla
     var parentSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // Posición flotante de la bola (por defecto arriba a la derecha)
-    var bubbleOffsetX by remember { mutableFloatStateOf(0f) }
-    var bubbleOffsetY by remember { mutableFloatStateOf(160f) }
-    var isPositionInitialized by remember { mutableStateOf(false) }
-
     val bubbleSizeDp = 48.dp
     val bubbleSizePx = with(density) { bubbleSizeDp.toPx() }
+    val marginPx = with(density) { 16.dp.toPx() }
+
+    // Posición flotante de la bola (por defecto arriba a la derecha, debajo del header)
+    var bubbleOffsetX by remember { mutableFloatStateOf(0f) }
+    var bubbleOffsetY by remember { mutableFloatStateOf(with(density) { 120.dp.toPx() }) }
+    var isPositionInitialized by remember { mutableStateOf(false) }
 
     // Inicializar posición pegada al borde derecho cuando se conoce el tamaño de pantalla
     LaunchedEffect(parentSize) {
         if (parentSize.width > 0 && !isPositionInitialized) {
-            bubbleOffsetX = (parentSize.width - bubbleSizePx - with(density) { 16.dp.toPx() })
+            bubbleOffsetX = (parentSize.width - bubbleSizePx - marginPx).coerceAtLeast(0f)
+            bubbleOffsetY = with(density) { 120.dp.toPx() }
             isPositionInitialized = true
         }
     }
@@ -160,6 +166,7 @@ fun PcWindowSwitcherBubbleOrganism(
                         bubbleOffsetY.roundToInt()
                     )
                 }
+                .alpha(if (isPositionInitialized) 1f else 0f)
                 .size(bubbleSizeDp)
                 .shadow(elevation = 10.dp, shape = CircleShape)
                 .clip(CircleShape)
@@ -179,40 +186,55 @@ fun PcWindowSwitcherBubbleOrganism(
                     ),
                     shape = CircleShape
                 )
-                .pointerInput(Unit) {
-                    var totalDragDistance = 0f
-                    detectDragGestures(
-                        onDragStart = {
-                            totalDragDistance = 0f
-                        },
-                        onDragEnd = {
-                            if (totalDragDistance < with(density) { 10.dp.toPx() }) {
-                                // Toque intencional detectado sin desplazamiento significativo
-                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                                isExpanded = !isExpanded
-                                if (isExpanded) {
-                                    refreshList()
+                .pointerInput(bubbleSizePx, marginPx) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val pointerId = down.id
+
+                        val dragChange = awaitTouchSlopOrCancellation(pointerId) { change, over ->
+                            change.consume()
+                            val maxX = (parentSize.width - bubbleSizePx).coerceAtLeast(0f)
+                            val maxY = (parentSize.height - bubbleSizePx).coerceAtLeast(0f)
+                            bubbleOffsetX = (bubbleOffsetX + over.x).coerceIn(0f, maxX)
+                            bubbleOffsetY = (bubbleOffsetY + over.y).coerceIn(marginPx, maxY - marginPx)
+                        }
+
+                        if (dragChange != null) {
+                            // Arrastre activo del widget flotante
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val dragEvent = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                if (dragEvent.isConsumed) break
+                                if (!dragEvent.pressed) {
+                                    // Soltó el dedo al terminar el arrastre
+                                    break
                                 }
-                            } else {
-                                // Imán a los bordes laterales (snap to left or right)
-                                if (parentSize.width > 0) {
-                                    val margin = 16f
-                                    val midX = parentSize.width / 2f
-                                    bubbleOffsetX = if (bubbleOffsetX < midX) {
-                                        margin
-                                    } else {
-                                        (parentSize.width - bubbleSizePx - margin)
-                                    }
+                                val dragAmount = dragEvent.positionChange()
+                                dragEvent.consume()
+                                val maxX = (parentSize.width - bubbleSizePx).coerceAtLeast(0f)
+                                val maxY = (parentSize.height - bubbleSizePx).coerceAtLeast(0f)
+                                bubbleOffsetX = (bubbleOffsetX + dragAmount.x).coerceIn(0f, maxX)
+                                bubbleOffsetY = (bubbleOffsetY + dragAmount.y).coerceIn(marginPx, maxY - marginPx)
+                            }
+
+                            // Efecto magnético a los bordes laterales
+                            if (parentSize.width > 0) {
+                                val midX = parentSize.width / 2f
+                                bubbleOffsetX = if (bubbleOffsetX < midX) {
+                                    marginPx
+                                } else {
+                                    (parentSize.width - bubbleSizePx - marginPx)
                                 }
                             }
+                        } else {
+                            // Tap / toque limpio e instantáneo
+                            down.consume()
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            isExpanded = !isExpanded
+                            if (isExpanded) {
+                                refreshList()
+                            }
                         }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        totalDragDistance += kotlin.math.sqrt(dragAmount.x * dragAmount.x + dragAmount.y * dragAmount.y)
-                        val maxX = (parentSize.width - bubbleSizePx).coerceAtLeast(0f)
-                        val maxY = (parentSize.height - bubbleSizePx).coerceAtLeast(0f)
-                        bubbleOffsetX = (bubbleOffsetX + dragAmount.x).coerceIn(0f, maxX)
-                        bubbleOffsetY = (bubbleOffsetY + dragAmount.y).coerceIn(40f, maxY - 40f)
                     }
                 },
             contentAlignment = Alignment.Center

@@ -113,6 +113,7 @@ import kotlinx.coroutines.launch
 
 import com.asistente.celular.ui.pc.PcSnapshotCanvasOrganism
 import com.asistente.celular.ui.pc.PcFloatingActionDock
+import com.asistente.celular.ui.pc.PcWindowSwitcherBubbleOrganism
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.text.style.TextAlign
@@ -986,7 +987,10 @@ private fun ScreenLiveTabContent(
                     },
                     isLoupeEnabled = isLoupeActive,
                     isWindowFocusActive = isFocusWindowActive,
-                    activeWindowBounds = telemetry?.activeWindowBounds,
+                    activeWindowBounds = telemetry?.activeWindowBounds
+                )
+
+                PcWindowSwitcherBubbleOrganism(
                     openWindows = openWindows,
                     onRequestWindows = { pcBridge.getOpenWindows() },
                     onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
