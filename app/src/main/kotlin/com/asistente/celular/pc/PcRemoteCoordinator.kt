@@ -622,16 +622,16 @@ class PcRemoteCoordinator(
             var delayMs = 1500L
             var attempt = 1
 
-            while (!isUserExplicitDisconnect && !_isConnected.value && attempt <= 5) {
+            while (!isUserExplicitDisconnect && !_isConnected.value && attempt <= 10) {
                 val conf = _endpointConfig.value
-                val hasTunnel = !conf.remoteTunnelUrl.isNullOrBlank()
-                val targetDesc = if (hasTunnel) "Auto Híbrido (LAN/WAN)" else "$currentHost:$currentPort"
-                Log.i(TAG, "Reconexión automática ($attempt/5) a $targetDesc en ${delayMs}ms...")
+                val hasRemotePath = !conf.remoteTunnelUrl.isNullOrBlank() || !conf.tailscaleIp.isNullOrBlank()
+                val targetDesc = if (hasRemotePath) "Auto Híbrido (LAN/Tailscale/WAN)" else "$currentHost:$currentPort"
+                Log.i(TAG, "Reconexión automática ($attempt/10) a $targetDesc en ${delayMs}ms...")
                 _connectionState.value = PcConnectionState.Reconnecting(attempt, targetDesc, currentPort)
                 delay(delayMs)
                 if (isUserExplicitDisconnect || _isConnected.value) break
 
-                val reconnected = if (hasTunnel) {
+                val reconnected = if (hasRemotePath) {
                     connectAuto()
                 } else {
                     connect(currentHost, currentPort, conf.pin.takeIf { it.isNotBlank() })
@@ -899,10 +899,11 @@ class PcRemoteCoordinator(
                         transportType = _activeTransport.value
                     )
 
-                    // Solicitar snapshot inicial y sincronizar estado de perfiles Antigravity de inmediato
+                    // Solicitar snapshot inicial, ventanas abiertas y sincronizar estado de perfiles Antigravity de inmediato
                     scope.launch(Dispatchers.IO) {
                         delay(250)
                         requestSnapshot()
+                        getOpenWindows()
                         queryAntigravityProfiles()
                         queryNightTaskStatus()
                     }

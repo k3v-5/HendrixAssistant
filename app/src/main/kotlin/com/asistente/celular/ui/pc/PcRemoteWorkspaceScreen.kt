@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,15 +21,18 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -112,13 +117,26 @@ fun PcRemoteWorkspaceScreen(
         onBack()
     }
 
-    // Transmisión continua fluida de pantalla mientras la pantalla esté activa y conectada
+    // Auto-conexión inteligente al ingresar a la pantalla si el enlace no está activo
+    LaunchedEffect(Unit) {
+        if (!isConnected) {
+            coordinator?.connectAuto()
+        }
+    }
+
+    // Transmisión continua fluida de pantalla y refresco de aplicaciones mientras la pantalla esté activa y conectada
     LaunchedEffect(isConnected, isFocusWindowActive) {
         if (isConnected) {
             pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+            coordinator?.getOpenWindows()
+            var tick = 0
             while (isActive) {
                 delay(1000L)
                 pcBridge.requestSnapshot(cropToActiveWindow = isFocusWindowActive)
+                tick++
+                if (tick % 4 == 0) {
+                    coordinator?.getOpenWindows()
+                }
             }
         }
     }
@@ -142,6 +160,17 @@ fun PcRemoteWorkspaceScreen(
                     }
                 },
                 actions = {
+                    if (!isConnected) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    coordinator?.connectAuto() ?: pcBridge.connect(hostInput.trim(), portInput.toIntOrNull() ?: 8899, pinInput.trim())
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Reconectar", tint = Color(0xFFFBBF24))
+                        }
+                    }
                     IconButton(onClick = { showConfigDialog = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Ajustes de PC", tint = Color.White)
                     }
@@ -178,9 +207,52 @@ fun PcRemoteWorkspaceScreen(
                         isWindowFocusActive = isFocusWindowActive,
                         activeWindowBounds = telemetry?.activeWindowBounds,
                         openWindows = openWindows,
-                        onRequestWindows = { pcBridge.getOpenWindows() },
+                        onRequestWindows = { coordinator?.getOpenWindows() ?: emptyList() },
                         onFocusWindow = { hwnd -> scope.launch { pcBridge.focusWindow(hwnd) } }
                     )
+
+                    // Overlay informativo y botón de reconexión rápida cuando no está conectado
+                    if (!isConnected) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(24.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xEE1E1B4B),
+                            border = BorderStroke(1.dp, Color(0xFF8B5CF6))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "Desconectado de Hendrix PC",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Conecta automáticamente vía WiFi local o Tailscale Mesh privado para interactuar.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    textAlign = TextAlign.Center
+                                )
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            coordinator?.connectAuto() ?: pcBridge.connect(hostInput.trim(), portInput.toIntOrNull() ?: 8899, pinInput.trim())
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Reconectar a PC")
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Muelle de Acciones Flotante Ergonómico (Dynamic Island)

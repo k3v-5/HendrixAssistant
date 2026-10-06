@@ -180,32 +180,39 @@ fun PcWindowSwitcherBubbleOrganism(
                     shape = CircleShape
                 )
                 .pointerInput(Unit) {
+                    var totalDragDistance = 0f
                     detectDragGestures(
+                        onDragStart = {
+                            totalDragDistance = 0f
+                        },
                         onDragEnd = {
-                            // Imán a los bordes laterales (snap to left or right)
-                            if (parentSize.width > 0) {
-                                val margin = 16f
-                                val midX = parentSize.width / 2f
-                                bubbleOffsetX = if (bubbleOffsetX < midX) {
-                                    margin
-                                } else {
-                                    (parentSize.width - bubbleSizePx - margin)
+                            if (totalDragDistance < with(density) { 10.dp.toPx() }) {
+                                // Toque intencional detectado sin desplazamiento significativo
+                                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                isExpanded = !isExpanded
+                                if (isExpanded) {
+                                    refreshList()
+                                }
+                            } else {
+                                // Imán a los bordes laterales (snap to left or right)
+                                if (parentSize.width > 0) {
+                                    val margin = 16f
+                                    val midX = parentSize.width / 2f
+                                    bubbleOffsetX = if (bubbleOffsetX < midX) {
+                                        margin
+                                    } else {
+                                        (parentSize.width - bubbleSizePx - margin)
+                                    }
                                 }
                             }
                         }
                     ) { change, dragAmount ->
                         change.consume()
+                        totalDragDistance += kotlin.math.sqrt(dragAmount.x * dragAmount.x + dragAmount.y * dragAmount.y)
                         val maxX = (parentSize.width - bubbleSizePx).coerceAtLeast(0f)
                         val maxY = (parentSize.height - bubbleSizePx).coerceAtLeast(0f)
                         bubbleOffsetX = (bubbleOffsetX + dragAmount.x).coerceIn(0f, maxX)
                         bubbleOffsetY = (bubbleOffsetY + dragAmount.y).coerceIn(40f, maxY - 40f)
-                    }
-                }
-                .clickable {
-                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                    isExpanded = !isExpanded
-                    if (isExpanded) {
-                        refreshList()
                     }
                 },
             contentAlignment = Alignment.Center
