@@ -18,9 +18,12 @@ if %errorlevel% neq 0 (
 echo [1/2] Verificando dependencias...
 pip install -r requirements.txt --quiet --disable-pip-version-check
 
+set "PYTHON_EXE=python"
+if exist "C:\Users\sasuk\AppData\Local\python\pythoncore-3.14-64\python.exe" set "PYTHON_EXE=C:\Users\sasuk\AppData\Local\python\pythoncore-3.14-64\python.exe"
+
 echo [2/2] Iniciando Hendrix Desktop Companion...
 echo.
-python main.py
+"%PYTHON_EXE%" main.py
 
 if %errorlevel% neq 0 (
     echo.

@@ -1143,16 +1143,22 @@ async def handle_client(websocket):
                 elif msg_type == "APP_UPDATE_CHECK":
                     req_id = data.get("requestId", "")
                     info = system_ops.get_app_apk_info()
-                    port = getattr(config, "ota_port", 8901)
+                    effective_port = getattr(config, "port", 8899)
                     tunnel_url = tunnel_manager.get_tunnel_url()
+                    ts_ip = system_ops.get_tailscale_ip()
                     is_remote = (client_ip in ("127.0.0.1", "::1", "localhost")) or (not client_ip.startswith(("192.168.", "10.", "172.")))
                     if is_remote and tunnel_url:
                         clean_tunnel = tunnel_url.rstrip("/")
                         if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
                             clean_tunnel = f"https://{clean_tunnel}"
                         info["downloadUrl"] = f"{clean_tunnel}/api/update/download"
+                    elif is_remote and ts_ip:
+                        info["downloadUrl"] = f"http://{ts_ip}:{effective_port}/api/update/download"
                     else:
-                        info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+                        info["downloadUrl"] = f"http://{config.local_ip}:{effective_port}/api/update/download"
+
+                    if ts_ip:
+                        info["tailscaleDownloadUrl"] = f"http://{ts_ip}:{effective_port}/api/update/download"
 
                     if tunnel_url:
                         clean_tunnel = tunnel_url.rstrip("/")
@@ -1267,16 +1273,22 @@ async def _process_http_request(*args, **kwargs):
     # Consulta de metadata de actualización de APK
     if clean_path in ("/api/update/latest", "/api/update/check"):
         apk_info = system_ops.get_app_apk_info()
-        port = getattr(config, "ota_port", 8901)
+        effective_port = getattr(config, "port", 8899)
         tunnel_url = tunnel_manager.get_tunnel_url()
+        ts_ip = system_ops.get_tailscale_ip()
         if tunnel_url:
             clean_tunnel = tunnel_url.rstrip("/")
             if not clean_tunnel.startswith("http://") and not clean_tunnel.startswith("https://"):
                 clean_tunnel = f"https://{clean_tunnel}"
             apk_info["downloadUrl"] = f"{clean_tunnel}/api/update/download"
             apk_info["tunnelDownloadUrl"] = f"{clean_tunnel}/api/update/download"
+        elif ts_ip:
+            apk_info["downloadUrl"] = f"http://{ts_ip}:{effective_port}/api/update/download"
         else:
-            apk_info["downloadUrl"] = f"http://{config.local_ip}:{port}/api/update/download"
+            apk_info["downloadUrl"] = f"http://{config.local_ip}:{effective_port}/api/update/download"
+
+        if ts_ip:
+            apk_info["tailscaleDownloadUrl"] = f"http://{ts_ip}:{effective_port}/api/update/download"
 
         body = json.dumps(apk_info).encode("utf-8")
         return Response(
