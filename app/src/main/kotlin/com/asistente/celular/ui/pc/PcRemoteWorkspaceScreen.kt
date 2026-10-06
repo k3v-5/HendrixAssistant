@@ -92,6 +92,7 @@ fun PcRemoteWorkspaceScreen(
     var portInput by remember(savedConfig) { mutableStateOf((savedConfig?.port ?: 8899).toString()) }
     var airSyncPortInput by remember(savedConfig) { mutableStateOf((savedConfig?.airSyncPort ?: 8900).toString()) }
     var tunnelInput by remember(savedConfig) { mutableStateOf(savedConfig?.remoteTunnelUrl ?: "") }
+    var tailscaleInput by remember(savedConfig) { mutableStateOf(savedConfig?.tailscaleIp ?: "100.116.56.116") }
     var pinInput by remember(savedConfig) { mutableStateOf(savedConfig?.pin?.takeIf { it.isNotBlank() } ?: "123456") }
     var snapshotQualitySelected by remember(savedConfig) { mutableStateOf(savedConfig?.snapshotQuality ?: 75) }
     var telemetryIntervalSelected by remember(savedConfig) { mutableStateOf(savedConfig?.telemetryIntervalMs ?: 3000L) }
@@ -257,9 +258,18 @@ fun PcRemoteWorkspaceScreen(
                     }
 
                     OutlinedTextField(
+                        value = tailscaleInput,
+                        onValueChange = { tailscaleInput = it },
+                        label = { Text("IP Tailscale Mesh (Fuera de Casa)") },
+                        placeholder = { Text("100.116.56.116") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
                         value = tunnelInput,
                         onValueChange = { tunnelInput = it },
-                        label = { Text("Túnel Seguro WAN (Fuera de Casa)") },
+                        label = { Text("Túnel Seguro WAN (Cloudflare/Ngrok)") },
                         placeholder = { Text("ej. https://xyz.trycloudflare.com") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -327,6 +337,7 @@ fun PcRemoteWorkspaceScreen(
                                     localIp = hostInput.trim(),
                                     port = parsedPort,
                                     remoteTunnelUrl = tunnelInput.trim().takeIf { it.isNotBlank() },
+                                    tailscaleIp = tailscaleInput.trim().takeIf { it.isNotBlank() },
                                     pin = pinInput.trim(),
                                     airSyncPort = parsedAirSyncPort,
                                     snapshotQuality = snapshotQualitySelected,
