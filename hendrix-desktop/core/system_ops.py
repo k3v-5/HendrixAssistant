@@ -22,7 +22,36 @@ class SystemOps:
     - Cierre forzado / terminación de procesos por nombre o coincidencia
     - Gestión de ventanas y disposición multimonitor
     - Respaldo y restauración de la Bóveda Hendrix (Vault)
+    - Modo Anti-Bloqueo / Keep-Awake para evitar suspensión o bloqueo de pantalla por inactividad
     """
+
+    _keep_awake_active: bool = False
+
+    @classmethod
+    def set_keep_awake(cls, enabled: bool) -> bool:
+        """
+        Evita que Windows apague la pantalla o entre en suspensión/bloqueo por inactividad.
+        Utiliza SetThreadExecutionState de kernel32.dll.
+        """
+        try:
+            import ctypes
+            ES_CONTINUOUS = 0x80000000
+            ES_SYSTEM_REQUIRED = 0x00000001
+            ES_DISPLAY_REQUIRED = 0x00000002
+            flags = ES_CONTINUOUS
+            if enabled:
+                flags |= (ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)
+            res = ctypes.windll.kernel32.SetThreadExecutionState(flags)
+            cls._keep_awake_active = enabled if res != 0 else cls._keep_awake_active
+            logger.info(f"Keep-Awake actualizado a {enabled} (ret={res})")
+            return res != 0
+        except Exception as e:
+            logger.warning(f"Error al configurar keep_awake({enabled}): {e}")
+            return False
+
+    @classmethod
+    def is_keep_awake_active(cls) -> bool:
+        return cls._keep_awake_active
 
     @staticmethod
     def kill_processes_by_name(query: str) -> Dict[str, Any]:

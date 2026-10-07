@@ -250,6 +250,7 @@ def get_telemetry_dict() -> dict:
             "hostname": socket.gethostname(),
             "osName": "Windows 11",
             "isSessionLocked": screen_engine.is_session_locked(),
+            "isKeepAwakeActive": system_ops.is_keep_awake_active(),
             "macAddress": get_primary_mac_address()
         }
     except Exception as e:
@@ -315,7 +316,8 @@ async def handle_client(websocket):
                     )
                     if auth_token:
                         authenticated_token = auth_token
-                        log_activity(f"✅ Dispositivo emparejado con éxito: {dev_name}")
+                        system_ops.set_keep_awake(True)
+                        log_activity(f"✅ Dispositivo emparejado con éxito: {dev_name} (Modo Anti-Bloqueo activo)")
                         ack = {
                             "type": "HELLO_ACK",
                             "status": "AUTHORIZED",
@@ -697,6 +699,21 @@ async def handle_client(websocket):
                     }
                     await websocket.send(json.dumps(resp))
                     log_activity(f"🔓 Intento de desbloqueo de sesión ejecutado. Bloqueado: {is_locked}")
+
+                # 16.1 Control de Modo Anti-Bloqueo / Mantener Despierto (Keep-Awake)
+                elif msg_type == "SET_KEEP_AWAKE":
+                    req_id = data.get("requestId", "")
+                    enabled = bool(data.get("enabled", True))
+                    ok = system_ops.set_keep_awake(enabled)
+                    resp = {
+                        "type": "SET_KEEP_AWAKE_ACK",
+                        "requestId": req_id,
+                        "enabled": enabled,
+                        "isKeepAwakeActive": system_ops.is_keep_awake_active(),
+                        "success": ok
+                    }
+                    await websocket.send(json.dumps(resp))
+                    log_activity(f"🛡️ Modo Anti-Bloqueo (Keep-Awake): {'Activado' if enabled else 'Desactivado'} ({ok})")
 
                 # 17. Portapapeles: Escribir texto con verificación de hash SHA-256
                 elif msg_type == "CLIPBOARD_SET":
@@ -1353,6 +1370,7 @@ async def _process_http_request(*args, **kwargs):
 async def run_server(port: int = config.port):
     global main_event_loop
     main_event_loop = asyncio.get_running_loop()
+    system_ops.set_keep_awake(True)
     sentinel_monitor.start()
     foreground_observer.start()
 

@@ -172,23 +172,33 @@ class UiaManager:
 
     def unlock_workstation(self, pin_or_pwd: str) -> bool:
         """
-        Envía eventos de teclado para descartar la pantalla de bloqueo de Windows,
-        enfocar el campo de credenciales e ingresar el PIN del usuario.
+        Envía eventos de teclado y ratón para descartar reposo de monitor (DPMS),
+        levantar la cortina de la pantalla de bloqueo e ingresar credenciales si es accesible.
         """
         try:
-            # 1. Despertar pantalla si el monitor está en reposo
+            from core.system_ops import SystemOps
+            # Reactivar estado despierto preventivamente
+            SystemOps.set_keep_awake(True)
+
+            # 1. Despertar pantalla si el monitor está en reposo (DPMS) moviendo ligeramente el puntero
+            ctypes.windll.user32.mouse_event(0x0001, 1, 1, 0, 0)
+            time.sleep(0.05)
+            ctypes.windll.user32.mouse_event(0x0001, -1, -1, 0, 0)
+            time.sleep(0.1)
+
+            # 2. Enviar pulsación de espacio para levantar protector de pantalla o despertar monitor
             ctypes.windll.user32.keybd_event(0x20, 0, 0, 0) # Space down
             ctypes.windll.user32.keybd_event(0x20, 0, 2, 0) # Space up
-            time.sleep(0.3)
+            time.sleep(0.8)
 
-            # 2. Levantar la pantalla de bloqueo
+            # 3. Levantar la pantalla de bloqueo si requiere Enter o Esc
             pyautogui.press("enter")
-            time.sleep(0.5)
+            time.sleep(0.8)
 
-            # 3. Escribir el PIN
+            # 4. Escribir el PIN / Contraseña si fue provisto
             if pin_or_pwd:
-                pyautogui.write(pin_or_pwd, interval=0.03)
-                time.sleep(0.2)
+                pyautogui.write(pin_or_pwd, interval=0.04)
+                time.sleep(0.3)
                 pyautogui.press("enter")
             return True
         except Exception as e:

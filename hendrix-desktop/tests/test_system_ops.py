@@ -100,5 +100,19 @@ class TestSystemOps(unittest.TestCase):
             self.assertIsInstance(ip, str)
             self.assertTrue(ip.startswith("100.") or "." in ip)
 
+    def test_keep_awake_toggle(self):
+        # Probar activación y consulta de estado
+        ok = system_ops.set_keep_awake(True)
+        self.assertTrue(ok)
+        self.assertTrue(system_ops.is_keep_awake_active())
+
+        # Probar desactivación
+        ok_off = system_ops.set_keep_awake(False)
+        self.assertTrue(ok_off)
+        self.assertFalse(system_ops.is_keep_awake_active())
+
+        # Restaurar a True preventivamente para el entorno
+        system_ops.set_keep_awake(True)
+
 if __name__ == "__main__":
     unittest.main()
