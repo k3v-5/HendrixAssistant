@@ -21,6 +21,7 @@ def main():
 
     parser.add_argument("--list-profiles", action="store_true", help="Lista todas las cuentas capturadas y su estado de cuota")
     parser.add_argument("--capture-current", type=str, metavar="NAME", help="Captura la cuenta actualmente logueada en Antigravity con un nombre dado")
+    parser.add_argument("--email", type=str, default=None, help="Correo electrónico asociado a la cuenta (opcional)")
     parser.add_argument("--close-running", action="store_true", help="Cierra Antigravity automáticamente antes de capturar para evitar que Network\\Cookies esté bloqueado")
     parser.add_argument("--reopen", action="store_true", help="Vuelve a abrir Antigravity automáticamente tras capturar el perfil")
     parser.add_argument("--activate", type=str, metavar="NAME", help="Activa la cuenta indicada como la sesión principal")
@@ -63,16 +64,17 @@ def main():
                 pass
 
         print(f"Capturando sesión activa de Antigravity como perfil '{args.capture_current}'...")
-        success = antigravity_profile_manager.capture_current_profile(args.capture_current, close_running=should_close)
+        success = antigravity_profile_manager.capture_current_profile(args.capture_current, email=args.email, close_running=should_close)
         if success:
             print(f"✅ Perfil '{args.capture_current}' guardado con éxito.")
             if args.reopen:
                 from automation.antigravity_manager import antigravity_manager
                 print("Reabriendo Antigravity...")
                 antigravity_manager.launch_or_focus()
+            sys.exit(0)
         else:
             print(f"❌ No se pudo capturar el perfil '{args.capture_current}'. Asegúrate de haber iniciado sesión en Antigravity.")
-        return
+            sys.exit(1)
 
     if args.activate:
         from automation.antigravity_manager import antigravity_manager

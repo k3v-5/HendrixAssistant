@@ -195,4 +195,66 @@ class PcAntigravityPoolTest {
         assertEquals("cuenta1", details.getString("previousProfile"))
         assertEquals("cuenta2", details.getString("nextProfile"))
     }
+
+    @Test
+    fun testAgProfileCaptureResponseParsing() {
+        val jsonStr = """
+            {
+                "type": "AG_PROFILE_CAPTURE_RESP",
+                "requestId": "req-123",
+                "success": true,
+                "name": "cuenta1",
+                "command": "python night_runner.py --capture-current cuenta1",
+                "message": "Perfil 'cuenta1' capturado con éxito",
+                "profiles": [
+                    {
+                        "name": "cuenta1",
+                        "email": "kevin06814@gmail.com",
+                        "isActive": true,
+                        "inCooldown": false,
+                        "cooldownRemainingSeconds": 0,
+                        "usageCount": 3,
+                        "hasCredential": true
+                    }
+                ],
+                "activeProfile": "cuenta1"
+            }
+        """.trimIndent()
+
+        val json = JSONObject(jsonStr)
+        assertEquals("AG_PROFILE_CAPTURE_RESP", json.getString("type"))
+        assertTrue(json.getBoolean("success"))
+        assertEquals("cuenta1", json.getString("name"))
+        assertEquals("python night_runner.py --capture-current cuenta1", json.getString("command"))
+
+        val pArr = json.getJSONArray("profiles")
+        assertEquals(1, pArr.length())
+        val p = pArr.getJSONObject(0)
+        assertEquals("cuenta1", p.getString("name"))
+        assertEquals("kevin06814@gmail.com", p.getString("email"))
+        assertTrue(p.getBoolean("isActive"))
+    }
+
+    @Test
+    fun testAccountSwitchFlowDataIntegrity() {
+        val profiles = listOf(
+            AntigravityProfile("cuenta1", "kevin06814@gmail.com", isActive = false, hasCredential = true),
+            AntigravityProfile("cuenta2", "k3dags@gmail.com", isActive = true, hasCredential = true),
+            AntigravityProfile("cuenta3", "jr6676775@gmail.com", isActive = false, inCooldown = true, cooldownRemainingSeconds = 3600)
+        )
+
+        val active = profiles.firstOrNull { it.isActive }
+        assertNotNull(active)
+        assertEquals("cuenta2", active?.name)
+        assertEquals("k3dags@gmail.com", active?.email)
+
+        val target = profiles.first { it.name == "cuenta1" }
+        assertEquals("kevin06814@gmail.com", target.email)
+        assertFalse(target.isActive)
+        assertTrue(target.hasCredential)
+
+        val switched = profiles.map { it.copy(isActive = it.name == "cuenta1") }
+        assertTrue(switched.first { it.name == "cuenta1" }.isActive)
+        assertFalse(switched.first { it.name == "cuenta2" }.isActive)
+    }
 }

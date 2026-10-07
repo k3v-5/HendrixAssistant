@@ -195,7 +195,7 @@ interface PcWorkspaceBridge {
     /**
      * Captura la sesión activa actual de Antigravity como un perfil identificado por nombre.
      */
-    suspend fun captureAntigravityProfile(name: String, email: String? = null): Boolean = true
+    suspend fun captureAntigravityProfile(name: String, email: String? = null, closeRunning: Boolean = false): Boolean = true
 
     /**
      * Activa un perfil registrado, intercambiando las credenciales de sesión en la PC.

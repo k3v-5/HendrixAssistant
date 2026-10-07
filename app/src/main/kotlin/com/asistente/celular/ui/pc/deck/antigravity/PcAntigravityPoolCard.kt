@@ -17,23 +17,30 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,6 +57,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -118,6 +127,13 @@ fun PcAntigravityPoolCard(
     var showNightTaskControls by remember { mutableStateOf(false) }
     var nightGoalInput by remember { mutableStateOf("") }
     var isStartingNightTask by remember { mutableStateOf(false) }
+
+    var showAccountSwitchDialog by remember { mutableStateOf(false) }
+    var showCaptureAccountDialog by remember { mutableStateOf(false) }
+    var captureAccountName by remember { mutableStateOf("") }
+    var captureAccountEmail by remember { mutableStateOf("") }
+    var captureCloseRunning by remember { mutableStateOf(false) }
+    var isCapturingProfile by remember { mutableStateOf(false) }
 
     val activeProfile = profiles.firstOrNull { it.isActive }
 
@@ -214,6 +230,68 @@ fun PcAntigravityPoolCard(
                             )
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 1.5 Botones de Acción Rápida: Cambio de Cuenta y Capturar Cuenta Actual
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showAccountSwitchDialog = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SwapHoriz,
+                        contentDescription = null,
+                        tint = VoidBlack,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Cambiar Cuenta",
+                        color = VoidBlack,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        captureAccountName = "cuenta${(profiles.size + 1).coerceAtLeast(1)}"
+                        captureAccountEmail = ""
+                        captureCloseRunning = false
+                        showCaptureAccountDialog = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonLilac),
+                    border = BorderStroke(1.dp, NeonLilac.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = NeonLilac,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Capturar Actual",
+                        color = NeonLilac,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
@@ -422,6 +500,553 @@ fun PcAntigravityPoolCard(
             )
         }
     }
+
+    // Modal de Diálogo: Cambio de Cuenta Antigravity
+    if (showAccountSwitchDialog) {
+        AlertDialog(
+            onDismissRequest = { showAccountSwitchDialog = false },
+            containerColor = VoidSurface,
+            tonalElevation = 8.dp,
+            shape = RoundedCornerShape(18.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NeonPurple.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = null,
+                            tint = NeonPurple,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Cambio de Cuenta",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        )
+                        Text(
+                            text = "Selecciona una cuenta Gemini Pro",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Alterna entre tus cuentas registradas en la PC. Cada cuenta conserva su token OAuth y almacenamiento de forma aislada.",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    if (profiles.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = VoidSurfaceElevated,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "No se encontraron perfiles registrados.",
+                                color = TextMuted,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    } else {
+                        profiles.forEach { profile ->
+                            AccountSelectionDialogItem(
+                                profile = profile,
+                                isSwitching = switchingAccountName == profile.name,
+                                onSelect = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    switchingAccountName = profile.name
+                                    scope.launch {
+                                        onShowSnackbar("Conmutando a ${profile.name} en la PC...")
+                                        val success = pcBridge.activateAntigravityProfile(
+                                            name = profile.name,
+                                            resumeChats = autoResumeChats
+                                        )
+                                        switchingAccountName = null
+                                        if (success) {
+                                            showAccountSwitchDialog = false
+                                            onShowSnackbar("✅ Sesión conmutada exitosamente a ${profile.name}")
+                                        } else {
+                                            onShowSnackbar("❌ Error al conmutar perfil a ${profile.name}")
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Acceso directo a capturar la cuenta actual
+                    OutlinedButton(
+                        onClick = {
+                            showAccountSwitchDialog = false
+                            captureAccountName = "cuenta${(profiles.size + 1).coerceAtLeast(1)}"
+                            captureAccountEmail = ""
+                            captureCloseRunning = false
+                            showCaptureAccountDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, VoidBorderHighlight.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonLilac)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Capturar sesión actual como nueva cuenta", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = { showAccountSwitchDialog = false }
+                ) {
+                    Text("Cerrar", color = NeonLilac, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
+    }
+
+    // Modal de Diálogo: Capturar Cuenta Actual
+    if (showCaptureAccountDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isCapturingProfile) showCaptureAccountDialog = false
+            },
+            containerColor = VoidSurface,
+            tonalElevation = 8.dp,
+            shape = RoundedCornerShape(18.dp),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NeonGreen.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            tint = NeonGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Capturar Cuenta Actual",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        )
+                        Text(
+                            text = "Respaldar sesión activa de Antigravity",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Guarda la sesión actualmente iniciada en la computadora como un perfil del Pool. Esto almacena las credenciales de sesión y tokens de autenticación.",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+
+                    // Banner informativo con el comando de escritorio exacto
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = VoidSurfaceElevated,
+                        border = BorderStroke(1.dp, VoidBorderHighlight.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Terminal,
+                                contentDescription = null,
+                                tint = NeonGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "python night_runner.py --capture-current ${captureAccountName.ifBlank { "cuenta" }}",
+                                color = NeonGreen,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = captureAccountName,
+                        onValueChange = { captureAccountName = it },
+                        label = { Text("Nombre de la cuenta (ej. cuenta)") },
+                        placeholder = { Text("cuenta") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NeonPurple,
+                            unfocusedBorderColor = VoidBorder,
+                            focusedContainerColor = VoidSurfaceElevated,
+                            unfocusedContainerColor = VoidSurfaceElevated,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedLabelColor = NeonLilac,
+                            unfocusedLabelColor = TextSecondary
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = captureAccountEmail,
+                        onValueChange = { captureAccountEmail = it },
+                        label = { Text("Correo electrónico (opcional)") },
+                        placeholder = { Text("ejemplo@gmail.com") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NeonPurple,
+                            unfocusedBorderColor = VoidBorder,
+                            focusedContainerColor = VoidSurfaceElevated,
+                            unfocusedContainerColor = VoidSurfaceElevated,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedLabelColor = NeonLilac,
+                            unfocusedLabelColor = TextSecondary
+                        )
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = VoidSurfaceElevated,
+                        border = BorderStroke(1.dp, VoidBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Cerrar Antigravity al capturar",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Desbloquea Network\\Cookies para captura total",
+                                    fontSize = 9.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                            Switch(
+                                checked = captureCloseRunning,
+                                onCheckedChange = { captureCloseRunning = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = NeonGreen,
+                                    checkedTrackColor = NeonPurple.copy(alpha = 0.4f),
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = VoidBorder
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetName = captureAccountName.trim().ifBlank { "cuenta" }
+                        val emailArg = captureAccountEmail.trim().ifBlank { null }
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        isCapturingProfile = true
+                        scope.launch {
+                            onShowSnackbar("Ejecutando captura de '$targetName' en PC...")
+                            val success = pcBridge.captureAntigravityProfile(
+                                name = targetName,
+                                email = emailArg,
+                                closeRunning = captureCloseRunning
+                            )
+                            isCapturingProfile = false
+                            if (success) {
+                                showCaptureAccountDialog = false
+                                onShowSnackbar("✅ Perfil '$targetName' capturado con éxito")
+                            } else {
+                                onShowSnackbar("❌ Error al capturar perfil '$targetName'")
+                            }
+                        }
+                    },
+                    enabled = !isCapturingProfile && captureAccountName.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    if (isCapturingProfile) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = VoidBlack, strokeWidth = 2.dp)
+                    } else {
+                        Text("Capturar en PC", color = VoidBlack, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCaptureAccountDialog = false },
+                    enabled = !isCapturingProfile
+                ) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Elemento de selección de cuenta en el diálogo modal de Cambio de Cuenta.
+ */
+@Composable
+private fun AccountSelectionDialogItem(
+    profile: AntigravityProfile,
+    isSwitching: Boolean,
+    onSelect: () -> Unit
+) {
+    val isCurrent = profile.isActive
+    val inCooldown = profile.inCooldown
+    val hasCred = profile.hasCredential
+
+    val borderColor = when {
+        isCurrent -> NeonGreen.copy(alpha = 0.8f)
+        inCooldown -> NeonAmber.copy(alpha = 0.5f)
+        !hasCred -> NeonRed.copy(alpha = 0.4f)
+        else -> VoidBorderHighlight.copy(alpha = 0.4f)
+    }
+
+    val backgroundColor = when {
+        isCurrent -> NeonGreen.copy(alpha = 0.08f)
+        else -> VoidSurfaceElevated
+    }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !isSwitching && !isCurrent && hasCred) {
+                onSelect()
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = profile.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = TextPrimary
+                    )
+
+                    // Badge de estado
+                    when {
+                        isCurrent -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = NeonGreen.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, NeonGreen)
+                            ) {
+                                Text(
+                                    text = "ACTIVA",
+                                    color = NeonGreen,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        inCooldown -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = NeonAmber.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, NeonAmber)
+                            ) {
+                                val remainingMin = (profile.cooldownRemainingSeconds / 60).coerceAtLeast(1)
+                                Text(
+                                    text = "COOLDOWN ~${remainingMin}m",
+                                    color = NeonAmber,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        !hasCred -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = NeonRed.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, NeonRed)
+                            ) {
+                                Text(
+                                    text = "SIN LOGIN",
+                                    color = NeonRed,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        else -> {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = NeonPurple.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, NeonPurple.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = "DISPONIBLE",
+                                    color = NeonLilac,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = null,
+                        tint = if (profile.email.isNotBlank()) NeonLilac else TextMuted,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = if (profile.email.isNotBlank()) profile.email else "Sin correo detectado",
+                        color = if (profile.email.isNotBlank()) NeonLilac else TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (profile.usageCount > 0) {
+                        Text(
+                            text = "• ${profile.usageCount} turnos",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            if (isCurrent) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = NeonGreen.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = NeonGreen,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Activa",
+                            color = NeonGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            } else {
+                Button(
+                    onClick = onSelect,
+                    enabled = !isSwitching && hasCred,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NeonPurple,
+                        disabledContainerColor = VoidBorder
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    if (isSwitching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = TextPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = "Activar",
+                            color = if (hasCred) VoidBlack else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -544,17 +1169,22 @@ private fun PoolAccountRow(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (profile.email.isNotBlank()) {
-                        Text(
-                            text = profile.email,
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = null,
+                        tint = if (profile.email.isNotBlank()) NeonLilac else TextMuted,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = if (profile.email.isNotBlank()) profile.email else "Sin correo detectado",
+                        color = if (profile.email.isNotBlank()) NeonLilac else TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     if (profile.usageCount > 0) {
                         Text(
                             text = "• ${profile.usageCount} turnos",
@@ -750,7 +1380,7 @@ private fun NightWatchdogSection(
         }
 
         // Si la tarea está corriendo, mostrar métricas clave
-        if (isRunning && status != null) {
+        if (isRunning) {
             Spacer(modifier = Modifier.height(10.dp))
             Surface(
                 shape = RoundedCornerShape(10.dp),

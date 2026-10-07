@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import asyncio
 import json
 import socket
@@ -487,18 +488,57 @@ async def handle_client(websocket):
                     req_id = data.get("requestId", "")
                     name = data.get("name", "").strip()
                     email = data.get("email")
+                    close_running = data.get("closeRunning", False)
+                    reopen = data.get("reopen", False)
                     if not name:
-                        name = f"profile_{int(time.time())}"
-                    success = antigravity_profile_manager.capture_current_profile(name, email)
+                        name = f"cuenta_{int(time.time())}"
+
+                    desktop_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    night_runner_path = os.path.join(desktop_root, "night_runner.py")
+                    cmd = [sys.executable, night_runner_path, "--capture-current", name]
+                    if close_running:
+                        cmd.append("--close-running")
+                    if reopen:
+                        cmd.append("--reopen")
+                    if email:
+                        cmd.extend(["--email", email])
+
+                    cmd_str = f"python night_runner.py --capture-current {name}"
+                    log_activity(f"🪐 Ejecutando comando de captura: {cmd_str}")
+
+                    success = False
+                    try:
+                        proc = await asyncio.to_thread(
+                            subprocess.run,
+                            cmd,
+                            capture_output=True,
+                            text=True,
+                            cwd=desktop_root
+                        )
+                        success = (proc.returncode == 0)
+                        if not success:
+                            err_detail = proc.stderr.strip() if proc.stderr else f"código de salida {proc.returncode}"
+                            log_activity(f"⚠️ night_runner warning ({err_detail}). Intentando captura directa...")
+                            success = antigravity_profile_manager.capture_current_profile(name, email=email, close_running=close_running)
+                    except Exception as ex:
+                        log_activity(f"⚠️ Error ejecutando subproceso night_runner: {ex}")
+                        success = antigravity_profile_manager.capture_current_profile(name, email=email, close_running=close_running)
+
+                    profiles = antigravity_profile_manager.list_profiles()
+                    active = antigravity_profile_manager.get_active_profile()
+
                     resp = {
                         "type": "AG_PROFILE_CAPTURE_RESP",
                         "requestId": req_id,
                         "success": success,
                         "name": name,
-                        "message": f"Perfil '{name}' capturado con éxito" if success else "Error capturando sesión activa"
+                        "command": cmd_str,
+                        "message": f"Perfil '{name}' capturado con éxito" if success else "Error capturando sesión activa",
+                        "profiles": profiles,
+                        "activeProfile": active
                     }
                     await websocket.send(json.dumps(resp))
-                    log_activity(f"🪐 Captura de perfil '{name}': {'Éxito' if success else 'Falló'}")
+                    log_activity(f"🪐 Captura de perfil '{name}' con '{cmd_str}': {'Éxito' if success else 'Falló'}")
 
                 # 10.3 Antigravity: Activar perfil
                 elif msg_type == "AG_PROFILE_ACTIVATE":

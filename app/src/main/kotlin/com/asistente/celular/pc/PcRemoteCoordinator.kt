@@ -1472,7 +1472,7 @@ class PcRemoteCoordinator(
         list
     }
 
-    override suspend fun captureAntigravityProfile(name: String, email: String?): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun captureAntigravityProfile(name: String, email: String?, closeRunning: Boolean): Boolean = withContext(Dispatchers.IO) {
         val ws = activeWebSocket ?: return@withContext false
         val reqId = UUID.randomUUID().toString().take(8)
         val deferred = CompletableDeferred<JSONObject>()
@@ -1483,11 +1483,16 @@ class PcRemoteCoordinator(
             put("requestId", reqId)
             put("name", name)
             if (email != null) put("email", email)
+            put("closeRunning", closeRunning)
         }
         sendSignedPayload(req, ws)
 
-        val resp = withTimeoutOrNull(DEFAULT_TIMEOUT_MS) { deferred.await() }
-        resp?.optBoolean("success", false) ?: false
+        val resp = withTimeoutOrNull(15000L) { deferred.await() }
+        val success = resp?.optBoolean("success", false) ?: false
+        if (success) {
+            queryAntigravityProfiles()
+        }
+        success
     }
 
     override suspend fun activateAntigravityProfile(name: String, resumeChats: Boolean): Boolean = withContext(Dispatchers.IO) {

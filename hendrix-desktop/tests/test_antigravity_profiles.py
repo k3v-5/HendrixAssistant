@@ -128,3 +128,21 @@ def test_delete_profile(mock_profile_env):
     assert deleted is True
     assert mgr.get_active_profile() is None
     assert mgr.list_profiles() == []
+
+def test_capture_current_with_email(mock_profile_env):
+    mgr, base_profiles, appdata = mock_profile_env
+    success = mgr.capture_current_profile("cuenta_custom", email="custom@gmail.com")
+    assert success is True
+    profiles = mgr.list_profiles()
+    p = next(x for x in profiles if x["name"] == "cuenta_custom")
+    assert p["email"] == "custom@gmail.com"
+
+def test_night_runner_cli_capture_args():
+    import subprocess
+    import sys
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    night_runner_script = os.path.join(root_dir, "night_runner.py")
+    res = subprocess.run([sys.executable, night_runner_script, "--help"], capture_output=True, text=True)
+    assert res.returncode == 0
+    assert "--capture-current" in res.stdout
+    assert "--email" in res.stdout
