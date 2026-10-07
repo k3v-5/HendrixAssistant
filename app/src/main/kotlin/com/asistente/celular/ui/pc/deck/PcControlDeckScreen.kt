@@ -568,7 +568,7 @@ fun PcControlDeckScreen(
 
     if (showSelectorDialog) {
         PcModuleSelectorDialog(
-            allModules = allModules,
+            allModules = allModules.filter { it.id == PcModuleId.ANTIGRAVITY_PROFILES || it.id == PcModuleId.CLIPBOARD_MANAGER },
             onToggleModule = { id -> moduleManager.toggleModule(id) },
             onEnableAll = { moduleManager.enableAllModules() },
             onDisableAll = { moduleManager.disableAllModules() },
@@ -1121,9 +1121,17 @@ private fun DeckMacrosTabContent(
     val haptic = LocalHapticFeedback.current
     var selectedCategory by remember { mutableStateOf<PcModuleCategory?>(null) }
 
-    val filteredModules = remember(enabledModules, selectedCategory) {
-        if (selectedCategory == null) enabledModules
-        else enabledModules.filter { it.category == selectedCategory }
+    // Módulos con funcionalidad completa activa en producción.
+    // Los demás módulos y plugins se comentan temporalmente por solicitud del usuario para retomarlos luego.
+    val functionalModules = remember(enabledModules) {
+        enabledModules.filter {
+            it.id == PcModuleId.ANTIGRAVITY_PROFILES || it.id == PcModuleId.CLIPBOARD_MANAGER
+        }
+    }
+
+    val filteredModules = remember(functionalModules, selectedCategory) {
+        if (selectedCategory == null) functionalModules
+        else functionalModules.filter { it.category == selectedCategory }
     }
 
     LazyColumn(
@@ -1200,7 +1208,7 @@ private fun DeckMacrosTabContent(
                                 Icon(Icons.Default.Extension, contentDescription = null, tint = NeonLilac, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "${enabledModules.size} suites",
+                                    text = "${functionalModules.size} suites",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = NeonLilac
@@ -1530,7 +1538,7 @@ private fun DeckMacrosTabContent(
                 FilterChip(
                     selected = selectedCategory == null,
                     onClick = { selectedCategory = null },
-                    label = { Text("Todos (${enabledModules.size})", fontSize = 11.sp) },
+                    label = { Text("Todos (${functionalModules.size})", fontSize = 11.sp) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = NeonCyan.copy(alpha = 0.2f),
                         selectedLabelColor = NeonCyan,
@@ -1541,9 +1549,9 @@ private fun DeckMacrosTabContent(
                     shape = RoundedCornerShape(10.dp)
                 )
 
-                PcModuleCategory.values().forEach { cat ->
+                PcModuleCategory.values().filter { cat -> functionalModules.any { it.category == cat } }.forEach { cat ->
                     val isSelected = selectedCategory == cat
-                    val count = enabledModules.count { it.category == cat }
+                    val count = functionalModules.count { it.category == cat }
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedCategory = if (isSelected) null else cat },
@@ -1607,6 +1615,26 @@ private fun DeckMacrosTabContent(
         } else {
             filteredModules.forEach { module ->
                 when (module.id) {
+                    PcModuleId.ANTIGRAVITY_PROFILES -> {
+                        item(key = module.id.name) {
+                            PcAntigravityPoolCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    PcModuleId.CLIPBOARD_MANAGER -> {
+                        item(key = module.id.name) {
+                            PcClipboardSnippetCard(
+                                pcBridge = pcBridge,
+                                modifier = Modifier.fillMaxWidth(),
+                                onShowSnackbar = onShowSnackbar
+                            )
+                        }
+                    }
+                    /*
+                    // TEMPORAL: Módulos y plugins desactivados por solicitud del usuario (se retomarán más adelante)
                     PcModuleId.CUSTOM_PLUGINS -> {
                         item(key = module.id.name) {
                             PcCustomPluginsCard(
@@ -1665,24 +1693,6 @@ private fun DeckMacrosTabContent(
                             )
                         }
                     }
-                    PcModuleId.CLIPBOARD_MANAGER -> {
-                        item(key = module.id.name) {
-                            PcClipboardSnippetCard(
-                                pcBridge = pcBridge,
-                                modifier = Modifier.fillMaxWidth(),
-                                onShowSnackbar = onShowSnackbar
-                            )
-                        }
-                    }
-                    PcModuleId.ANTIGRAVITY_PROFILES -> {
-                        item(key = module.id.name) {
-                            PcAntigravityPoolCard(
-                                pcBridge = pcBridge,
-                                modifier = Modifier.fillMaxWidth(),
-                                onShowSnackbar = onShowSnackbar
-                            )
-                        }
-                    }
                     // Módulos de software con comandos macro (Unreal Engine 5, Blender 3D, Adobe Suite, Ableton Live, FL Studio, Web Browsers, etc.)
                     else -> {
                         item(key = module.id.name) {
@@ -1699,6 +1709,8 @@ private fun DeckMacrosTabContent(
                             )
                         }
                     }
+                    */
+                    else -> Unit
                 }
             }
         }
