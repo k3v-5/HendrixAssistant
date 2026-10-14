@@ -33,10 +33,10 @@
     },
     {
       "token": "6dc06dc4-873b-4dfb-af45-976c07bf0532",
-      "name": "Test",
-      "ip": "100.116.56.116",
+      "name": "Hendrix Android Client",
+      "ip": "192.168.100.118",
       "paired_at": 1790132009,
-      "last_seen": 1791334135
+      "last_seen": 1791906923
     },
     {
       "token": "0a8c3af3-2c90-4685-ac46-48c26014ad3b",

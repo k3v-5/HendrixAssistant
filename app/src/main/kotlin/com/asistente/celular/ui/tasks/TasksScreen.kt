@@ -56,6 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,9 +72,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asistente.celular.nlu.schedule.ScheduleActivityItem
 import com.asistente.celular.nlu.tasks.TaskItem
+import com.asistente.celular.ui.tasks.schedule.ScheduleActivityDialog
+import com.asistente.celular.ui.tasks.schedule.ScheduleTabContent
 import com.asistente.celular.ui.theme.NeonAmber
 import com.asistente.celular.ui.theme.NeonCyan
+import com.asistente.celular.ui.theme.NeonPurple
 import com.asistente.celular.ui.theme.NeonRed
 import com.asistente.celular.ui.theme.TextMuted
 import com.asistente.celular.ui.theme.TextPrimary
@@ -87,6 +92,11 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+enum class TasksTab {
+    TASKS,
+    SCHEDULE
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksScreen(
@@ -94,10 +104,23 @@ fun TasksScreen(
     onToggleTask: (String) -> Unit,
     onAddTask: (TaskItem) -> Unit,
     onDeleteTask: (String) -> Unit,
-    onClearCompleted: () -> Unit
+    onClearCompleted: () -> Unit,
+    scheduleActivities: List<ScheduleActivityItem> = emptyList(),
+    onAddScheduleActivity: (ScheduleActivityItem) -> Unit = {},
+    onUpdateScheduleActivity: (ScheduleActivityItem) -> Unit = {},
+    onDeleteScheduleActivity: (String) -> Unit = {},
+    onToggleScheduleActivityEnabled: (String) -> Unit = {},
+    initialTab: TasksTab = TasksTab.TASKS,
+    targetActivityId: String? = null
 ) {
+    var currentTab by remember(initialTab) { mutableStateOf(initialTab) }
+
+    LaunchedEffect(initialTab) {
+        currentTab = initialTab
+    }
     var selectedList by remember { mutableStateOf(TaskItem.DEFAULT_LIST) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAddScheduleDialog by remember { mutableStateOf(false) }
     var showCompletedSection by remember { mutableStateOf(true) }
 
     val allLists = remember(tasks) {
@@ -112,8 +135,9 @@ fun TasksScreen(
     val pendingTasks = filteredTasks.filter { !it.isCompleted }
     val completedTasks = filteredTasks.filter { it.isCompleted }
 
-    BackHandler(enabled = showAddDialog) {
+    BackHandler(enabled = showAddDialog || showAddScheduleDialog) {
         showAddDialog = false
+        showAddScheduleDialog = false
     }
 
     Scaffold(
@@ -123,7 +147,7 @@ fun TasksScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "TAREAS",
+                            text = if (currentTab == TasksTab.TASKS) "TAREAS" else "HORARIO",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Black,
                             fontFamily = FontFamily.Monospace,
@@ -137,53 +161,84 @@ fun TasksScreen(
                             border = androidx.compose.foundation.BorderStroke(1.dp, VoidBorder)
                         ) {
                             Text(
-                                text = "${pendingTasks.size} PENDIENTES",
+                                text = if (currentTab == TasksTab.TASKS) "${pendingTasks.size} PENDIENTES" else "${scheduleActivities.size} BLOQUES",
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                color = NeonCyan,
+                                color = if (currentTab == TasksTab.TASKS) NeonCyan else NeonPurple,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
                 },
                 actions = {
-                    if (completedTasks.isNotEmpty()) {
-                        IconButton(onClick = onClearCompleted) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Limpiar completadas",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
+                    if (currentTab == TasksTab.TASKS) {
+                        if (completedTasks.isNotEmpty()) {
+                            IconButton(onClick = onClearCompleted) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Limpiar completadas",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                    }
-                    // Botón integrado en cabecera [+ NUEVA] que elimina el FAB flotante invasivo
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = NeonCyan,
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .clickable { showAddDialog = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        // Botón integrado en cabecera [+ NUEVA] que elimina el FAB flotante invasivo
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = NeonCyan,
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .clickable { showAddDialog = true }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "NUEVA",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color.Black
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "NUEVA",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    } else {
+                        // Botón integrado en cabecera [+ AGREGAR] para el horario
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = NeonCyan,
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .clickable { showAddScheduleDialog = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "AGREGAR",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
                 },
@@ -198,112 +253,201 @@ fun TasksScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Selector de listas horizontal compacto OLED
-            LazyRow(
+            // Selector de pestaña OLED [TAREAS] [HORARIO]
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(allLists) { listName ->
-                    val isSelected = selectedList == listName
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) VoidSurfaceElevated else VoidSurface,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) NeonCyan else VoidBorder
-                        ),
-                        modifier = Modifier.clickable { selectedList = listName }
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { currentTab = TasksTab.TASKS },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (currentTab == TasksTab.TASKS) NeonCyan.copy(alpha = 0.2f) else VoidSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (currentTab == TasksTab.TASKS) NeonCyan else VoidBorder
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = listName,
+                            text = "TAREAS",
                             fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) NeonCyan else TextSecondary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            color = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { currentTab = TasksTab.SCHEDULE },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (currentTab == TasksTab.SCHEDULE) NeonPurple.copy(alpha = 0.2f) else VoidSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (currentTab == TasksTab.SCHEDULE) NeonPurple else VoidBorder
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = if (currentTab == TasksTab.SCHEDULE) NeonPurple else TextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "HORARIO",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (currentTab == TasksTab.SCHEDULE) NeonPurple else TextMuted
                         )
                     }
                 }
             }
 
-            if (pendingTasks.isEmpty() && completedTasks.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No hay tareas en '$selectedList'",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Toca el botón + o pídele a Hendrix por voz.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp, top = 8.dp)
-                ) {
-                    // Tareas pendientes
-                    items(pendingTasks, key = { it.id }) { task ->
-                        TaskRow(
-                            task = task,
-                            onToggle = { onToggleTask(task.id) },
-                            onDelete = { onDeleteTask(task.id) }
-                        )
-                    }
-
-                    // Tareas completadas
-                    if (completedTasks.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showCompletedSection = !showCompletedSection }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+            when (currentTab) {
+                TasksTab.TASKS -> {
+                    // Selector de listas horizontal compacto OLED
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(allLists) { listName ->
+                            val isSelected = selectedList == listName
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VoidSurfaceElevated else VoidSurface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) NeonCyan else VoidBorder
+                                ),
+                                modifier = Modifier.clickable { selectedList = listName }
                             ) {
                                 Text(
-                                    text = "Completadas (${completedTasks.size})",
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Icon(
-                                    imageVector = if (showCompletedSection) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                                    text = listName,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) NeonCyan else TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
                         }
+                    }
 
-                        if (showCompletedSection) {
-                            items(completedTasks, key = { it.id }) { task ->
+                    if (pendingTasks.isEmpty() && completedTasks.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "No hay tareas en '$selectedList'",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Toca el botón + o pídele a Hendrix por voz.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 80.dp, top = 8.dp)
+                        ) {
+                            // Tareas pendientes
+                            items(pendingTasks, key = { it.id }) { task ->
                                 TaskRow(
                                     task = task,
                                     onToggle = { onToggleTask(task.id) },
                                     onDelete = { onDeleteTask(task.id) }
                                 )
                             }
+
+                            // Tareas completadas
+                            if (completedTasks.isNotEmpty()) {
+                                item {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showCompletedSection = !showCompletedSection }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Completadas (${completedTasks.size})",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Icon(
+                                            imageVector = if (showCompletedSection) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+
+                                if (showCompletedSection) {
+                                    items(completedTasks, key = { it.id }) { task ->
+                                        TaskRow(
+                                            task = task,
+                                            onToggle = { onToggleTask(task.id) },
+                                            onDelete = { onDeleteTask(task.id) }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
+                }
+                TasksTab.SCHEDULE -> {
+                    ScheduleTabContent(
+                        activities = scheduleActivities,
+                        onAddActivity = onAddScheduleActivity,
+                        onUpdateActivity = onUpdateScheduleActivity,
+                        onDeleteActivity = onDeleteScheduleActivity,
+                        onToggleEnabled = onToggleScheduleActivityEnabled,
+                        onOpenAddDialog = { showAddScheduleDialog = true },
+                        initialActivityId = targetActivityId
+                    )
                 }
             }
         }
@@ -316,6 +460,16 @@ fun TasksScreen(
             onConfirm = { newTask ->
                 onAddTask(newTask)
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (showAddScheduleDialog) {
+        ScheduleActivityDialog(
+            onDismissRequest = { showAddScheduleDialog = false },
+            onSaveActivity = { newActivity ->
+                onAddScheduleActivity(newActivity)
+                showAddScheduleDialog = false
             }
         )
     }

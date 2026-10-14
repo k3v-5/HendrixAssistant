@@ -29,6 +29,7 @@ class AsistenteApplication : Application() {
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager?.createNotificationChannel(channel)
         }
+        com.asistente.celular.service.OngoingRoutineNotificationHelper.createNotificationChannel(this)
     }
 
     companion object {

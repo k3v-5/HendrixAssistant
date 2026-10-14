@@ -82,10 +82,12 @@ import androidx.compose.ui.unit.sp
 import com.asistente.celular.nlu.evaluator.InteractionEntry
 import com.asistente.celular.nlu.notes.NoteItem
 import com.asistente.celular.nlu.pc.PcSystemTelemetry
+import com.asistente.celular.nlu.schedule.ScheduleActivityItem
 import com.asistente.celular.nlu.smarthome.SmartDevice
 import com.asistente.celular.nlu.tasks.TaskItem
 import com.asistente.celular.nlu.ui.AssistantUiPayload
 import com.asistente.celular.ui.cards.AssistantInteractiveCard
+import com.asistente.celular.ui.components.OngoingRoutineStrip
 import com.asistente.celular.ui.components.oled.OledCard
 import com.asistente.celular.ui.components.oled.OledVoiceOrb
 import com.asistente.celular.ui.theme.NeonAmber
@@ -122,9 +124,11 @@ fun AssistantScreen(
     pcTelemetry: PcSystemTelemetry? = null,
     onOpenPcModules: () -> Unit = {},
     onOpenTasks: () -> Unit = {},
+    onOpenScheduleActivity: ((ScheduleActivityItem) -> Unit)? = null,
     onOpenNotes: () -> Unit = {},
     onOpenStandby: () -> Unit = {},
     tasks: List<TaskItem> = emptyList(),
+    scheduleActivities: List<ScheduleActivityItem> = emptyList(),
     notes: List<NoteItem> = emptyList(),
     smartDevices: List<SmartDevice> = emptyList(),
     onToggleSmartDevice: (SmartDevice) -> Unit = {},
@@ -157,7 +161,8 @@ fun AssistantScreen(
     Scaffold(
         containerColor = VoidBlack,
         topBar = {
-            TopAppBar(
+            Column(modifier = Modifier.fillMaxWidth().background(VoidBlack)) {
+                TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -238,7 +243,22 @@ fun AssistantScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = VoidBlack)
             )
-        },
+
+            // Tirita discreta de rutina activa en la hora actual
+            OngoingRoutineStrip(
+                activities = scheduleActivities,
+                onClick = onOpenTasks,
+                onRoutineClick = { routine ->
+                    if (onOpenScheduleActivity != null) {
+                        onOpenScheduleActivity(routine)
+                    } else {
+                        onOpenTasks()
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            )
+        }
+    },
         bottomBar = {
             Surface(
                 color = VoidBlack,

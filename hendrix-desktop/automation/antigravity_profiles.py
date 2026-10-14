@@ -261,11 +261,17 @@ class AntigravityProfileManager:
                 try:
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     if os.path.isdir(src):
-                        if os.path.exists(dst):
-                            shutil.rmtree(dst, ignore_errors=True)
-                        shutil.copytree(src, dst)
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
                     else:
-                        shutil.copy2(src, dst)
+                        for attempt in range(3):
+                            try:
+                                shutil.copy2(src, dst)
+                                break
+                            except Exception:
+                                if attempt < 2:
+                                    time.sleep(0.4)
+                                else:
+                                    raise
                     restored_count += 1
                 except Exception as e:
                     print(f"[AntigravityProfileManager] Error restaurando {rel_path}: {e}")

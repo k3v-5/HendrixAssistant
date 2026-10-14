@@ -118,6 +118,7 @@ class AssistantSkillFactory(
 
     val taskScheduler = TaskReminderScheduler(context)
     val taskRepository = JsonTaskRepository(context, taskScheduler, scope)
+    val scheduleRepository: com.asistente.celular.nlu.schedule.ScheduleRepository = com.asistente.celular.data.JsonScheduleRepository(context, scope)
     val noteRepository = JsonNoteRepository(context, scope)
     val routineRepository = JsonRoutineRepository(context, scope)
     val automatedRoutineRepository = com.asistente.celular.data.JsonAutomatedRoutineRepository(context, scope)

@@ -51,6 +51,9 @@ class DataPersistenceBackupManagerTest {
         val sampleNotesJson = """[{"id":"note_1","title":"Nota Test","content":"Contenido protegido"}]"""
         File(testContext.filesDir, "notes.json").writeText(sampleNotesJson)
 
+        val sampleScheduleJson = """[{"id":"sch_1","title":"Bloque Deep Work","startTime":"09:00","endTime":"11:00"}]"""
+        File(testContext.filesDir, "schedule_activities.json").writeText(sampleScheduleJson)
+
         val backup = backupManager.createFullBackup("TEST_RUN")
 
         assertNotNull(backup)
@@ -61,6 +64,7 @@ class DataPersistenceBackupManagerTest {
         assertEquals("i:800", backup.settingsPrefs["llm_max_tokens"])
         assertEquals("s:100.85.20.14", backup.pcRemotePrefs["pc_tailscale_ip"])
         assertEquals(sampleNotesJson, backup.notesJson)
+        assertEquals(sampleScheduleJson, backup.scheduleJson)
     }
 
     @Test
@@ -73,6 +77,7 @@ class DataPersistenceBackupManagerTest {
             .commit()
 
         File(testContext.filesDir, "tasks.json").writeText("""[{"id":"t1","title":"Hacer compras"}]""")
+        File(testContext.filesDir, "schedule_activities.json").writeText("""[{"id":"s1","title":"Gimnasio","startTime":"07:00","endTime":"08:30"}]""")
 
         val backup = backupManager.createFullBackup("BEFORE_WIPE")
         val saved = backupManager.saveBackupToPersistentStorage(backup)
@@ -81,6 +86,7 @@ class DataPersistenceBackupManagerTest {
         // Simular reinstalación borrando preferencias y archivos
         settingsPref.edit().clear().commit()
         File(testContext.filesDir, "tasks.json").delete()
+        File(testContext.filesDir, "schedule_activities.json").delete()
 
         assertEquals("", settingsPref.getString("ai_provider", ""))
 
@@ -95,6 +101,8 @@ class DataPersistenceBackupManagerTest {
         assertEquals(9876543210L, settingsPref.getLong("test_timestamp", 0L))
         assertTrue(File(testContext.filesDir, "tasks.json").exists())
         assertEquals("""[{"id":"t1","title":"Hacer compras"}]""", File(testContext.filesDir, "tasks.json").readText())
+        assertTrue(File(testContext.filesDir, "schedule_activities.json").exists())
+        assertEquals("""[{"id":"s1","title":"Gimnasio","startTime":"07:00","endTime":"08:30"}]""", File(testContext.filesDir, "schedule_activities.json").readText())
     }
 
     @Test

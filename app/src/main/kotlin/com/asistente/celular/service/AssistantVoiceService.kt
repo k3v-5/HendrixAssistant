@@ -150,6 +150,23 @@ class AssistantVoiceService : Service() {
                 }
             }
         }
+
+        // Mantener sincronizada la notificación de rutina activa mientras el servicio en segundo plano esté en ejecución
+        val scheduleRepo = com.asistente.celular.data.JsonScheduleRepository(this, serviceScope)
+        serviceScope.launch {
+            scheduleRepo.activities.collect { activities ->
+                OngoingRoutineNotificationHelper.updateNotification(this@AssistantVoiceService, activities)
+            }
+        }
+        serviceScope.launch {
+            while (true) {
+                delay(60_000)
+                OngoingRoutineNotificationHelper.updateNotification(
+                    this@AssistantVoiceService,
+                    scheduleRepo.activities.value
+                )
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

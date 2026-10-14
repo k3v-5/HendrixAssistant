@@ -85,6 +85,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
 
     val taskScheduler = factory.taskScheduler
     val taskRepository = factory.taskRepository
+    val scheduleRepository = factory.scheduleRepository
     val noteRepository = factory.noteRepository
     val routineRepository = factory.routineRepository
     val semanticMemoryRepository = factory.semanticMemoryRepository
@@ -93,6 +94,7 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     val personalContextProvider = factory.personalContextProvider
 
     val tasksState = taskRepository.tasks
+    val scheduleState = scheduleRepository.activities
     val notesState = noteRepository.notes
     val smartDevicesState = smartHomeRepository.devices
     val isScanningSmartDevices = MutableStateFlow(false)
@@ -215,6 +217,27 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             taskRepository.tasks.collect { tasks ->
                 personalRagCoordinator.indexTasks(tasks)
+            }
+        }
+
+        // Sincronizar reactivamente la notificación de la rutina en curso
+        viewModelScope.launch {
+            scheduleRepository.activities.collect { activities ->
+                com.asistente.celular.service.OngoingRoutineNotificationHelper.updateNotification(
+                    application,
+                    activities
+                )
+            }
+        }
+
+        // Refresco periódico cada 30 segundos para actualizar o retirar la notificación al cambiar de bloque horario
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                com.asistente.celular.service.OngoingRoutineNotificationHelper.updateNotification(
+                    application,
+                    scheduleRepository.activities.value
+                )
             }
         }
     }
@@ -431,6 +454,31 @@ class AssistantViewModel(application: Application) : AndroidViewModel(applicatio
     fun clearCompletedTasks() {
         viewModelScope.launch {
             taskRepository.clearCompletedTasks()
+        }
+    }
+
+    // Operaciones de Horario de Actividades
+    fun addScheduleActivity(activity: com.asistente.celular.nlu.schedule.ScheduleActivityItem) {
+        viewModelScope.launch {
+            scheduleRepository.addActivity(activity)
+        }
+    }
+
+    fun updateScheduleActivity(activity: com.asistente.celular.nlu.schedule.ScheduleActivityItem) {
+        viewModelScope.launch {
+            scheduleRepository.updateActivity(activity)
+        }
+    }
+
+    fun deleteScheduleActivity(activityId: String) {
+        viewModelScope.launch {
+            scheduleRepository.deleteActivity(activityId)
+        }
+    }
+
+    fun toggleScheduleActivityEnabled(activityId: String) {
+        viewModelScope.launch {
+            scheduleRepository.toggleActivityEnabled(activityId)
         }
     }
 

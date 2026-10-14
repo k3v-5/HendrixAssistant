@@ -20,11 +20,15 @@ def mock_watchdog_env(tmp_path):
     ag_mgr = MagicMock()
     ag_mgr.execute_action.return_value = True
 
+    brain_dir = tmp_path / "brain"
+    brain_dir.mkdir()
+
     watchdog = NightTaskWatchdog(
         profile_manager=profile_mgr,
         ag_manager=ag_mgr,
         log_path=str(log_file),
-        poll_interval=0.1
+        poll_interval=0.1,
+        brain_dir=str(brain_dir)
     )
 
     return watchdog, profile_mgr, ag_mgr, str(log_file), str(ws_dir)

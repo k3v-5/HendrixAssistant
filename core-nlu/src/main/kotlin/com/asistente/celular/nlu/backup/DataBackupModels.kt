@@ -33,7 +33,8 @@ data class FullAppStateBackup(
     val vaultJson: String? = null,
     val automatedRoutinesJson: String? = null,
     val macroDeckJson: String? = null,
-    val knowledgeGraphJson: String? = null
+    val knowledgeGraphJson: String? = null,
+    val scheduleJson: String? = null
 )
 
 /**

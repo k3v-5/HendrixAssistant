@@ -35,12 +35,14 @@ class NightTaskWatchdog:
         profile_manager=None,
         ag_manager=None,
         log_path: Optional[str] = None,
-        poll_interval: float = 3.0
+        poll_interval: float = 3.0,
+        brain_dir: Optional[str] = None
     ):
         self.profile_mgr = profile_manager or antigravity_profile_manager
         self.ag_mgr = ag_manager or antigravity_manager
         self.log_path = log_path or os.path.expandvars(r"%APPDATA%\Antigravity\logs\language_server.log")
         self.poll_interval = poll_interval
+        self.brain_dir = brain_dir or os.path.expanduser(r"~\.gemini\antigravity\brain")
 
         self.running = False
         self._thread: Optional[threading.Thread] = None
@@ -106,8 +108,10 @@ class NightTaskWatchdog:
             "checkpointUpdated": datetime.now(timezone.utc).isoformat()
         }
         try:
-            with open(checkpoint_path, "w", encoding="utf-8") as f:
+            tmp_path = checkpoint_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, checkpoint_path)
         except Exception as e:
             print(f"[NightWatchdog] Error escribiendo checkpoint: {e}")
 
@@ -221,7 +225,7 @@ class NightTaskWatchdog:
         - TOOL_LOOP (misma herramienta llamada 3 veces consecutivas con iguales argumentos)
         - AGENT_ERROR (paso fallido no recuperado)
         """
-        brain_dir = os.path.expanduser(r"~\.gemini\antigravity\brain")
+        brain_dir = self.brain_dir
         if not os.path.exists(brain_dir):
             return None
 

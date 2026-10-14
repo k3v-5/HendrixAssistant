@@ -15,12 +15,23 @@ def mock_ag_manager(tmp_path):
 
 def test_launch_or_focus_existing_window(mock_ag_manager):
     with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=12345):
-        with patch('ctypes.windll.user32.ShowWindow') as mock_show:
-            with patch('ctypes.windll.user32.SetForegroundWindow') as mock_fg:
-                res = mock_ag_manager.launch_or_focus()
-                assert res is True
-                mock_show.assert_called_once_with(12345, 9)
-                mock_fg.assert_called_once_with(12345)
+        with patch.object(mock_ag_manager, 'force_foreground_window', return_value=True) as mock_fg:
+            res = mock_ag_manager.launch_or_focus()
+            assert res is True
+            mock_fg.assert_called_once_with(12345)
+
+def test_force_foreground_window(mock_ag_manager):
+    with patch('ctypes.windll.user32.IsWindow', return_value=1):
+        with patch('ctypes.windll.user32.IsIconic', return_value=1):
+            with patch('ctypes.windll.user32.ShowWindow') as mock_show:
+                with patch('ctypes.windll.user32.GetForegroundWindow', side_effect=[0, 12345]):
+                    with patch('ctypes.windll.user32.SetForegroundWindow') as mock_fg:
+                        with patch('ctypes.windll.user32.BringWindowToTop'):
+                            with patch('ctypes.windll.user32.keybd_event'):
+                                res = mock_ag_manager.force_foreground_window(12345)
+                                assert res is True
+                                mock_show.assert_called_with(12345, 9)
+                                mock_fg.assert_called_with(12345)
 
 def test_launch_or_focus_spawn_process(mock_ag_manager, tmp_path):
     workspace = tmp_path / "test_workspace"

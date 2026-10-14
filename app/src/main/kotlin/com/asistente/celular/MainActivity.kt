@@ -52,6 +52,7 @@ import com.asistente.celular.ui.SettingsScreen
 import com.asistente.celular.ui.notes.NotesScreen
 import com.asistente.celular.ui.pc.deck.PcControlDeckScreen
 import com.asistente.celular.ui.tasks.TasksScreen
+import com.asistente.celular.ui.tasks.TasksTab
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.unit.dp
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
                 val currentScreen by currentScreenFlow.collectAsState()
                 val isDeskStandby by viewModel.isDeskStandbyActive.collectAsState()
                 val tasks by viewModel.tasksState.collectAsState()
+                val scheduleActivities by viewModel.scheduleState.collectAsState()
                 val notes by viewModel.notesState.collectAsState()
                 val smartDevices by viewModel.smartDevicesState.collectAsState()
                 val isScanningSmartDevices by viewModel.isScanningSmartDevices.collectAsState()
@@ -193,12 +195,12 @@ class MainActivity : ComponentActivity() {
                                     )
 
                                     NavigationBarItem(
-                                        selected = currentScreen == Screen.Tasks,
-                                        onClick = { currentScreenFlow.value = Screen.Tasks },
+                                        selected = currentScreen is Screen.Tasks,
+                                        onClick = { currentScreenFlow.value = Screen.Tasks() },
                                         colors = navItemColors,
                                         icon = {
                                             Icon(
-                                                imageVector = if (currentScreen == Screen.Tasks) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                                                imageVector = if (currentScreen is Screen.Tasks) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
                                                 contentDescription = "Tareas"
                                             )
                                         },
@@ -234,10 +236,17 @@ class MainActivity : ComponentActivity() {
                                         pcHostname = pcTelemetry?.hostname,
                                         pcTelemetry = pcTelemetry,
                                         onOpenPcModules = { currentScreenFlow.value = Screen.PcModules },
-                                        onOpenTasks = { currentScreenFlow.value = Screen.Tasks },
+                                        onOpenTasks = { currentScreenFlow.value = Screen.Tasks() },
+                                        onOpenScheduleActivity = { activity ->
+                                            currentScreenFlow.value = Screen.Tasks(
+                                                initialTab = TasksTab.SCHEDULE,
+                                                targetActivityId = activity.id
+                                            )
+                                        },
                                         onOpenNotes = { currentScreenFlow.value = Screen.Notes },
                                         onOpenStandby = { currentScreenFlow.value = Screen.DeskStandby },
                                         tasks = tasks,
+                                        scheduleActivities = scheduleActivities,
                                         notes = notes,
                                         smartDevices = smartDevices,
                                         onToggleSmartDevice = { dev -> viewModel.toggleSmartDevice(dev) },
@@ -250,13 +259,21 @@ class MainActivity : ComponentActivity() {
                                         onClearError = { viewModel.clearError() }
                                     )
                                 }
-                            Screen.Tasks -> {
+                            is Screen.Tasks -> {
+                                val tasksScreenState = currentScreen as Screen.Tasks
                                 TasksScreen(
                                     tasks = tasks,
                                     onToggleTask = { taskId -> viewModel.toggleTask(taskId) },
                                     onAddTask = { task -> viewModel.addTask(task) },
                                     onDeleteTask = { taskId -> viewModel.deleteTask(taskId) },
-                                    onClearCompleted = { viewModel.clearCompletedTasks() }
+                                    onClearCompleted = { viewModel.clearCompletedTasks() },
+                                    scheduleActivities = scheduleActivities,
+                                    onAddScheduleActivity = { activity -> viewModel.addScheduleActivity(activity) },
+                                    onUpdateScheduleActivity = { activity -> viewModel.updateScheduleActivity(activity) },
+                                    onDeleteScheduleActivity = { activityId -> viewModel.deleteScheduleActivity(activityId) },
+                                    onToggleScheduleActivityEnabled = { activityId -> viewModel.toggleScheduleActivityEnabled(activityId) },
+                                    initialTab = tasksScreenState.initialTab,
+                                    targetActivityId = tasksScreenState.targetActivityId
                                 )
                             }
                             Screen.Notes -> {
@@ -396,8 +413,15 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
-        if (intent.getStringExtra("OPEN_TAB") == "TASKS") {
-            currentScreenFlow.value = Screen.Tasks
+        val openTab = intent.getStringExtra("OPEN_TAB")
+        if (openTab == "TASKS") {
+            currentScreenFlow.value = Screen.Tasks(TasksTab.TASKS)
+        } else if (openTab == "SCHEDULE") {
+            val routineId = intent.getStringExtra("ROUTINE_ID")
+            currentScreenFlow.value = Screen.Tasks(
+                initialTab = TasksTab.SCHEDULE,
+                targetActivityId = routineId
+            )
         }
         if (intent.action == "android.service.quicksettings.action.QS_TILE_PREFERENCES") {
             currentScreenFlow.value = Screen.Settings
@@ -441,7 +465,10 @@ class MainActivity : ComponentActivity() {
 
     private sealed interface Screen {
         data object Assistant : Screen
-        data object Tasks : Screen
+        data class Tasks(
+            val initialTab: TasksTab = TasksTab.TASKS,
+            val targetActivityId: String? = null
+        ) : Screen
         data object Notes : Screen
         data object PcModules : Screen
         data object Settings : Screen

@@ -53,7 +53,8 @@ class DataPersistenceBackupManager(
             "hendrix_vault_encrypted.json",
             "automated_routines.json",
             "macro_deck_profiles.json",
-            "knowledge_graph.json"
+            "knowledge_graph.json",
+            "schedule_activities.json"
         )
     }
 
@@ -149,7 +150,8 @@ class DataPersistenceBackupManager(
                 vaultJson = filesMap["hendrix_vault_encrypted.json"],
                 automatedRoutinesJson = filesMap["automated_routines.json"],
                 macroDeckJson = filesMap["macro_deck_profiles.json"],
-                knowledgeGraphJson = filesMap["knowledge_graph.json"]
+                knowledgeGraphJson = filesMap["knowledge_graph.json"],
+                scheduleJson = filesMap["schedule_activities.json"]
             )
         }
     }
@@ -212,7 +214,8 @@ class DataPersistenceBackupManager(
                     "hendrix_vault_encrypted.json" to backup.vaultJson,
                     "automated_routines.json" to backup.automatedRoutinesJson,
                     "macro_deck_profiles.json" to backup.macroDeckJson,
-                    "knowledge_graph.json" to backup.knowledgeGraphJson
+                    "knowledge_graph.json" to backup.knowledgeGraphJson,
+                    "schedule_activities.json" to backup.scheduleJson
                 )
 
                 for ((fname, content) in filePayloads) {

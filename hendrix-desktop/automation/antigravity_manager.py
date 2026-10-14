@@ -231,7 +231,7 @@ class AntigravityManager:
         except Exception as e:
             print(f"[AntigravityManager] Error buscando ventana por PID: {e}")
 
-        # Fallback estándar por título
+        # Fallback por proceso y título en EnumWindows
         def enum_windows_proc(hwnd, extra):
             nonlocal found_hwnd
             if user32.IsWindowVisible(hwnd):
@@ -240,9 +240,19 @@ class AntigravityManager:
                     buff = ctypes.create_unicode_buffer(length + 1)
                     user32.GetWindowTextW(hwnd, buff, length + 1)
                     title = buff.value
-                    if "antigravity" in title.lower():
-                        found_hwnd = hwnd
-                        return False
+                    if title and title not in ['Default IME', 'MSCTFIME UI', 'DDE Server Window']:
+                        pid = ctypes.c_ulong()
+                        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                        try:
+                            import psutil
+                            pname = psutil.Process(pid.value).name().lower()
+                            if "antigravity" in pname or "antigravity" in title.lower():
+                                found_hwnd = hwnd
+                                return False
+                        except Exception:
+                            if "antigravity" in title.lower():
+                                found_hwnd = hwnd
+                                return False
             return True
 
         WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
@@ -255,7 +265,7 @@ class AntigravityManager:
         while time.time() - start_time < timeout_sec:
             hwnd = self.find_antigravity_window()
             if hwnd:
-                time.sleep(1.0)
+                time.sleep(0.5)
                 return hwnd
             time.sleep(0.5)
         return None
@@ -282,9 +292,7 @@ class AntigravityManager:
         if not force_relaunch:
             hwnd = self.find_antigravity_window()
             if hwnd:
-                ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
-                ctypes.windll.user32.SetForegroundWindow(hwnd)
-                return True
+                return self.force_foreground_window(hwnd)
 
         if os.path.exists(self.exe_path):
             try:
