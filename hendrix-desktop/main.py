@@ -9,13 +9,24 @@ try:
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
     pass
+from core.safe_pyautogui import ensure_safe_pyautogui
+ensure_safe_pyautogui()
 
 from config import config
 from core import ws_server
 from core.session_manager import session_manager
 from core.discovery_server import DiscoveryServer
 from core.ota_server import ota_server
-from ui.app_window import AppWindow
+GUI_AVAILABLE = False
+AppWindow = None
+gui_error_msg = None
+
+try:
+    from ui.app_window import AppWindow
+    GUI_AVAILABLE = True
+except (ImportError, Exception) as e:
+    gui_error_msg = str(e)
+    GUI_AVAILABLE = False
 
 server_loop = None
 
@@ -73,27 +84,65 @@ def main():
             server_loop.call_soon_threadsafe(server_loop.stop)
         sys.exit(0)
 
-    # Iniciar interfaz gráfica en el hilo principal
-    app = AppWindow(on_close_callback=on_close)
+    if GUI_AVAILABLE and AppWindow is not None:
+        # Iniciar interfaz gráfica en el hilo principal
+        app = AppWindow(on_close_callback=on_close)
 
-    # Conectar callbacks de logging y estado hacia la UI
-    def ui_logger(text: str):
-        app.after(0, lambda: app.activity_log.append_log(text))
+        # Conectar callbacks de logging y estado hacia la UI
+        def ui_logger(text: str):
+            app.after(0, lambda: app.activity_log.append_log(text))
 
-    def on_device_change(name: str | None):
-        app.after(0, lambda: app.pairing_card.set_connected_device(name))
+        def on_device_change(name: str | None):
+            app.after(0, lambda: app.pairing_card.set_connected_device(name))
 
-    ws_server.activity_logger = ui_logger
-    session_manager.on_device_connected = on_device_change
-    session_manager.on_device_disconnected = lambda _: on_device_change(None)
+        ws_server.activity_logger = ui_logger
+        session_manager.on_device_connected = on_device_change
+        session_manager.on_device_disconnected = lambda _: on_device_change(None)
 
-    ui_logger("Hendrix Desktop Companion iniciado correctamente")
-    ui_logger(f"Escuchando en ws://{config.local_ip}:{config.port}/ws")
+        ui_logger("Hendrix Desktop Companion iniciado correctamente")
+        ui_logger(f"Escuchando en ws://{config.local_ip}:{config.port}/ws")
 
-    if "--minimized" in sys.argv or "--tray" in sys.argv:
-        app.after(100, app.minimize_to_tray)
+        if "--minimized" in sys.argv or "--tray" in sys.argv:
+            app.after(100, app.minimize_to_tray)
 
-    app.mainloop()
+        app.mainloop()
+    else:
+        # Modo servicio de consola / headless (servidor completo sin GUI)
+        import time
+        from datetime import datetime
+
+        def console_logger(text: str):
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            print(f"[{timestamp}] [Hendrix] {text}", flush=True)
+
+        ws_server.activity_logger = console_logger
+        session_manager.on_device_connected = lambda name: console_logger(f"📱 Dispositivo conectado: {name}")
+        session_manager.on_device_disconnected = lambda _: console_logger("📱 Dispositivo desconectado.")
+
+        print("=" * 62, flush=True)
+        print("⚡ HENDRIX DESKTOP COMPANION (MODO SERVICIO ACTIVO)", flush=True)
+        print("=" * 62, flush=True)
+        if gui_error_msg:
+            print(f"ℹ️  Modo servicio por falta de Tkinter ({gui_error_msg}).", flush=True)
+            print(f"💡 Para habilitar la ventana gráfica:", flush=True)
+            print(f"   - Arch / EndeavourOS:  sudo pacman -S tk", flush=True)
+            print(f"   - Ubuntu / Debian:     sudo apt install python3-tk", flush=True)
+            print("=" * 62, flush=True)
+        print(f"🚀 Servidor WebSocket RPC: ws://{config.local_ip}:{config.port}/ws", flush=True)
+        print(f"🔑 PIN de Emparejamiento:   {config.pin}", flush=True)
+        print(f"📡 Descubrimiento UDP:      Puerto {config.port} / AirSync {config.airsync_port}", flush=True)
+        print(f"🔄 Servidor OTA:            Puerto {config.ota_port}", flush=True)
+        print("=" * 62, flush=True)
+        print("✨ Hendrix Desktop está listo y escuchando conexiones.", flush=True)
+        print("   Presiona Ctrl+C para detener el servicio.", flush=True)
+        print("=" * 62, flush=True)
+
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n[Hendrix] Deteniendo servidores...", flush=True)
+            on_close()
 
 if __name__ == "__main__":
     main()

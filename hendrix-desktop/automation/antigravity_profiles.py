@@ -34,9 +34,22 @@ class AntigravityProfileManager:
         appdata_dir: Optional[str] = None,
         vault=None
     ):
-        self.profiles_dir = base_profiles_dir or os.path.expanduser(r"~\.antigravity-profiles")
-        self.appdata_dir = appdata_dir or os.path.expandvars(r"%APPDATA%\Antigravity")
-        self.vault = vault or windows_credential_vault
+        self.profiles_dir = base_profiles_dir or os.path.join(os.path.expanduser("~"), ".antigravity-profiles")
+        if appdata_dir:
+            self.appdata_dir = appdata_dir
+        elif sys.platform == "win32":
+            self.appdata_dir = os.path.expandvars(r"%APPDATA%\Antigravity")
+        else:
+            self.appdata_dir = os.path.expanduser("~/.config/Antigravity")
+        
+        if vault is not None:
+            self.vault = vault
+        elif sys.platform == "win32":
+            self.vault = windows_credential_vault
+        else:
+            from core.platform import platform_factory
+            self.vault = platform_factory.credential_vault
+
         self.manifest_file = os.path.join(self.profiles_dir, "profiles_manifest.json")
         os.makedirs(self.profiles_dir, exist_ok=True)
         self._ensure_manifest()

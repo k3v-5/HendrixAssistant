@@ -21,7 +21,17 @@ class BaseModuleController:
         self.process_names = [p.lower() for p in process_names]
 
     def find_window(self) -> Optional[int]:
-        """Localiza el HWND de la ventana principal de la aplicación."""
+        """Localiza el HWND o ID de la ventana principal de la aplicación."""
+        if not hasattr(ctypes, "windll"):
+            from automation.window_manager import window_manager
+            wins = window_manager.get_taskbar_windows()
+            for w in wins:
+                pname = (w.get("process") or "").lower()
+                title = (w.get("title") or "").lower()
+                if any(target in pname for target in self.process_names) or any(k in title for k in self.window_match_keywords):
+                    return w["hwnd"]
+            return None
+
         user32 = ctypes.windll.user32
         hDesk = user32.OpenInputDesktop(0, False, 0x01FF)
         if hDesk:
@@ -73,8 +83,12 @@ class BaseModuleController:
         """Restaura y trae la ventana al primer plano."""
         hwnd = self.find_window()
         if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            if hasattr(ctypes, "windll"):
+                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            else:
+                from automation.window_manager import window_manager
+                window_manager.focus_window(hwnd)
             time.sleep(0.2)
             return True
         return False

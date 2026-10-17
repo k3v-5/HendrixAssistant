@@ -8,7 +8,6 @@ import hashlib
 import psutil
 import websockets
 import pyperclip
-import pyautogui
 from config import config
 from core.session_manager import session_manager
 from core.security_guard import SecurityGuard
@@ -764,7 +763,7 @@ async def handle_client(websocket):
                         pyperclip.copy(text)
                         sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
                         if paste_now:
-                            pyautogui.hotkey("ctrl", "v")
+                            input_controller.process_action({"actionType": "HOTKEY", "keyCodes": ["ctrl", "v"]})
                         resp = {
                             "type": "CLIPBOARD_SET_ACK",
                             "requestId": req_id,

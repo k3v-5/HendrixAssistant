@@ -1,8 +1,10 @@
+import sys
 import ctypes
-from ctypes import wintypes
+from typing import List, Dict, Any, Optional
 import logging
 import psutil
-from typing import List, Dict, Any, Optional
+
+from core.platform.interfaces import IWindowManager
 
 logger = logging.getLogger("hendrix_desktop.window_manager")
 
@@ -19,7 +21,8 @@ SW_MINIMIZE = 6
 WM_CLOSE = 0x0010
 VK_MENU = 0x12  # Tecla ALT
 
-class WindowManager:
+
+class WindowsWindowManager(IWindowManager):
     """
     Gestor Win32 de ventanas y aplicaciones activas en Windows.
     Permite enumerar las ventanas legítimas de la barra de tareas y conmutar el foco
@@ -27,12 +30,18 @@ class WindowManager:
     """
 
     def __init__(self):
-        self._user32 = ctypes.windll.user32
-        self._dwmapi = ctypes.windll.dwmapi
-        self._ensure_input_desktop()
+        if hasattr(ctypes, "windll"):
+            self._user32 = ctypes.windll.user32
+            self._dwmapi = ctypes.windll.dwmapi
+            self._ensure_input_desktop()
+        else:
+            self._user32 = None
+            self._dwmapi = None
 
     def _ensure_input_desktop(self):
         """Asegura que el hilo esté conectado al escritorio interactivo activo (Default)."""
+        if not self._user32:
+            return
         try:
             hdesk = self._user32.OpenInputDesktop(0, False, 0x01FF)
             if hdesk:
@@ -42,10 +51,9 @@ class WindowManager:
             pass
 
     def get_taskbar_windows(self) -> List[Dict[str, Any]]:
-        """
-        Enumera todas las ventanas abiertas visibles en la barra de tareas o Alt+Tab.
-        Filtra ventanas invisibles, tooltips, overlays y procesos internos del sistema.
-        """
+        if not self._user32 or not self._dwmapi:
+            return []
+        from ctypes import wintypes
         self._ensure_input_desktop()
         windows: List[Dict[str, Any]] = []
         foreground_hwnd = self._user32.GetForegroundWindow()
@@ -118,7 +126,8 @@ class WindowManager:
                 "title": title,
                 "process": proc_name,
                 "pid": int(pid.value),
-                "isForeground": (hwnd == foreground_hwnd)
+                "isForeground": (hwnd == foreground_hwnd),
+                "platform": "windows"
             })
             return True
 
@@ -130,27 +139,22 @@ class WindowManager:
         return windows
 
     def focus_window(self, hwnd: int) -> bool:
-        """
-        Restaura y trae la ventana al primer plano en Windows con latencia < 1ms.
-        Aplica el bypass Win32 con tecla ALT para forzar la transferencia de foco en Windows 10/11.
-        """
+        if not self._user32:
+            return False
         self._ensure_input_desktop()
         if not self._user32.IsWindow(hwnd):
             logger.warning(f"Ventana inválida o destruida: HWND={hwnd}")
             return False
 
         try:
-            # 1. Si está minimizada, restaurar con SW_RESTORE
             if self._user32.IsIconic(hwnd):
                 self._user32.ShowWindow(hwnd, SW_RESTORE)
             else:
                 self._user32.ShowWindow(hwnd, SW_SHOW)
 
-            # 2. Bypass de transferencia de foco en Windows 10 y 11:
-            # Simular presión de la tecla ALT para otorgar permiso de foco al hilo en segundo plano
             self._user32.keybd_event(VK_MENU, 0, 0, 0)
             self._user32.SetForegroundWindow(hwnd)
-            self._user32.keybd_event(VK_MENU, 0, 2, 0)  # KEYEVENTF_KEYUP = 2
+            self._user32.keybd_event(VK_MENU, 0, 2, 0)
 
             self._user32.BringWindowToTop(hwnd)
             logger.info(f"🪟 Ventana enfocada con éxito: HWND={hwnd}")
@@ -159,18 +163,54 @@ class WindowManager:
             logger.error(f"Error enfocando ventana HWND={hwnd}: {e}")
             return False
 
+    def restore_window(self, hwnd: int) -> bool:
+        return self.focus_window(hwnd)
+
     def minimize_window(self, hwnd: int) -> bool:
-        """Minimiza la ventana especificada."""
+        if not self._user32:
+            return False
         self._ensure_input_desktop()
         if not self._user32.IsWindow(hwnd):
             return False
         return bool(self._user32.ShowWindow(hwnd, SW_MINIMIZE))
 
     def close_window(self, hwnd: int) -> bool:
-        """Envía solicitud estándar WM_CLOSE para cerrar la ventana limpiamente."""
+        if not self._user32:
+            return False
         self._ensure_input_desktop()
         if not self._user32.IsWindow(hwnd):
             return False
         return bool(self._user32.PostMessageW(hwnd, WM_CLOSE, 0, 0))
 
-window_manager = WindowManager()
+    def get_foreground_window(self) -> Any:
+        if not self._user32:
+            return None
+        return self._user32.GetForegroundWindow()
+
+    def get_window_title(self, hwnd: int) -> str:
+        if not self._user32:
+            return f"Window {hwnd}"
+        length = self._user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return ""
+        buff = ctypes.create_unicode_buffer(length + 1)
+        self._user32.GetWindowTextW(hwnd, buff, length + 1)
+        return buff.value.strip()
+
+    def get_window_rect(self, hwnd: int) -> Dict[str, int]:
+        if not self._user32:
+            return {"left": 0, "top": 0, "right": 1920, "bottom": 1080}
+        from ctypes import wintypes
+        rect = wintypes.RECT()
+        self._user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        return {"left": rect.left, "top": rect.top, "right": rect.right, "bottom": rect.bottom}
+
+
+# Alias de retrocompatibilidad
+WindowManager = WindowsWindowManager
+
+if sys.platform == "win32":
+    window_manager = WindowsWindowManager()
+else:
+    from core.platform.linux.linux_window_manager import LinuxWindowManager
+    window_manager = LinuxWindowManager()

@@ -3,8 +3,14 @@ Morado Neón OLED Void & Neon Purple Monolith Theme
 Centralized visual tokens, ttk styles, and component builders for Hendrix Desktop.
 """
 
-import tkinter as tk
-from tkinter import ttk
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    TKINTER_AVAILABLE = True
+except (ImportError, Exception):
+    tk = None
+    ttk = None
+    TKINTER_AVAILABLE = False
 
 # ==========================================
 # PALETA DE COLORES (OLED VOID & NEON PURPLE)

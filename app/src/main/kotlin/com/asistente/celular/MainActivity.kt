@@ -26,11 +26,13 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -196,15 +198,15 @@ class MainActivity : ComponentActivity() {
 
                                     NavigationBarItem(
                                         selected = currentScreen is Screen.Tasks,
-                                        onClick = { currentScreenFlow.value = Screen.Tasks() },
+                                        onClick = { currentScreenFlow.value = Screen.Tasks(initialTab = TasksTab.SCHEDULE) },
                                         colors = navItemColors,
                                         icon = {
                                             Icon(
-                                                imageVector = if (currentScreen is Screen.Tasks) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                                                contentDescription = "Tareas"
+                                                imageVector = if (currentScreen is Screen.Tasks) Icons.Filled.Schedule else Icons.Outlined.Schedule,
+                                                contentDescription = "Horario"
                                             )
                                         },
-                                        label = { Text("Tareas", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
+                                        label = { Text("Horario", fontSize = 11.sp, fontWeight = FontWeight.Medium) }
                                     )
 
                                     NavigationBarItem(
@@ -236,7 +238,7 @@ class MainActivity : ComponentActivity() {
                                         pcHostname = pcTelemetry?.hostname,
                                         pcTelemetry = pcTelemetry,
                                         onOpenPcModules = { currentScreenFlow.value = Screen.PcModules },
-                                        onOpenTasks = { currentScreenFlow.value = Screen.Tasks() },
+                                        onOpenTasks = { currentScreenFlow.value = Screen.Tasks(initialTab = TasksTab.SCHEDULE) },
                                         onOpenScheduleActivity = { activity ->
                                             currentScreenFlow.value = Screen.Tasks(
                                                 initialTab = TasksTab.SCHEDULE,
@@ -466,7 +468,7 @@ class MainActivity : ComponentActivity() {
     private sealed interface Screen {
         data object Assistant : Screen
         data class Tasks(
-            val initialTab: TasksTab = TasksTab.TASKS,
+            val initialTab: TasksTab = TasksTab.SCHEDULE,
             val targetActivityId: String? = null
         ) : Screen
         data object Notes : Screen

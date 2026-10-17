@@ -337,13 +337,16 @@ fun ScheduleLiveActivityCard(
 
 /**
  * Tarjeta individual para mostrar una actividad de horario.
+ * - Sin botones de borrar ni editar redundantes en la tarjeta.
+ * - Un solo toque sobre la tarjeta abre el diálogo de edición (donde también se puede eliminar).
+ * - Switch directo para activar/desactivar.
  */
 @Composable
 fun ScheduleActivityItemCard(
     activity: ScheduleActivityItem,
     onToggleEnabled: (String) -> Unit,
     onEditActivity: (ScheduleActivityItem) -> Unit,
-    onDeleteActivity: (String) -> Unit,
+    onDeleteActivity: (String) -> Unit = {},
     isHighlighted: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -356,9 +359,11 @@ fun ScheduleActivityItemCard(
     val isDimmed = !activity.isEnabled
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onEditActivity(activity) },
         shape = RoundedCornerShape(14.dp),
-        color = if (isDimmed) VoidSurface.copy(alpha = 0.5f) else VoidSurface,
+        color = if (isHighlighted) accentColor.copy(alpha = 0.12f) else if (isDimmed) VoidSurface.copy(alpha = 0.5f) else VoidSurface,
         border = BorderStroke(
             if (isHighlighted) 2.dp else 1.dp,
             if (isHighlighted) accentColor else if (isDimmed) VoidBorder.copy(alpha = 0.4f) else VoidBorder
@@ -406,6 +411,22 @@ fun ScheduleActivityItemCard(
                             color = if (isDimmed) TextMuted else accentColor,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
+                    }
+                    if (isHighlighted) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = NeonGreen.copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = "EN CURSO",
+                                fontSize = 8.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = NeonGreen,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
                     }
                 }
 
@@ -466,46 +487,25 @@ fun ScheduleActivityItemCard(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Acciones: Toggle enabled, editar y borrar
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { onEditActivity(activity) },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Editar",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = { onDeleteActivity(activity.id) },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Eliminar",
-                        tint = NeonRed.copy(alpha = 0.7f),
-                        modifier = Modifier.size(15.dp)
-                    )
-                }
-
-                Switch(
-                    checked = activity.isEnabled,
-                    onCheckedChange = { onToggleEnabled(activity.id) },
-                    modifier = Modifier.size(36.dp),
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = VoidBlack,
-                        checkedTrackColor = accentColor,
-                        uncheckedThumbColor = TextMuted,
-                        uncheckedTrackColor = VoidSurfaceElevated
-                    )
+            // Switch directo de activación (sin botones redundantes de editar ni borrar)
+            Switch(
+                checked = activity.isEnabled,
+                onCheckedChange = { onToggleEnabled(activity.id) },
+                modifier = Modifier.size(36.dp),
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = VoidBlack,
+                    checkedTrackColor = accentColor,
+                    uncheckedThumbColor = TextMuted,
+                    uncheckedTrackColor = VoidSurfaceElevated
                 )
-            }
+            )
         }
     }
+}
+
+enum class ScheduleViewMode {
+    WEEK_CALENDAR,
+    DAY_LIST
 }
 
 /**
@@ -522,8 +522,13 @@ fun ScheduleTabContent(
     initialActivityId: String? = null,
     modifier: Modifier = Modifier
 ) {
+    var viewMode by remember { mutableStateOf(ScheduleViewMode.WEEK_CALENDAR) }
     var selectedFilterDay by remember { mutableStateOf<ScheduleDay?>(ScheduleDay.currentDay()) }
     var activityToEdit by remember { mutableStateOf<ScheduleActivityItem?>(null) }
+    var addDialogDefaultDay by remember { mutableStateOf(ScheduleDay.currentDay()) }
+    var showAddDialogFromDay by remember { mutableStateOf(false) }
+
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     LaunchedEffect(initialActivityId, activities) {
         if (initialActivityId != null) {
@@ -535,7 +540,7 @@ fun ScheduleTabContent(
                 } else {
                     selectedFilterDay = target.daysOfWeek.firstOrNull() ?: currentDay
                 }
-                activityToEdit = target
+                // Se enfoca en la pantalla del evento sin abrir el diálogo de edición
             }
         }
     }
@@ -549,146 +554,249 @@ fun ScheduleTabContent(
         list.sortedBy { it.startTime }
     }
 
+    // Scroll al elemento destacado en modo lista si está presente
+    LaunchedEffect(initialActivityId, filteredActivities, viewMode) {
+        if (initialActivityId != null && viewMode == ScheduleViewMode.DAY_LIST) {
+            val index = filteredActivities.indexOfFirst { it.id == initialActivityId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index + 1)
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // Selector horizontal de días
-        ScheduleDaySelectorRow(
-            selectedDay = selectedFilterDay,
-            onSelectDay = { selectedFilterDay = it }
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Tarjeta en vivo para actividad en curso hoy
-        ScheduleLiveActivityCard(activities = activities)
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Lista de actividades o estado vacío
-        if (filteredActivities.isEmpty()) {
-            Box(
+        // Selector OLED de vista: [🗓️ SEMANA] y [📋 DÍA]
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .clickable { viewMode = ScheduleViewMode.WEEK_CALENDAR },
+                shape = RoundedCornerShape(10.dp),
+                color = if (viewMode == ScheduleViewMode.WEEK_CALENDAR) NeonPurple.copy(alpha = 0.2f) else VoidSurface,
+                border = BorderStroke(
+                    1.dp,
+                    if (viewMode == ScheduleViewMode.WEEK_CALENDAR) NeonPurple else VoidBorder
+                )
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = VoidSurface,
-                    border = BorderStroke(1.dp, VoidBorder),
-                    modifier = Modifier.padding(24.dp)
+                Row(
+                    modifier = Modifier.padding(vertical = 7.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(NeonPurple.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.EventNote,
-                                contentDescription = null,
-                                tint = NeonCyan,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = if (selectedFilterDay != null) {
-                                "Sin actividades el ${selectedFilterDay?.fullLabel}"
-                            } else {
-                                "No tienes actividades programadas"
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Registra tus bloques de trabajo, estudio, descanso o entrenamiento.",
-                            fontSize = 11.sp,
-                            color = TextSecondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = onOpenAddDialog,
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "AGREGAR ACTIVIDAD",
-                                color = VoidBlack,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = if (viewMode == ScheduleViewMode.WEEK_CALENDAR) NeonPurple else TextMuted,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "CALENDARIO SEMANAL",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (viewMode == ScheduleViewMode.WEEK_CALENDAR) NeonPurple else TextMuted
+                    )
                 }
             }
-        } else {
-            LazyColumn(
+
+            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 24.dp)
+                    .weight(1f)
+                    .clickable { viewMode = ScheduleViewMode.DAY_LIST },
+                shape = RoundedCornerShape(10.dp),
+                color = if (viewMode == ScheduleViewMode.DAY_LIST) NeonCyan.copy(alpha = 0.2f) else VoidSurface,
+                border = BorderStroke(
+                    1.dp,
+                    if (viewMode == ScheduleViewMode.DAY_LIST) NeonCyan else VoidBorder
+                )
             ) {
-                item {
-                    Row(
+                Row(
+                    modifier = Modifier.padding(vertical = 7.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccessTime,
+                        contentDescription = null,
+                        tint = if (viewMode == ScheduleViewMode.DAY_LIST) NeonCyan else TextMuted,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "VISTA DIARIA",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = if (viewMode == ScheduleViewMode.DAY_LIST) NeonCyan else TextMuted
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        when (viewMode) {
+            ScheduleViewMode.WEEK_CALENDAR -> {
+                ScheduleWeekCalendarView(
+                    activities = activities,
+                    onEditActivity = { activityToEdit = it },
+                    onToggleEnabled = onToggleEnabled,
+                    onAddNewActivityForDay = { day ->
+                        addDialogDefaultDay = day
+                        showAddDialogFromDay = true
+                    },
+                    highlightedActivityId = initialActivityId
+                )
+            }
+            ScheduleViewMode.DAY_LIST -> {
+                // Selector horizontal de días
+                ScheduleDaySelectorRow(
+                    selectedDay = selectedFilterDay,
+                    onSelectDay = { selectedFilterDay = it }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Tarjeta en vivo para actividad en curso hoy
+                ScheduleLiveActivityCard(activities = activities)
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Lista de actividades o estado vacío
+                if (filteredActivities.isEmpty()) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = if (selectedFilterDay != null) {
-                                "ACTIVIDADES (${selectedFilterDay?.fullLabel?.uppercase()})"
-                            } else {
-                                "TODAS LAS ACTIVIDADES"
-                            },
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = TextMuted
-                        )
-                        Text(
-                            text = "${filteredActivities.size} BLOQUES",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = NeonCyan
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = VoidSurface,
+                            border = BorderStroke(1.dp, VoidBorder),
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(NeonPurple.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EventNote,
+                                        contentDescription = null,
+                                        tint = NeonCyan,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = if (selectedFilterDay != null) {
+                                        "Sin actividades el ${selectedFilterDay?.fullLabel}"
+                                    } else {
+                                        "No tienes actividades programadas"
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Registra tus bloques de trabajo, estudio, descanso o entrenamiento.",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = onOpenAddDialog,
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = VoidBlack, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "AGREGAR ACTIVIDAD",
+                                        color = VoidBlack,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
                     }
-                }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (selectedFilterDay != null) {
+                                        "ACTIVIDADES (${selectedFilterDay?.fullLabel?.uppercase()})"
+                                    } else {
+                                        "TODAS LAS ACTIVIDADES"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextMuted
+                                )
+                                Text(
+                                    text = "${filteredActivities.size} BLOQUES",
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = NeonCyan
+                                )
+                            }
+                        }
 
-                items(filteredActivities, key = { it.id }) { activity ->
-                    ScheduleActivityItemCard(
-                        activity = activity,
-                        onToggleEnabled = onToggleEnabled,
-                        onEditActivity = { activityToEdit = it },
-                        onDeleteActivity = onDeleteActivity,
-                        isHighlighted = activity.id == initialActivityId
-                    )
+                        items(filteredActivities, key = { it.id }) { activity ->
+                            ScheduleActivityItemCard(
+                                activity = activity,
+                                onToggleEnabled = onToggleEnabled,
+                                onEditActivity = { activityToEdit = it },
+                                onDeleteActivity = onDeleteActivity,
+                                isHighlighted = activity.id == initialActivityId
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Modal de edición si se seleccionó una actividad
+    // Modal de edición al tocar cualquier tarjeta de rutina (único lugar donde se puede eliminar)
     if (activityToEdit != null) {
         ScheduleActivityDialog(
             initialActivity = activityToEdit,
@@ -696,6 +804,22 @@ fun ScheduleTabContent(
             onSaveActivity = { updated ->
                 onUpdateActivity(updated)
                 activityToEdit = null
+            },
+            onDeleteActivity = { id ->
+                onDeleteActivity(id)
+                activityToEdit = null
+            }
+        )
+    }
+
+    // Modal de nueva actividad pre-seleccionada para un día específico
+    if (showAddDialogFromDay) {
+        ScheduleActivityDialog(
+            defaultDay = addDialogDefaultDay,
+            onDismissRequest = { showAddDialogFromDay = false },
+            onSaveActivity = { created ->
+                onAddActivity(created)
+                showAddDialogFromDay = false
             }
         )
     }

@@ -1,6 +1,9 @@
+import sys
 import socket
 import subprocess
 import logging
+from typing import Dict, Any, Tuple
+from core.platform.interfaces import INetworkDiagnostic
 
 logger = logging.getLogger("hendrix_desktop.network_diagnostic")
 
@@ -28,6 +31,22 @@ class NetworkDiagnostic:
         }
 
     @staticmethod
+    def check_firewall_rule(rule_name: str = "Hendrix Desktop Companion", port: int = 8765) -> dict:
+        """Verificación multiplataforma de firewall (delega a Linux o Windows según el SO)."""
+        if sys.platform != "win32":
+            from core.platform import platform_factory
+            return platform_factory.network_diagnostic.check_firewall_rule(rule_name=rule_name, port=port)
+        return NetworkDiagnostic.check_windows_firewall_rule(rule_name=rule_name)
+
+    @staticmethod
+    def repair_firewall_rule(port: int = 8899, rule_name: str = "Hendrix Desktop Companion") -> tuple[bool, str]:
+        """Reparación multiplataforma de firewall."""
+        if sys.platform != "win32":
+            from core.platform import platform_factory
+            return platform_factory.network_diagnostic.repair_firewall_rule(port=port)
+        return NetworkDiagnostic.repair_windows_firewall_rule(port=port, rule_name=rule_name)
+
+    @staticmethod
     def check_windows_firewall_rule(rule_name: str = "Hendrix Desktop Companion") -> dict:
         """
         Consulta las reglas del Firewall de Windows mediante netsh.
@@ -52,7 +71,6 @@ class NetworkDiagnostic:
                     "raw": out
                 }
 
-            # Analizar si está habilitada
             lower_out = out.lower()
             is_enabled = "sí" in lower_out or "yes" in lower_out or "habilitada:\t\tsí" in lower_out or "enabled:\t\tyes" in lower_out
 
@@ -77,7 +95,6 @@ class NetworkDiagnostic:
         utilizando PowerShell con elevación de permisos (UAC RunAs).
         """
         try:
-            # Primero intentar eliminar regla obsoleta si existiera duplicada
             del_cmd = f"netsh advfirewall firewall delete rule name='{rule_name}'"
             add_cmd = f"netsh advfirewall firewall add rule name='{rule_name}' dir=in action=allow protocol=TCP localport={port}"
 
@@ -92,7 +109,6 @@ class NetworkDiagnostic:
                 timeout=20
             )
 
-            # Verificar si se aplicó
             check = NetworkDiagnostic.check_windows_firewall_rule(rule_name)
             if check.get("exists") and check.get("enabled"):
                 return True, f"Regla '{rule_name}' en puerto {port} TCP creada y activada con éxito."
@@ -104,5 +120,14 @@ class NetworkDiagnostic:
             return False, "Tiempo de espera agotado esperando la confirmación de elevación UAC."
         except Exception as e:
             return False, f"Error al ejecutar reparación de firewall: {e}"
+
+
+class WindowsNetworkDiagnostic(INetworkDiagnostic):
+    def check_firewall_rule(self, rule_name: str = "HendrixCompanion", port: int = 8765) -> Dict[str, Any]:
+        return NetworkDiagnostic.check_windows_firewall_rule(rule_name=rule_name)
+
+    def repair_firewall_rule(self, port: int = 8765) -> Tuple[bool, str]:
+        return NetworkDiagnostic.repair_windows_firewall_rule(port=port)
+
 
 network_diagnostic = NetworkDiagnostic()

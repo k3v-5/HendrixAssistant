@@ -333,33 +333,34 @@ class DevicesNetworkView(tk.Frame):
                 foreground=COLOR_NEON_ROSE
             )
 
-        # 2. Comprobar regla en Windows Defender Firewall
-        fw_info = network_diagnostic.check_windows_firewall_rule()
+        # 2. Comprobar regla en Firewall del sistema
+        fw_info = network_diagnostic.check_firewall_rule(port=port)
+        fw_type = fw_info.get("firewall_type", "Firewall del Sistema")
         if fw_info.get("exists") and fw_info.get("enabled"):
             self.firewall_status_lbl.configure(
-                text="Firewall de Windows: Regla de entrada autorizada para Hendrix",
+                text=f"{fw_type}: Regla de entrada autorizada para Hendrix",
                 foreground=COLOR_NEON_GREEN
             )
         elif fw_info.get("exists"):
             self.firewall_status_lbl.configure(
-                text="Firewall de Windows: Regla encontrada pero deshabilitada",
+                text=f"{fw_type}: Regla encontrada pero deshabilitada",
                 foreground=COLOR_NEON_AMBER
             )
         else:
             self.firewall_status_lbl.configure(
-                text="Firewall de Windows: Sin regla de entrada (Podría bloquear conexiones LAN)",
+                text=f"{fw_type}: Sin regla de entrada (Podría bloquear conexiones LAN)",
                 foreground=COLOR_NEON_ROSE
             )
 
     def _repair_firewall(self):
         port = getattr(config, "port", 8899)
-        self.repair_fw_btn.configure(text="Creando regla con UAC...", state="disabled")
+        self.repair_fw_btn.configure(text="Configurando firewall...", state="disabled")
         self.update()
 
         def _worker():
-            success, msg = network_diagnostic.repair_windows_firewall_rule(port)
+            success, msg = network_diagnostic.repair_firewall_rule(port)
             def _done():
-                self.repair_fw_btn.configure(text="Reparar Regla en Firewall de Windows", state="normal")
+                self.repair_fw_btn.configure(text="Reparar Regla en Firewall", state="normal")
                 if success:
                     messagebox.showinfo("Firewall Configurado", msg)
                 else:

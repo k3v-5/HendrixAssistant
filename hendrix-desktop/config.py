@@ -7,6 +7,7 @@ CONFIG_FILE = os.path.join(os.path.dirname(__file__), "hendrix_config.json")
 
 DEFAULT_PORT = 8899
 DEFAULT_AIRSYNC_PORT = 8900
+DEFAULT_OTA_PORT = 8901
 DEFAULT_QUALITY = 75
 DEFAULT_CHUNK_SIZE = 256 * 1024
 
@@ -25,6 +26,7 @@ class DesktopConfig:
     def __init__(self):
         self.port = DEFAULT_PORT
         self.airsync_port = DEFAULT_AIRSYNC_PORT
+        self.ota_port = DEFAULT_OTA_PORT
         self.pin = str(random.randint(100000, 999999))
         self.local_ip = get_local_ip()
         self.allow_mouse_control = True

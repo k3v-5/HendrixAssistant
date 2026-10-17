@@ -80,18 +80,17 @@ class UiaManager:
         cmd = command.lower().strip()
 
         if cmd == "shutdown":
-            subprocess.run(["shutdown", "/s", "/t", "10"], shell=True)
-            return True
+            from core.platform import platform_factory
+            return platform_factory.system_ops.shutdown()
         elif cmd == "restart":
-            subprocess.run(["shutdown", "/r", "/t", "10"], shell=True)
-            return True
+            from core.platform import platform_factory
+            return platform_factory.system_ops.reboot()
         elif cmd == "sleep":
-            # Poner Windows en suspensión usando SetSuspendState
-            ctypes.windll.PowrProf.SetSuspendState(0, 1, 0)
-            return True
+            from core.platform import platform_factory
+            return platform_factory.system_ops.suspend()
         elif cmd == "lock":
-            ctypes.windll.user32.LockWorkStation()
-            return True
+            from core.platform import platform_factory
+            return platform_factory.system_ops.lock()
         elif cmd.startswith("unlock:"):
             pin_or_pwd = command.split("unlock:", 1)[1].strip()
             return self.unlock_workstation(pin_or_pwd)
@@ -181,14 +180,21 @@ class UiaManager:
             SystemOps.set_keep_awake(True)
 
             # 1. Despertar pantalla si el monitor está en reposo (DPMS) moviendo ligeramente el puntero
-            ctypes.windll.user32.mouse_event(0x0001, 1, 1, 0, 0)
-            time.sleep(0.05)
-            ctypes.windll.user32.mouse_event(0x0001, -1, -1, 0, 0)
-            time.sleep(0.1)
+            if hasattr(ctypes, "windll"):
+                ctypes.windll.user32.mouse_event(0x0001, 1, 1, 0, 0)
+                time.sleep(0.05)
+                ctypes.windll.user32.mouse_event(0x0001, -1, -1, 0, 0)
+                time.sleep(0.1)
 
-            # 2. Enviar pulsación de espacio para levantar protector de pantalla o despertar monitor
-            ctypes.windll.user32.keybd_event(0x20, 0, 0, 0) # Space down
-            ctypes.windll.user32.keybd_event(0x20, 0, 2, 0) # Space up
+                # 2. Enviar pulsación de espacio para levantar protector de pantalla o despertar monitor
+                ctypes.windll.user32.keybd_event(0x20, 0, 0, 0) # Space down
+                ctypes.windll.user32.keybd_event(0x20, 0, 2, 0) # Space up
+            else:
+                pyautogui.moveRel(1, 1)
+                time.sleep(0.05)
+                pyautogui.moveRel(-1, -1)
+                time.sleep(0.1)
+                pyautogui.press("space")
             time.sleep(0.8)
 
             # 3. Levantar la pantalla de bloqueo si requiere Enter o Esc

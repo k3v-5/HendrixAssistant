@@ -5,4 +5,6 @@ pyautogui>=0.9.54
 psutil>=5.9.0
 pystray>=0.19.5
 qrcode>=7.4.2
-pywinauto>=0.6.8
+pyperclip>=1.8.2
+cryptography>=42.0.0
+pywinauto>=0.6.8; sys_platform == 'win32'

@@ -35,7 +35,7 @@ class TestPluginEngine(unittest.TestCase):
             action_id="disk_space"
         )
         self.assertTrue(res.get("success"))
-        self.assertIn("Disco C:", res.get("message", ""))
+        self.assertIn("Disco", res.get("message", ""))
         self.assertEqual("system_diagnostics", res.get("pluginId"))
         self.assertEqual("disk_space", res.get("actionId"))
         self.assertIn("elapsedMs", res)

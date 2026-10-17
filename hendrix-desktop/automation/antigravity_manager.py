@@ -196,6 +196,16 @@ class AntigravityManager:
 
     def find_antigravity_window(self) -> Optional[int]:
         """Busca el manejador de ventana (HWND) de Antigravity si está abierta."""
+        if not hasattr(ctypes, "windll"):
+            from automation.window_manager import window_manager
+            wins = window_manager.get_taskbar_windows()
+            for w in wins:
+                pname = (w.get("process") or "").lower()
+                title = (w.get("title") or "").lower()
+                if "antigravity" in pname or "antigravity" in title:
+                    return w["hwnd"]
+            return None
+
         user32 = ctypes.windll.user32
         hDesk = user32.OpenInputDesktop(0, False, 0x01FF)
         if hDesk:
@@ -326,8 +336,12 @@ class AntigravityManager:
 
                 hwnd = self.wait_for_window(timeout_sec=15.0)
                 if hwnd:
-                    ctypes.windll.user32.ShowWindow(hwnd, 9)
-                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    if hasattr(ctypes, "windll"):
+                        ctypes.windll.user32.ShowWindow(hwnd, 9)
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    else:
+                        from automation.window_manager import window_manager
+                        window_manager.focus_window(hwnd)
                 return True
             except Exception as e:
                 print(f"[AntigravityManager] Error lanzando ejecutable: {e}")
@@ -337,9 +351,12 @@ class AntigravityManager:
 
     def force_foreground_window(self, hwnd: int) -> bool:
         """
-        Garantiza que la ventana de Antigravity adquiera el foco del primer plano en Windows 10/11
-        utilizando la combinación de restauración, bypass de tecla ALT y AttachThreadInput.
+        Garantiza que la ventana adquiera el foco del primer plano.
         """
+        if not hasattr(ctypes, "windll"):
+            from automation.window_manager import window_manager
+            return window_manager.focus_window(hwnd)
+
         user32 = ctypes.windll.user32
         kernel32 = ctypes.windll.kernel32
 
@@ -552,9 +569,14 @@ class AntigravityManager:
         except Exception as e:
             print(f"[AntigravityManager] Advertencia en select_conversation vía UIA: {e}")
             try:
-                rect = (ctypes.c_long * 4)()
-                ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
-                left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+                if hasattr(ctypes, "windll"):
+                    rect = (ctypes.c_long * 4)()
+                    ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+                    left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+                else:
+                    from automation.window_manager import window_manager
+                    r = window_manager.get_window_rect(hwnd)
+                    left, top, right, bottom = r["left"], r["top"], r["right"], r["bottom"]
                 h = bottom - top
                 fallback_x = left + 80
                 fallback_y = top + int(h * 0.38)
@@ -710,8 +732,6 @@ class AntigravityManager:
             print("[AntigravityManager] No se encontró ventana de Antigravity para inyectar el prompt.")
             return False
 
-        user32 = ctypes.windll.user32
-
         # 1. Asegurar foco en Antigravity
         focused = False
         for _ in range(5):
@@ -720,25 +740,32 @@ class AntigravityManager:
                 break
             pyautogui.sleep(0.4)
 
-        # 2. Protección estricta: comprobar si la ventana foreground es efectivamente Antigravity
-        fg_hwnd = user32.GetForegroundWindow()
-        if fg_hwnd != hwnd and not focused:
-            fg_pid = ctypes.c_ulong()
-            user32.GetWindowThreadProcessId(fg_hwnd, ctypes.byref(fg_pid))
-            import psutil
-            try:
-                fg_pname = psutil.Process(fg_pid.value).name().lower()
-            except Exception:
-                fg_pname = ""
+        if hasattr(ctypes, "windll"):
+            user32 = ctypes.windll.user32
+            # 2. Protección estricta: comprobar si la ventana foreground es efectivamente Antigravity
+            fg_hwnd = user32.GetForegroundWindow()
+            if fg_hwnd != hwnd and not focused:
+                fg_pid = ctypes.c_ulong()
+                user32.GetWindowThreadProcessId(fg_hwnd, ctypes.byref(fg_pid))
+                import psutil
+                try:
+                    fg_pname = psutil.Process(fg_pid.value).name().lower()
+                except Exception:
+                    fg_pname = ""
 
-            if "antigravity" not in fg_pname:
-                print(f"[AntigravityManager] ⚠️ Seguridad: La ventana activa es '{fg_pname}', no Antigravity. Se cancela el pegado para no afectar la consola.")
-                return False
+                if "antigravity" not in fg_pname:
+                    print(f"[AntigravityManager] ⚠️ Seguridad: La ventana activa es '{fg_pname}', no Antigravity. Se cancela el pegado para no afectar la consola.")
+                    return False
 
-        # 3. Obtener dimensiones de la ventana
-        rect = (ctypes.c_long * 4)()
-        user32.GetWindowRect(hwnd, ctypes.byref(rect))
-        left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+            # 3. Obtener dimensiones de la ventana
+            rect = (ctypes.c_long * 4)()
+            user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            left, top, right, bottom = rect[0], rect[1], rect[2], rect[3]
+        else:
+            from automation.window_manager import window_manager
+            r = window_manager.get_window_rect(hwnd)
+            left, top, right, bottom = r["left"], r["top"], r["right"], r["bottom"]
+
         w = right - left
         h = bottom - top
 

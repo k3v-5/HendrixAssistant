@@ -63,8 +63,8 @@ class SceneCoordinator:
             await asyncio.sleep(2.5)
             # 2. Silenciar audio
             audio_mixer.set_master_mute(True)
-            # 3. Poner en suspensión
-            ctypes.windll.PowrProf.SetSuspendState(0, 1, 0)
+            from core.platform import platform_factory
+            platform_factory.system_ops.suspend()
 
             return {
                 "sceneId": scene_id,

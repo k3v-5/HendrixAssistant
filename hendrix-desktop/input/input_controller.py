@@ -1,26 +1,42 @@
 import time
 import ctypes
-import pyautogui
+from core.safe_pyautogui import ensure_safe_pyautogui
+pyautogui = ensure_safe_pyautogui()
 from core.security_guard import SecurityGuard
 
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0.0
-
 class InputController:
+    """
+    Controlador de inyección de entrada de ratón y teclado multiplataforma (Windows y Linux).
+    En Windows utiliza llamadas nativas Win32 ultra-rápidas (<0.05ms) y DPI awareness.
+    En Linux utiliza PyAutoGUI y X11 de forma transparente.
+    """
+
     def __init__(self):
-        try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)
-        except Exception:
+        if hasattr(ctypes, "windll"):
             try:
-                ctypes.windll.user32.SetProcessDPIAware()
+                ctypes.windll.shcore.SetProcessDpiAwareness(2)
             except Exception:
-                pass
-        self._ensure_input_desktop()
-        self.screen_width = ctypes.windll.user32.GetSystemMetrics(0) or 1920
-        self.screen_height = ctypes.windll.user32.GetSystemMetrics(1) or 1080
+                try:
+                    ctypes.windll.user32.SetProcessDPIAware()
+                except Exception:
+                    pass
+            self._ensure_input_desktop()
+            self.screen_width = ctypes.windll.user32.GetSystemMetrics(0) or 1920
+            self.screen_height = ctypes.windll.user32.GetSystemMetrics(1) or 1080
+        else:
+            try:
+                size = pyautogui.size()
+                self.screen_width = size.width
+                self.screen_height = size.height
+            except Exception:
+                self.screen_width = 1920
+                self.screen_height = 1080
+
         self._last_size_check = time.time()
 
     def _ensure_input_desktop(self):
+        if not hasattr(ctypes, "windll"):
+            return
         try:
             hdesk = ctypes.windll.user32.OpenInputDesktop(0, False, 0x01FF)
             if hdesk:
@@ -31,15 +47,22 @@ class InputController:
 
     def refresh_screen_size(self):
         now = time.time()
-        # Refrescar como máximo cada 4 segundos para evitar sobrecarga del controlador gráfico
         if now - self._last_size_check > 4.0:
             self._last_size_check = now
-            self._ensure_input_desktop()
-            w = ctypes.windll.user32.GetSystemMetrics(0)
-            h = ctypes.windll.user32.GetSystemMetrics(1)
-            if w > 0 and h > 0:
-                self.screen_width = w
-                self.screen_height = h
+            if hasattr(ctypes, "windll"):
+                self._ensure_input_desktop()
+                w = ctypes.windll.user32.GetSystemMetrics(0)
+                h = ctypes.windll.user32.GetSystemMetrics(1)
+                if w > 0 and h > 0:
+                    self.screen_width = w
+                    self.screen_height = h
+            else:
+                try:
+                    size = pyautogui.size()
+                    self.screen_width = size.width
+                    self.screen_height = size.height
+                except Exception:
+                    pass
 
     def process_action(self, action_dict: dict) -> bool:
         action_type = action_dict.get("actionType", "")
@@ -56,45 +79,59 @@ class InputController:
             target_x = max(0, min(self.screen_width - 1, int(rx * self.screen_width)))
             target_y = max(0, min(self.screen_height - 1, int(ry * self.screen_height)))
 
-        # Acciones de ratón de latencia ultrabaja
+        is_win = hasattr(ctypes, "windll")
+
+        # Acciones de ratón
         if action_type in ["CLICK", "DOUBLE_CLICK", "RIGHT_CLICK", "MOUSE_MOVE", "SCROLL"]:
             if not SecurityGuard.can_inject_mouse():
                 return False
 
             if action_type == "MOUSE_MOVE":
                 if target_x is not None and target_y is not None:
-                    # Win32 SetCursorPos es instantáneo (< 0.05ms) y no bloquea el event loop
-                    ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                    if is_win:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                    else:
+                        pyautogui.moveTo(target_x, target_y)
                 return True
 
-            self._ensure_input_desktop()
+            if is_win:
+                self._ensure_input_desktop()
 
             if action_type == "CLICK":
                 if target_x is not None and target_y is not None:
-                    ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
-                time.sleep(0.015)
-                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
+                    if is_win:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                        ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                        time.sleep(0.015)
+                        ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    else:
+                        pyautogui.click(target_x, target_y)
                 return True
 
             elif action_type == "DOUBLE_CLICK":
                 if target_x is not None and target_y is not None:
-                    ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
-                time.sleep(0.015)
-                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
-                time.sleep(0.05)
-                ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
-                time.sleep(0.015)
-                ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    if is_win:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                        ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                        time.sleep(0.015)
+                        ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                        time.sleep(0.05)
+                        ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0)
+                        time.sleep(0.015)
+                        ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    else:
+                        pyautogui.doubleClick(target_x, target_y)
                 return True
 
             elif action_type == "RIGHT_CLICK":
                 if target_x is not None and target_y is not None:
-                    ctypes.windll.user32.SetCursorPos(target_x, target_y)
-                ctypes.windll.user32.mouse_event(0x0008, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTDOWN
-                time.sleep(0.015)
-                ctypes.windll.user32.mouse_event(0x0010, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTUP
+                    if is_win:
+                        ctypes.windll.user32.SetCursorPos(target_x, target_y)
+                        ctypes.windll.user32.mouse_event(0x0008, 0, 0, 0, 0)
+                        time.sleep(0.015)
+                        ctypes.windll.user32.mouse_event(0x0010, 0, 0, 0, 0)
+                    else:
+                        pyautogui.rightClick(target_x, target_y)
                 return True
 
             elif action_type == "SCROLL":
@@ -131,9 +168,11 @@ class InputController:
             hwnd = action_dict.get("hwnd", 0)
             if hwnd:
                 from automation.window_manager import window_manager
-                return window_manager.focus_window(int(hwnd))
+                return window_manager.focus_window(hwnd)
             return False
 
         return False
 
+# Alias de compatibilidad
+WindowsInputController = InputController
 input_controller = InputController()

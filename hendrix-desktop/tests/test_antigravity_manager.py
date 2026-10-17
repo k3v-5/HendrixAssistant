@@ -20,6 +20,7 @@ def test_launch_or_focus_existing_window(mock_ag_manager):
             assert res is True
             mock_fg.assert_called_once_with(12345)
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Prueba de API nativa Win32")
 def test_force_foreground_window(mock_ag_manager):
     with patch('ctypes.windll.user32.IsWindow', return_value=1):
         with patch('ctypes.windll.user32.IsIconic', return_value=1):
@@ -96,6 +97,7 @@ def test_wait_for_window_timeout(mock_ag_manager):
             hwnd = mock_ag_manager.wait_for_window(timeout_sec=0.1)
             assert hwnd is None
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Prueba de API nativa Win32")
 def test_inject_prompt_safety_terminal_protection(mock_ag_manager):
     # Si la ventana activa no es Antigravity, no debe inyectar texto para no afectar la terminal
     with patch.object(mock_ag_manager, 'find_antigravity_window', return_value=12345):
@@ -137,6 +139,7 @@ def test_get_chat_by_id(mock_ag_manager):
     assert chat['conversationId'] == 'conv-1234'
     assert chat['title'] == 'Motor MCP Para Ableton'
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Prueba de API nativa Win32 y pywinauto")
 def test_select_conversation_matching(mock_ag_manager):
     # Simular pywinauto Desktop
     mock_link = MagicMock()

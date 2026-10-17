@@ -110,7 +110,7 @@ fun TasksScreen(
     onUpdateScheduleActivity: (ScheduleActivityItem) -> Unit = {},
     onDeleteScheduleActivity: (String) -> Unit = {},
     onToggleScheduleActivityEnabled: (String) -> Unit = {},
-    initialTab: TasksTab = TasksTab.TASKS,
+    initialTab: TasksTab = TasksTab.SCHEDULE,
     targetActivityId: String? = null
 ) {
     var currentTab by remember(initialTab) { mutableStateOf(initialTab) }
@@ -253,46 +253,13 @@ fun TasksScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Selector de pestaña OLED [TAREAS] [HORARIO]
+            // Selector de pestaña OLED [HORARIO] [TAREAS] - Horario prioritario
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { currentTab = TasksTab.TASKS },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (currentTab == TasksTab.TASKS) NeonCyan.copy(alpha = 0.2f) else VoidSurface,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (currentTab == TasksTab.TASKS) NeonCyan else VoidBorder
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "TAREAS",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted
-                        )
-                    }
-                }
-
                 Surface(
                     modifier = Modifier
                         .weight(1f)
@@ -322,6 +289,39 @@ fun TasksScreen(
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             color = if (currentTab == TasksTab.SCHEDULE) NeonPurple else TextMuted
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { currentTab = TasksTab.TASKS },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (currentTab == TasksTab.TASKS) NeonCyan.copy(alpha = 0.2f) else VoidSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (currentTab == TasksTab.TASKS) NeonCyan else VoidBorder
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "TAREAS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (currentTab == TasksTab.TASKS) NeonCyan else TextMuted
                         )
                     }
                 }

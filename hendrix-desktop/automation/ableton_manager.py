@@ -54,7 +54,17 @@ class AbletonManager:
         return None
 
     def find_ableton_window(self) -> Optional[int]:
-        """Busca el HWND de la ventana principal de Ableton Live."""
+        """Busca el HWND o ID de la ventana principal de Ableton Live."""
+        if not hasattr(ctypes, "windll"):
+            from automation.window_manager import window_manager
+            wins = window_manager.get_taskbar_windows()
+            for w in wins:
+                pname = (w.get("process") or "").lower()
+                title = (w.get("title") or "").lower()
+                if "ableton" in pname or "live" in pname or "ableton" in title:
+                    return w["hwnd"]
+            return None
+
         user32 = ctypes.windll.user32
         hDesk = user32.OpenInputDesktop(0, False, 0x01FF)
         if hDesk:
@@ -110,8 +120,12 @@ class AbletonManager:
         """Enfoca la ventana de Ableton Live o la inicia si no está corriendo."""
         hwnd = self.find_ableton_window()
         if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            if hasattr(ctypes, "windll"):
+                ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            else:
+                from automation.window_manager import window_manager
+                window_manager.focus_window(hwnd)
             return True
 
         exe = self.get_executable_path()
@@ -132,6 +146,9 @@ class AbletonManager:
         Verifica si la ventana de Ableton tiene un cuadro de diálogo modal activo
         (como el de '¿Desea guardar los cambios en ...?').
         """
+        if not hasattr(ctypes, "windll"):
+            return None
+
         user32 = ctypes.windll.user32
         hDesk = user32.OpenInputDesktop(0, False, 0x01FF)
         if hDesk:

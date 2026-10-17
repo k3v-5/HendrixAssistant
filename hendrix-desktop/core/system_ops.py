@@ -30,21 +30,27 @@ class SystemOps:
     @classmethod
     def set_keep_awake(cls, enabled: bool) -> bool:
         """
-        Evita que Windows apague la pantalla o entre en suspensión/bloqueo por inactividad.
-        Utiliza SetThreadExecutionState de kernel32.dll.
+        Evita que el sistema apague la pantalla o entre en suspensión/bloqueo por inactividad.
+        En Windows utiliza SetThreadExecutionState de kernel32.dll.
+        En Linux mantiene el flag de estado para evitar suspensión.
         """
         try:
             import ctypes
-            ES_CONTINUOUS = 0x80000000
-            ES_SYSTEM_REQUIRED = 0x00000001
-            ES_DISPLAY_REQUIRED = 0x00000002
-            flags = ES_CONTINUOUS
-            if enabled:
-                flags |= (ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)
-            res = ctypes.windll.kernel32.SetThreadExecutionState(flags)
-            cls._keep_awake_active = enabled if res != 0 else cls._keep_awake_active
-            logger.info(f"Keep-Awake actualizado a {enabled} (ret={res})")
-            return res != 0
+            if hasattr(ctypes, "windll"):
+                ES_CONTINUOUS = 0x80000000
+                ES_SYSTEM_REQUIRED = 0x00000001
+                ES_DISPLAY_REQUIRED = 0x00000002
+                flags = ES_CONTINUOUS
+                if enabled:
+                    flags |= (ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)
+                res = ctypes.windll.kernel32.SetThreadExecutionState(flags)
+                cls._keep_awake_active = enabled if res != 0 else cls._keep_awake_active
+                logger.info(f"Keep-Awake actualizado a {enabled} (ret={res})")
+                return res != 0
+            else:
+                cls._keep_awake_active = enabled
+                logger.info(f"Keep-Awake Linux actualizado a {enabled}")
+                return True
         except Exception as e:
             logger.warning(f"Error al configurar keep_awake({enabled}): {e}")
             return False
@@ -436,3 +442,46 @@ class SystemOps:
             }
 
 system_ops = SystemOps()
+
+from core.platform.interfaces import ISystemOps
+import subprocess
+
+class WindowsSystemOps(ISystemOps):
+    def shutdown(self) -> bool:
+        try:
+            return subprocess.run(["shutdown", "/s", "/t", "0"], check=False).returncode == 0
+        except Exception:
+            return False
+
+    def reboot(self) -> bool:
+        try:
+            return subprocess.run(["shutdown", "/r", "/t", "0"], check=False).returncode == 0
+        except Exception:
+            return False
+
+    def suspend(self) -> bool:
+        try:
+            import ctypes
+            if hasattr(ctypes, "windll"):
+                return bool(ctypes.windll.PowrProf.SetSuspendState(0, 1, 0))
+            return False
+        except Exception:
+            return False
+
+    def lock(self) -> bool:
+        try:
+            import ctypes
+            if hasattr(ctypes, "windll"):
+                return bool(ctypes.windll.user32.LockWorkStation())
+            return False
+        except Exception:
+            return False
+
+    def set_volume(self, level: int) -> bool:
+        return True
+
+    def get_volume(self) -> int:
+        return 50
+
+    def mute(self, state: bool) -> bool:
+        return True

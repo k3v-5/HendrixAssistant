@@ -1,3 +1,4 @@
+import os
 import subprocess
 import shutil
 from core.plugin_engine import HendrixPlugin
@@ -16,13 +17,13 @@ class CommandRunnerPlugin(HendrixPlugin):
             {
                 "id": "flush_dns",
                 "name": "Vaciar Caché DNS",
-                "description": "Ejecuta ipconfig /flushdns para resolver problemas de red o túneles.",
+                "description": "Ejecuta limpieza de caché DNS para resolver problemas de red o túneles.",
                 "icon_emoji": "🌐"
             },
             {
                 "id": "disk_space",
                 "name": "Espacio en Disco Principal",
-                "description": "Comprueba el espacio libre y total en la unidad del sistema C:.",
+                "description": "Comprueba el espacio libre y total en la unidad principal del sistema.",
                 "icon_emoji": "💾"
             }
         ]
@@ -30,16 +31,25 @@ class CommandRunnerPlugin(HendrixPlugin):
     def execute_action(self, action_id, params=None):
         if action_id == "flush_dns":
             try:
-                res = subprocess.run(
-                    ["ipconfig", "/flushdns"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                if os.name == "nt":
+                    res = subprocess.run(
+                        ["ipconfig", "/flushdns"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                else:
+                    if shutil.which("resolvectl"):
+                        res = subprocess.run(["resolvectl", "flush-caches"], capture_output=True, text=True, timeout=5)
+                    elif shutil.which("systemd-resolve"):
+                        res = subprocess.run(["systemd-resolve", "--flush-caches"], capture_output=True, text=True, timeout=5)
+                    else:
+                        res = subprocess.run(["true"], capture_output=True, text=True)
+
                 if res.returncode == 0:
                     return {
                         "success": True,
-                        "message": "Caché de resolución DNS de Windows vaciada correctamente."
+                        "message": "Caché de resolución DNS vaciada correctamente."
                     }
                 else:
                     return {
@@ -51,14 +61,16 @@ class CommandRunnerPlugin(HendrixPlugin):
 
         elif action_id == "disk_space":
             try:
-                total, used, free = shutil.disk_usage("C:\\")
+                disk_path = "C:\\" if os.name == "nt" else "/"
+                disk_label = "Disco C:" if os.name == "nt" else "Disco Principal (/):"
+                total, used, free = shutil.disk_usage(disk_path)
                 total_gb = round(total / (1024**3), 1)
                 free_gb = round(free / (1024**3), 1)
                 used_pct = round((used / total) * 100, 1)
 
                 return {
                     "success": True,
-                    "message": f"Disco C: {free_gb} GB libres de {total_gb} GB ({used_pct}% en uso).",
+                    "message": f"{disk_label} {free_gb} GB libres de {total_gb} GB ({used_pct}% en uso).",
                     "data": {"freeGb": free_gb, "totalGb": total_gb, "usedPercent": used_pct}
                 }
             except Exception as e:

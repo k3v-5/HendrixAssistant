@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,7 +75,8 @@ fun ScheduleActivityDialog(
     initialActivity: ScheduleActivityItem? = null,
     defaultDay: ScheduleDay = ScheduleDay.currentDay(),
     onDismissRequest: () -> Unit,
-    onSaveActivity: (ScheduleActivityItem) -> Unit
+    onSaveActivity: (ScheduleActivityItem) -> Unit,
+    onDeleteActivity: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -520,8 +522,34 @@ fun ScheduleActivityDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Cancelar", color = TextSecondary, fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isEditing && onDeleteActivity != null && initialActivity != null) {
+                    TextButton(
+                        onClick = {
+                            onDeleteActivity(initialActivity.id)
+                            onDismissRequest()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar",
+                            tint = NeonRed,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "ELIMINAR",
+                            color = NeonRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                TextButton(onClick = onDismissRequest) {
+                    Text("Cancelar", color = TextSecondary, fontSize = 12.sp)
+                }
             }
         }
     )

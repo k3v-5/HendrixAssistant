@@ -2,7 +2,10 @@ import os
 import sys
 import time
 import ctypes
-import winreg
+try:
+    import winreg
+except ImportError:
+    winreg = None
 import subprocess
 import urllib.parse
 from typing import Dict, Any, Optional, Tuple, List
@@ -72,6 +75,8 @@ class BrowserManager:
 
     def _query_registry_app_path(self, exe_name: str) -> Optional[str]:
         """Consulta el registro de Windows para obtener la ruta registrada del ejecutable."""
+        if not winreg:
+            return None
         sub_key = f"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{exe_name}"
         for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
             try:
@@ -122,7 +127,15 @@ class BrowserManager:
         if not info:
             return None
 
-        # Probar en App Paths de Windows
+        # Probar comandos en PATH del sistema (para Linux/Mac)
+        import shutil
+        for exe in info["exe_names"]:
+            p = shutil.which(exe)
+            if p:
+                self._cached_paths[browser_id] = p
+                return p
+
+        # Probar en App Paths de Windows si hay registro
         for exe in info["exe_names"]:
             reg_path = self._query_registry_app_path(exe)
             if reg_path:
@@ -182,11 +195,24 @@ class BrowserManager:
         return "https://www.google.com"
 
     def find_browser_window(self, browser_id: str) -> Optional[int]:
-        """Localiza el HWND de una ventana abierta del navegador."""
+        """Localiza el HWND o ID de una ventana abierta del navegador."""
         target_id = (browser_id or "chrome").lower().strip()
         info = self.SUPPORTED_BROWSERS.get(target_id)
         if not info:
             info = self.SUPPORTED_BROWSERS.get("chrome")
+
+        proc_names = [p.lower() for p in info["process_names"]] if info else []
+        keywords = [k.lower() for k in info["title_keywords"]] if info else []
+
+        if not hasattr(ctypes, "windll"):
+            from automation.window_manager import window_manager
+            wins = window_manager.get_taskbar_windows()
+            for w in wins:
+                pname = (w.get("process") or "").lower()
+                title = (w.get("title") or "").lower()
+                if any(target in pname for target in proc_names) or any(k in title for k in keywords):
+                    return w["hwnd"]
+            return None
 
         user32 = ctypes.windll.user32
         hDesk = user32.OpenInputDesktop(0, False, 0x01FF)
@@ -197,7 +223,6 @@ class BrowserManager:
         target_pids = set()
 
         if psutil and info:
-            proc_names = [p.lower() for p in info["process_names"]]
             for p in psutil.process_iter(['pid', 'name']):
                 try:
                     pname = p.info['name'].lower()
@@ -205,8 +230,6 @@ class BrowserManager:
                         target_pids.add(p.info['pid'])
                 except Exception:
                     pass
-
-        keywords = [k.lower() for k in info["title_keywords"]] if info else []
 
         def enum_proc(hwnd, lParam):
             nonlocal found_hwnd
@@ -242,8 +265,12 @@ class BrowserManager:
         """Trae al primer plano la ventana del navegador si existe."""
         hwnd = self.find_browser_window(browser_id)
         if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
+            if hasattr(ctypes, "windll"):
+                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            else:
+                from automation.window_manager import window_manager
+                window_manager.focus_window(hwnd)
             time.sleep(0.15)
             return True
         return False

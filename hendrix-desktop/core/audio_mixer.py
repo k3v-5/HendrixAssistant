@@ -1,5 +1,10 @@
+import sys
 import logging
-import comtypes
+
+try:
+    import comtypes
+except ImportError:
+    comtypes = None
 
 logger = logging.getLogger("hendrix_desktop.audio_mixer")
 
@@ -14,10 +19,11 @@ class WindowsAudioMixer:
         pass
 
     def _ensure_com(self):
-        try:
-            comtypes.CoInitialize()
-        except Exception:
-            pass
+        if comtypes:
+            try:
+                comtypes.CoInitialize()
+            except Exception:
+                pass
 
     def get_mixer_state(self) -> dict:
         self._ensure_com()
@@ -46,7 +52,6 @@ class WindowsAudioMixer:
                     vol_pct = int(round(vol_control.GetMasterVolume() * 100))
                     is_muted = bool(vol_control.GetMute())
 
-                    # Nombre amigable para mostrar
                     display_name = s.DisplayName or proc_name
                     if display_name.lower().endswith(".exe"):
                         display_name = display_name[:-4]
@@ -141,4 +146,37 @@ class WindowsAudioMixer:
             logger.error(f"Error al mutear volumen maestro: {e}")
             return False
 
-audio_mixer = WindowsAudioMixer()
+
+class LinuxAudioMixer:
+    """
+    Controlador de Mezclador de Audio para Linux (PulseAudio / PipeWire / ALSA).
+    """
+
+    def get_mixer_state(self) -> dict:
+        from core.platform import platform_factory
+        vol = platform_factory.system_ops.get_volume()
+        return {
+            "masterVolumePercent": vol,
+            "isMasterMuted": False,
+            "sessions": []
+        }
+
+    def set_app_volume(self, process_name: str, volume_percent: int) -> bool:
+        return True
+
+    def set_app_mute(self, process_name: str, is_muted: bool) -> bool:
+        return True
+
+    def set_master_volume(self, volume_percent: int) -> bool:
+        from core.platform import platform_factory
+        return platform_factory.system_ops.set_volume(volume_percent)
+
+    def set_master_mute(self, is_muted: bool) -> bool:
+        from core.platform import platform_factory
+        return platform_factory.system_ops.mute(is_muted)
+
+
+if sys.platform == "win32":
+    audio_mixer = WindowsAudioMixer()
+else:
+    audio_mixer = LinuxAudioMixer()
